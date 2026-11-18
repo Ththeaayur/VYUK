@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "note": "Click-anywhere Batch 1 (Plan 9 §4, M-37): versioned static game deny-list. Re-checked before EVERY act from the foreground identity in the observation. The parent adds a game on his report — an entry is a process name or window-title word, matched whole-word, case-insensitive.",
+  "games": []
+}
