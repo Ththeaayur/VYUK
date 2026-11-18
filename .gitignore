@@ -1,0 +1,36 @@
+# secrets & local config — never commit
+.env
+.env.*
+
+# runtime data (user data, databases) — never commit
+data/
+*.db
+*.sqlite3
+
+# voices, models & media (large binaries, fetched at runtime)
+voices/
+models/
+*.wav
+*.mp3
+*.onnx
+*.bin
+*.ttf
+*.otf
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.log
+
+# build / packaging
+dist/
+build/
+*.exe
+*.msi
+
+# os
+.DS_Store
+Thumbs.db

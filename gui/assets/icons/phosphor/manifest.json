@@ -1,0 +1,101 @@
+{
+ "entries": [
+  {
+   "name": "bell",
+   "path": "bell-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "check",
+   "path": "check-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "clock",
+   "path": "clock-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "database",
+   "path": "database-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "globe",
+   "path": "globe-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "grid",
+   "path": "grid-four-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "mic",
+   "path": "microphone-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "minus",
+   "path": "minus-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "monitor",
+   "path": "monitor-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "play",
+   "path": "play-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "pulse",
+   "path": "pulse-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "search",
+   "path": "magnifying-glass-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "send",
+   "path": "paper-plane-tilt-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "sliders",
+   "path": "sliders-horizontal-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "spark",
+   "path": "sparkle-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "square",
+   "path": "square-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "volume",
+   "path": "speaker-high-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "volume-off",
+   "path": "speaker-x-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "x",
+   "path": "x-duotone.svg",
+   "system": "phosphor"
+  }
+ ],
+ "phosphor_commit": "2b75f3ad12b420c9504ef05df8d2564a28f8500e",
+ "phosphor_commit_date": "2026-01-06"
+}

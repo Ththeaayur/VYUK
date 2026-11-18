@@ -1,0 +1,64 @@
+VYUK — END USER LICENCE AGREEMENT (EULA)
+
+DRAFT — have a lawyer review before commercial release.
+
+This is a draft agreement written in plain language. It has not been
+reviewed by a lawyer and may not be enforceable or sufficient in your
+jurisdiction. Do not ship VYUK commercially on the strength of this
+document alone.
+
+----------------------------------------------------------------------
+
+1. What this is
+   VYUK is proprietary software owned by Aayur Gattani ("the
+   Licensor"). This agreement is a licence, not a sale: you are
+   granted permission to use VYUK under the terms below. Ownership of
+   the software does not transfer to you.
+
+2. What you may do
+   - Install and use VYUK for your own personal or internal business
+     purposes.
+   - Make one backup copy for archival purposes.
+
+3. What you may not do
+   - Copy, distribute, sell, rent, lease or sublicense VYUK, except
+     for the backup copy allowed above.
+   - Reverse engineer, decompile or disassemble VYUK, except where
+     applicable law gives you that right despite this clause and the
+     law cannot be waived.
+   - Remove or alter any copyright, trademark or licence notices.
+   - Use VYUK to provide a service to third parties for payment,
+     unless the Licensor has agreed in writing.
+
+4. Third-party components
+   VYUK uses third-party components that remain under their own
+   licences (see THIRD_PARTY_LICENSES.md). Those licences, not this
+   agreement, govern those components. Where a third-party licence
+   gives you rights (for example, to replace an LGPL-licensed
+   library), nothing in this agreement takes those rights away.
+
+5. No warranty
+   VYUK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.
+   Where applicable law does not allow a warranty to be excluded, the
+   warranty is limited to the minimum the law permits.
+
+6. Limitation of liability
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR IS
+   NOT LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL OR CONSEQUENTIAL
+   DAMAGES, OR FOR LOSS OF DATA, PROFITS OR BUSINESS, ARISING FROM
+   THE USE OF OR INABILITY TO USE VYUK, EVEN IF ADVISED OF THE
+   POSSIBILITY OF SUCH DAMAGES. NOTHING IN THIS AGREEMENT EXCLUDES
+   LIABILITY THAT CANNOT BE EXCLUDED UNDER APPLICABLE LAW.
+
+7. Termination
+   This licence ends automatically if you breach it. On termination
+   you must stop using VYUK and delete your copies.
+
+8. Governing law
+   [To be completed on legal review — jurisdiction and venue.]
+
+----------------------------------------------------------------------
+DRAFT — have a lawyer review before commercial release.

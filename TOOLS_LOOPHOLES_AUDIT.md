@@ -1,0 +1,920 @@
+# Tools loopholes audit (Fix 7 — 2026-11-05)
+
+**Status: audit complete; ONE shared seam built and wired to the
+highest-value effectful families; the rest is a counted next pass.
+Owner's top-2–3 examples are still OWED from him (asked 2026-11-05,
+not yet supplied) — this audit proceeds from code, not from his
+examples, and says so.**
+
+Scope: all 656 registered tools (verified live from the registry and
+from `tests/_classification_snapshot.json`). Method: family
+classification by name + handler module (script:
+`~/workspace/code-lab/classify_tools.py`), then sampled handler
+reads per family with file/line evidence — not a hunch, not a
+full 656-by-656 hand read. Counts below add up to 656; the prover
+(`~/workspace/code-lab/prove_tools_loopholes.py`) re-checks the sum
+against the live snapshot.
+
+<!-- AUDIT-COUNTS: {"browser_web": 36, "capture_vision": 11, "clipboard_io": 5, "comms_calendar": 27, "creative_image": 49, "desktop_control": 67, "diagnostics_dev": 69, "files": 60, "info_lookup": 29, "media_audio": 43, "productivity": 145, "system_apps": 90, "travel": 12, "utilities": 113} -->
+<!-- AUDIT-TOTALS: {"total": 756, "read": 382, "effectful": 374, "confirm_gated": 164, "seam_wired": 44, "already_verified_in_handler": 308, "honestly_unverifiable": 22, "next_pass_pool": 0} -->
+
+## STANDING NOTE — Deep-integrations restraint (RET-4-STANDING-RESTRAINT, 2026-11-15)
+
+This note governs every tool-adding batch. It is a standing rule, not a
+batch record: a future batch that adds a tool or an integration must read
+this note first, and a batch that cannot show it complied does not ship.
+
+- **The daily-job surfaces are at most five.** No more than five surfaces
+  are ever the "daily jobs" VYUK is deep on. The five are chosen from the
+  surfaces the morning briefing and the routines actually need. The report
+  names Gmail / Calendar / files / browser as the CANDIDATE set — a
+  candidate set, not a pick. Which 3–5 surfaces are picked is D-RET-1, and
+  it is the OWNER's pick: until he picks, no surface is chosen, no surface
+  is hardened, and no surface batch starts.
+- **A surface is added only by a later, single-surface batch**, with its
+  own gap/prover/suite and its own reliability bar (the per-integration
+  hardening checklist in `SURFACE_HARDENING_CHECKLIST.md`). A surface is
+  never added in parallel with another. One surface at a time, reliability
+  before the next.
+- **Existing integrations outside the pick are FROZEN — not removed, no new
+  work on them, no new tools for them.** FROZEN means exactly that: the
+  integration keeps working as it does today, and nobody builds on it, fixes
+  it up, extends it, or adds a tool for it, until a single-surface batch
+  picks it up. Nothing in this note removes an integration, and nothing in
+  it authorises continued work on one outside the pick.
+- **Enforcement is twofold.** (1) The census pins in the neighbour suites:
+  any new tool breaks them — the totals above (755 tools, 2077 params) are
+  pinned by tests, and a tool-adding batch must re-baseline them in its own
+  record. (2) This standing note, here, where tool-adding batches are
+  governed: a reader can tell from this note alone that no new integration
+  work starts without a single-surface batch.
+- **No charging logic anywhere.** Ruling 34 (pricing/payments) is OPEN;
+  this restraint adds no billing code, no price strings, no paywall UI.
+
+Recorded by RET-4 (2026-11-15, retention plan §5). The hardening
+checklist the single-surface batches must satisfy is
+`SURFACE_HARDENING_CHECKLIST.md` at the tree root.
+
+## 0. The loophole family (L1–L7) + the ONE design
+
+- **L1 success-if-no-crash (structural).** The funnel's dispatch
+  marks ANY non-raising handler return as `"success"`
+  (`core/funnel/tools_registry_exec_dispatch.py`: the final
+  `ctx._audited({"status": "success", "result": result})`). A
+  handler that says "Done" when nothing happened still reads
+  success — the model narrates a success that never landed.
+- **L2 swallowed errors.** Silent fall-throughs and bare excepts
+  that hide failure: `speak_text` fired a daemon thread and
+  returned "Reading aloud now" before the engine started, while
+  the worker swallowed every exception; `print_file` returned
+  "Sent to the printer" when `os.startfile` merely launched the
+  print verb; `press_hotkey` swallowed release failures (D6).
+- **L3 single-action wrappers.** Tools that do one step of a
+  multi-step job and leave the rest to luck — e.g. `uninstall_app`
+  launches an uninstaller (honest: says "launched", never implies
+  removal — the pattern to copy, not a hole).
+- **L4 unwired / dead tools.** `webengine_proxy` has no product
+  consumer; `_web_rung` was revived in R3 (see §4) — no dead
+  rung remains in the ladder. No silent dead end was found
+  that is NOT marked.
+- **L5 missing capabilities.** The four gaps named in the
+  2026-10-21/22 desktop-control audits are CLOSED in the registry
+  and real (not stubs): printing (`list_printers`, `print_file`,
+  `set_default_printer`), PDF reading (`read_pdf_text` + 7 more),
+  read-aloud (`speak_text`, `read_page_aloud`,
+  `read_selection_aloud`), installed-apps management
+  (`list_installed_apps`, `uninstall_app`, `list_app_updates`).
+  No further top missing capability was proved missing in this
+  audit — none was manufactured to fill the list.
+- **L6 id passthrough / origin drop.** `execute_envelope` still
+  passes only `(tool, args)` (`core/funnel/tool_envelope.py:197`),
+  dropping the origin — BUT the live path now carries origin via
+  the `live_origin` contextvar (P2, §3), and the undeclared-args
+  drop on effectful tools REFUSES (Audit fix Batch 2, TOOL-02).
+  The planner-routines provenance record is additive and records
+  `session_tainted` at save time
+  (`core/brain/planner_routines.py:263-311`); unknown provenance
+  must still be treated as tainted by any future reader — a
+  standing reader obligation, unchanged by this batch.
+- **L7 no measurement of "did it work".** Nothing in the result
+  said whether the world confirmed the act. Fixed by the seam.
+
+**ONE design — "Verified, or honestly unverified"**
+(`core/tool_outcome.py`): one shared `Outcome` type
+(verified / unverified / failed) + one dispatch recognition
+(unwrap to the plain message string before any other handling;
+carry `outcome_verified` / `outcome_evidence` in the audited dict
+and the Activity line). Handlers that act on the world return an
+Outcome; handlers that still return plain strings behave exactly
+as before. A failed probe NEVER reads as verified. All helpers
+are READ-BACKS, never re-acts (a second act is a second side
+effect). Rejected alternatives are in `core/tool_outcome.py`'s
+docstring (generic funnel-side verifier — theatre without an
+observation supplier, the C4 lesson; rewiring all 655 at once —
+unsafe; changing success statuses — breaks the sentence-based
+brain contract; verifying by re-running the action — a second
+side effect).
+
+## 1. Family table (counts add to 755)
+
+`read` = the snapshot's read flag (382 tools): the result IS the
+evidence (reads, pure computation, stored records) — the L1 hole
+does not apply. `effectful` = 373 tools that act on the world.
+
+| Family | Total | Effectful | Verdict (sampled evidence) |
+|---|---|---|---|
+| browser_web | 36 | 13 | MIXED. Attach verified (Fix 3); locators re-resolve at dispatch; `open_url` routes through the Fix 3 attach when enabled (B2) — fallback stays fire-and-forget with the boundary stated. Raw-point browser verdicts have no element — next pass. `browser_console` / `browser_network` / `browser_performance` (R10-1 chrome-devtools-mcp port): read-only CDP console / network / performance inspection of the attached real Chrome over the tree's own CDP path (own stdlib WebSocket client, no Node, no server adopted — the MCP-server half is STOPPED pending an owner ruling, see core/desktop/browser_cdp_inspect.py) — the attach opt-in gates every call, no bodies or headers are collected, network URLs are shown without their query string, and the console / network results are untrusted producers ("web page") and egress reads under taint, exactly like tab_census. `browser_history` / `browser_bookmarks` (R10-3 browser-history port): read-only stored history and bookmarks of a profile the caller names — own stdlib sqlite3 + JSON reader over a copy of the History / places.sqlite / Bookmarks file, nothing adopted, no profile auto-discovery; gated on the dedicated history opt-in (OFF by default), the live file is never opened and its size + mtime are verified unchanged before the answer is given; history rows are untrusted producers ("web page") and egress reads under taint. `check_url_blocked` / `filter_list_status` (R10-4 python-adblock port): read-only URL matching over a filter list the caller supplies — own stdlib ABP-subset matcher, nothing adopted, no list bundled, no list fetched; the interception half is STOPPED (the browser engine it would plug into ships OFF pending its live A/B win) — this pack is the matching engine only; pure local computation, so both tools join _LOCAL_ONLY_READS and carry no taint entry. `extract_article` (R10-5 python-readability port): read-only article-body extraction over a page's HTML — own content-scoring extractor (text density + class/id signals) over the tree's already-declared lxml, nothing adopted, no chardet / cssselect / lxml-html-clean; the URL form fetches through the existing web-lookup seams and the article text is an untrusted producer ("web page") and an egress read under taint, like page_word_search; fail-closed, never falls back to the raw strip. |
+| capture_vision | 11 | 7 | GUARDED. Live staleness stage wired (§3); geometry floor; mark staleness. Binding still impossible (§3). `watch_gestures` (B-R1-8) is the 10th: a watch, not a capture — it reports only gestures stable across 3 consecutive polls, so the staleness stage does not apply to its own output. `ip_camera` (R17-3 go2rtc inspiration) is the 11th: the owner's own IP cameras (RTSP packet-level probe + ONVIF discovery/control + MJPEG/HTTP snapshot + raw .h264 recording), capture-gated per session like webcam_snapshot, credentials per call only and never stored or echoed; the WebRTC restream and HLS playback halves are NOT built (no decoder in the product). |
+| clipboard_io | 5 | 3 | WIRED (R1a). Writes verified by paste-back (`clipboard_equals`); file copies verified by file-list read-back (`clipboard_files_equal`); clear verified by format count. `read_clipboard` / `clipboard_files` self-evidencing; `type_clipboard` sent-not-confirmed — R1b. |
+| comms_calendar | 27 | 11 | BOUNDARY. `send_email` reports SMTP acceptance — server-accepted ≠ delivered; honest boundary, not a fix. Reads self-evidencing. `sync_updates` (GAPS-7, BLOCKS #6): what's new in mail and calendar since the last sync, through the shared sync engine — pages until exhausted, retries transient failures, remembers a watermark per source; a partial sync reports what landed, never advances the watermark, and says so. `social_send` (SOCIAL Phase 1, approved design, WhatsApp first): WhatsApp send via the official wa.me Click to Chat link, the owner sending by voice — VYUK prepares, verifies the conversation, and reads the thread back; the owner says "press Enter" and Windows Voice Access presses it; VYUK types nothing, presses nothing, and reports `done` only when the message is seen in the thread. |
+| creative_image | 49 | 33 | WIRED (3 generative file tools + 4 R1a image writers: `fractal_art`, `palette_image`, `gradient_css` preview, `make_wallpaper` — all verified by re-read). Remaining image writers are record/parameter tools — R1b triage. |
+| desktop_control | 67 | 55 | MIXED. Geometry floor + staleness stage; launch verification (process leg now via shared `process_running`, R1a); Focus Assist read-back now seam-wired via `registry_dword_equals` (R1a); `display_control` dark/set_wallpaper legs seam-wired (R1a); D6 hotkey FIXED this batch; volume read-back hedged. Media keys + `type_text` outcome — next pass. `status_strip` (R8-6 yasb port): a thin always-on bar with the five Pulse vitals, opt-in and off by default — the window IS the record (A1-store: visibility is read back after the sink call returns); no media, no workspaces, no pomodoro, no per-app polling. `game_server` (R17-4 MCSManager inspiration): the owner's own Minecraft/Steam/generic servers as own stdlib code over the tree's own live-process registry + kill tree — Server List Ping and Steam A2S queries, RCON console, process start/stop with a captured-output ring and stdin send; start/stop/restart/send/rcon are human-gated (the service_control/process_control precedent), query/status/console/list and the registry writes stay free; the one-click deployment/marketplace, Docker, multi-user and hosting-panel halves are NOT built (operator-supplied server only; public/hosted shape needs owner rulings). `stage_lighting` (R17-7 qlcplus inspiration): the owner's own stage / venue lighting as own stdlib code over the tree's own SQLite-store shape — Art-Net + sACN (E1.31) DMX output to the buyer's own lighting nodes on the LAN (plus Art-Net OpPoll discovery), fixture patching with a SQLite trigger refusing overlapping patches on the same universe, scenes and operator-stepped chases; output/blackout/scene-run/chase-step are human-gated (the game_server precedent), the reads, the discovery probe and the registry writes stay free; the DMX-over-USB half, the virtual console / web UI / hosted shape, QLC+ fixture-library import and timed auto-advance of a chase are NOT built (operator-supplied hardware only; public/hosted shape needs owner rulings). `click_anywhere` (2026-11-14): one tool with 10 properties (action, target, by, action_class, role, name, text, browser, route, confirm) that clicks anywhere he asks — browser DOM-level exact via the extension bridge (CDP + host launcher) in his real Chrome, whole desktop via UIA/mark/OCR/raw coordinates; every dispatch verified by before/after probes, the edit action re-reads both sides of the byte range (P-14/M-47); consequential clicks confirm-gated, messaging sends refused (D-17), occluded windows refused, login walls and captchas stop. |
+| diagnostics_dev | 69 | 28 | MIXED. Mostly reads/pins; extension licence-unknown reads not-allow-listed (fail-closed). `security_scan` (R17-2 trivy inspiration): installed-Python-package CVE scan against the keyless OSV feed, file-tree secrets scan reusing reach.py's gitleaks-ported recognizers (masked findings only), installed-package licence scan against the extension allow-list, and a CycloneDX inventory — all four actions are reads; the vuln action is an egress read (OSV fetch) so the tool stays out of _LOCAL_ONLY_READS. The misconfig, container-image and Kubernetes halves are NOT built (no containers, no Kubernetes, no IaC in the product). `mcp_registry` (R18-3 IBM/mcp-context-forge inspiration): local single-user MCP server registry — see the Counts after R18-3 paragraph. `agent_call` (R18-4 a2aproject/A2A inspiration): VYUK as an A2A client only — discover an agent's public card, call it over JSON-RPC 2.0, read/cancel its tasks; the server side (endpoint, served card, inbound calls), streaming, push-notification configs, the extended card, authenticated agents and the gRPC binding are NOT built. `prompt_tune` (R18-5 stanfordnlp/dspy inspiration): local prompt optimisation + evaluation — keep prompts and evaluation sets on this machine, run candidates against the set through the owner's own configured Gemini endpoint, score deterministically and promote the winner; the DSPy framework itself, weight training, hosted optimisation and LLM-as-judge scoring are NOT built. |
+| files | 60 | 31 | MIXED. `write_file` WIRED (verified re-read + byte compare). `read_pdf_text` self-evidencing. Copy/move/delete/replace WIRED (R1a): destination bytes + source state + absence. Remaining file tools are record/parameter tools — R1b triage. `wormhole_offer` / `wormhole_receive` (R8-5 magic-wormhole port): a code-phrase encrypted file transfer between two machines on the same local network — the offer listener is the stored record (A1-store: the bind is verified before the phrase is returned) and the receive verifies the sender's tag before the success line names the file (A9-measure); LAN-direct only, no relay, no public server. `init_backup_repo` / `backup_files` / `list_backup_snapshots` / `restore_backup` / `backup_status` (R9-2 rustic adoption): encrypted, deduplicated user-file backup through the operator-supplied rustic 0.11.4 binary (sha256 pinned and verified before every run; local repositories only; password via RUSTIC_PASSWORD at call time, never stored) — init and backup are verified by a snapshots probe that must contain the new repository / snapshot id (A5-sysreadback) and restore by a re-listing of the destination (A4-filestat); the two list/status tools are pure reads. `index_files` / `search_indexed_files` / `disk_index_status` (R9-3 whoosh port): a persistent, ranked FTS5 content index over user-chosen folders — the tree's own sqlite3 FTS5, not whoosh (stale since 2024-01-03), so nothing is adopted; index_files writes the index (A4-filestat: the file count is re-read before the success line names any number) and search_indexed_files returns bm25-ranked hits with snippets, dropping dead paths with a count; the two search/status tools are pure reads. `sync_folders_two_way` / `two_way_sync_status` (R9-4 mutagen port): two-way folder sync as own stdlib code — the official mutagen binary is NOT adopted (its release builds include SSPL-licensed code by default, copyleft, so adoption is hard-blocked; see core/two_way_sync.py) — a per-pair state file records last-synced fingerprints, conflicts are reported and never silently overwritten, mirror deletes are rescued into the central trash first; the sync is verified by byte comparison per copy and absence per delete (A4-filestat) and the status tool is a pure read of the state files. `organise_photos` / `preview_photo_organisation` (R9-8 elodie port): EXIF photo organiser as own stdlib + Pillow code — elodie itself is NOT adopted (its 0.0.1b0 wheel pins 2017-2018 versions, Pillow==5.3.0 and click==6.6, that conflict with the tree's Pillow 13; see core/photo_organise.py) — photos move into dated, location-aware folders by DateTimeOriginal (file date when no EXIF) with a coarse 0.1-degree GPS bucket as the location folder and 'Unknown Location' when there is no GPS; videos are left untouched (no video metadata reader); the move never overwrites (a taken name gets a ' (2)'-style suffix) and every move is verified by byte comparison against the pre-move hash with the source verified absent (A4-filestat); the preview tool is a pure read of the plan. `ebook_library` (R17-5 komga inspiration): the owner's own EPUB/CBZ library as own stdlib code over the tree's own memory-facts registry + companion LAN-server pattern — folder scan with EPUB (OPF metadata, spine, cover) and CBZ (ComicInfo.xml, page images, cover) readers, reading progress per book, and a LAN-only server serving an OPDS 1.2 Atom catalogue plus KOReader Sync (partial-MD5 book hash, DocumentProgressDto GET/PUT, users/auth) with a fresh password per start; CBR (RAR) and PDF are counted as skipped, not claimed; Kobo Sync, OPDS v2 and the multi-user/hosted shape are NOT built. |
+| info_lookup | 29 | 3 | SELF-EVIDENCING. Reads return data or errors; no world claims. `semantic_search_knowledge` / `knowledge_embedding_status` (R8-1 fastembed port): pure reads of the local knowledge SQLite — semantic search ranks stored vectors, status counts them; both report honestly when the model or the vectors are absent. |
+| media_audio | 43 | 28 | MIXED. `speak_text` WIRED (engine-start confirmation). `play_music` single-source guard (Fix 1). Media keys sent-not-confirmed — next pass. `start_meeting` / `stop_meeting` / `meeting_status` / `transcribe_audio` (R7-4 meetily): mic-only meeting capture, on-device transcription, notes from a real transcript — system audio is NOT captured (loopback is probe-only). `train_custom_wake_word` / `enable_custom_wake_model` / `list_custom_wake_models` / `custom_wake_model_status` (R7-6 micro-wake-word): train-your-own wake word from synthetic speech, tiny numpy model, mic-consent-gated enable, wake stays OFF, trained model is UNEVALUATED until the 1.5 m rig test. `audio_to_midi` / `audio_to_midi_status` (R8-7 basic-pitch port): hum, sing, or play any instrument and get back polyphonic MIDI with pitch bends — own numpy + ONNX port of spotify/basic-pitch, no TensorFlow, no librosa; the model is operator-supplied (pinned sha256, never bundled) and the write is re-read before the success line names the note count (A4-filestat); WAV input only. `media_chat` (R19-4 VidBee): Q&A and summary over a transcript, answered by the product's own Gemini key from the transcript alone — no downloader, no speaker diarization, no video processing. |
+| productivity | 145 | 87 | MIXED. Mostly records/reads (the stored record IS the evidence). Routine execution aggregates inner-tool outcomes — Fix 9 territory. `define_workflow` / `run_workflow` / `list_workflows` / `workflow_runs` (R7-7 taskflow): a DAG of funnel-tool calls with dependencies, trigger rules, retries and SQLite run history — every node passes its own gate, the DAG adds no privilege; run history is the record, not a claim. `score_intervention` / `run_proactivity_bench` / `list_proactivity_scores` / `proactivity_bench_results` (R7-8 proactive-agent): when-to-intervene scoring + 36-case benchmark, MEASUREMENT MODE ONLY — scored suggestions with reasons, never actions; the two write tools record to SQLite and re-read before claiming (A4/A9), the two read tools are pure reads. `embed_knowledge` (R8-1 fastembed port): embeds stored documents into the local embeddings table with the on-device MiniLM model; the write is re-read before the handler claims it (A4-filestat). `eye_rest_timer` / `breathing_guide` / `log_glass` (R8-4 screen-break port): a 20-20-20 nudge chain in the water_break shape (A1-store), a timed guided-deep-breathing script that is pure computation, and a water-glass counter in the app's own memory (A4-filestat — the count is re-read after the write); track / notice / organise only, no diagnosis, no scoring, no enforcement. `event_plan` / `event_guest` / `event_vendor` / `event_budget` / `event_milestone` / `event_schedule` (R16-8 the-wedding-website inspiration): an event-planning dashboard as own stdlib code over the tree's own money + task + scheduler shapes — plan / guests / vendors / budget estimator / milestones / seating / run-of-show in the app's own plan store (one memory fact per plan); the five writing tools are free by design (app-state) and verified by save_fact read-back + re-read (A1-store), event_budget is a pure read; the public wedding website, RSVP link flow and honeymoon fund are NOT built (hosting/share + guest-response + ruling 34 — needs owner rulings). `home_inventory` (R16-9 attic inspiration): a home inventory as own stdlib code over the tree's own memory-facts + admin shapes — item + box + room + condition + value + purchase date + photo path + quantity, one row per (item, box, room); the add is verified by save_fact read-back + re-read (A1-store), the photo is a path to a file that already exists (never copied or opened), and the Go self-hosted web app, the hosted multi-user shape and any photo upload/hosting are NOT built. `warehouse_stock` (R16-10 GreaterWMS inspiration): a small warehouse as own stdlib code over the tree's own memory-facts + admin shapes — stock locations with quantities, inbound (receive), outbound (ship), moves between locations, and per-location occupancy, one stock row per (item, location) with a movement ledger; receive/ship/move are verified by save_fact read-back + re-read (A1-store), ship and move refuse a shortfall honestly and never take stock below zero; the Django web app, the hosted multi-user shape, staff roles, the customer portal and any storage billing are NOT built. `bookings` (R17-1 bookrail inspiration): take bookings for the owner's own bookable resources as own stdlib code over the tree's own scheduler timezone shapes + its own SQLite store — resources with capacity, timezone, weekly schedule, buffers and booking window; availability with explain naming what took each instant; temporary holds that release on expiry; bookings with the rules frozen at booking time and an idempotency key held by a UNIQUE constraint; cancel / reschedule / no-show applying the frozen rules; a hash-chained event ledger; the double-booking guarantee lives in SQLite BEFORE INSERT / BEFORE UPDATE triggers (capacity 1: any overlap aborts; capacity N: the N+1th overlapping booking aborts) inside the same transaction as the insert, with SQLite's single-writer serialisation — the memory-facts store was not used for this on purpose, because check-then-write over JSONL facts is racy without a lock; every write is re-read before it is claimed (SQLite-trigger + re-read); the public booking link/page, payment capture and any MCP-server / HTTP / CLI exposure are NOT built (hosting/share + guest shape + ruling 34 — needs owner rulings). R17-6 lodging (openstays inspiration, 2026-11-11): the PMS half only — properties, units, seasonal rates, stays with the SQLite-trigger double-booking guarantee (blocked_until = check_out + turnover nights, frozen at booking), guests, housekeeping with a transition table, the day view and the frozen folio (integer cents, one tax rounding on the aggregate base); every write is re-read before it is claimed (SQLite-trigger + re-read); payments, the public booking page, multi-user/staff roles, channel manager/OTA/iCal sync, groups and currency conversion are NOT built (ruling 34 + hosting/share + multi-user — needs owner rulings). R17-9 wardrobe (tandpfun/wardrobe inspiration, 2026-11-12): the owner's own closet only — garments, outfits, daily suggestion from caller-supplied weather + wear history, one outfit per scheduled date, wear log, hash-chained events; every write is re-read before it is claimed (A1-store); AI outfit visualisations, garment extraction, camera-roll scan, weather fetch, sharing and hosting are NOT built. R18-1 billing (stripe/stripe-node inspiration, 2026-11-12): test-mode-only payment plumbing as own stdlib code over Stripe's REST API — test customers, test subscriptions against operator-supplied Price IDs, test payment links, test Checkout sessions, test invoices, test refunds, and local HMAC-SHA256 verification of a Stripe webhook signature; live keys are refused outright, every answer is checked for livemode false, no prices/tiers/trials are ever set, no card is ever handled, keys and webhook secrets are per call only and never stored or echoed; every Stripe write is written to a local hash-chained ledger and re-read before it is claimed (A1-store); the money-moving actions are confirm-gated, the reads are free. Live mode, price/product creation, raw card charges and the Billing portal are NOT built (ruling 34). R18-7 event_tickets (Attendize inspiration, 2026-11-12): ticket types, sale records and QR check-in for one event plan as own stdlib code over the tree's own money + event-planning + QR shapes — a sale is a record the owner made (the money moved outside VYUK, the tool never takes payment), each ticket gets its own code rendered as a QR PNG with the tree's own qr_encode, check-in is a local record that refuses duplicates and unknown codes honestly, and a sale that would oversell a type is refused with the numbers; every write is re-read before it is claimed (A1-store) and the ledger chain verifies over the full chain; the hosted ticketing site, payment capture, refunds as money movement, multi-organiser accounts, messaging attendees and affiliate tracking are NOT built (hosting/share + ruling 34 + multi-user — needs owner rulings).. R18-8 technical_analysis (bukosabino/ta inspiration, 2026-11-12): 25 indicators over operator-supplied OHLCV candles as own stdlib code — no live feed, no yfinance, no market-data download, no network call anywhere; datasets + hash-chained ledger in the tool's own SQLite store, every write re-read before it is claimed (A1-store), reads never create the store file; the signals action reports mechanical readings of the indicator values only, never advice, never a recommendation, never a prediction. R19-5 invoice (al1abb/invoify inspiration, 2026-11-12): render an erp invoice as a PDF (three templates: classic, modern, minimal) with a minimal stdlib PDF writer (no PDF library, no new dependency — the PDF is verified by a stdlib-only xref parser and opens in pypdf), and send it by email with the PDF attached (the send_email tool, extended in this batch with an optional `attachments` property, at most 5 files, each at most 25 MB); the invoice record itself lives in erp (this tool renders and sends it), the line items come from the sales order (order-based) or operator-supplied lines (standalone, whose lines are not stored by erp — a supplied-lines total must match the invoice total); the seller record is set once and reused; every render/send is appended to a hash-chained ledger and re-read before it is claimed (A1-store), reads never create the store file; `send` is confirm-gated (it SENDS real mail), the render/templates/seller/reads stay free. The Next.js web app, tax computation, money movement and any PDF library are NOT built. R19-6 translations (tolgee/tolgee-platform inspiration, 2026-11-12): local UI string localization as own stdlib code — projects, keys, translations per language, import/export in JSON/PO/XLIFF (own parsers and writers, no new dependency), and machine translation with the product's own Gemini key (prompt_tune's _lm_call); every write is appended to a hash-chained ledger and re-read before it is claimed (A1-store), reads never create the store file; `translate` is confirm-gated (it calls the owner's Gemini endpoint and spends their LM quota), the local actions stay free. The web app, the ee/ carve-out (Tolgee EE License v1, non-commercial — EXCLUDED), in-context editing and audio translation are NOT built. R19-7 filament (Donkie/Spoolman inspiration, 2026-11-12): a local 3D-printer filament spool inventory as own stdlib code — vendors, filament types (material, density, diameter, colour, weight) and spools with remaining weight and remaining length derived from density and diameter, usage recording that refuses a shortfall with the numbers, and low-stock warnings; every write is appended to a hash-chained ledger and re-read before it is claimed (A1-store), reads never create the store file; free by design (app-state). The web service, the REST API, the OctoPrint / Klipper / Moonraker integration, the SpoolmanDB central database and the QR label designer are NOT built. R19-8 deals (Django-CRM/Django-CRM inspiration, 2026-11-12): a deal pipeline and support tickets on erp customers as own stdlib code — pipelines with the seeded six stages, deals with probability auto-set from the stage and aging, tickets with priority, SLA targets and pause-on-Pending, over a hash-chained ledger; every write is re-read before it is claimed (A1-store), reads never create the store file; free by design (app-state). The Django web app, the hosted multi-user shape, the customer/lead/invoice records (erp keeps those), custom stages, the business-hours calendar, inbound email, webforms, macros, the knowledge base and sales goals are NOT built. GAPS-8 scheduled_agents (BLOCKS #7, 2026-11-13): the OperatorManifest + OperativeAgent layer over the existing APScheduler engine, plus the morning digest (7am, Asia/Calcutta, setup-only) — a job with no manifest cannot run (fail-closed), a step outside its manifest is refused and the refusal recorded, every run is recorded in the hash-chained ledger; the digest reads the last 24h of activity + upcoming calendar, summarises it (<=200 words, self-evaluated, regenerated once if weak, extractive fallback labelled as such), speaks it via speak_text and stores the record; setup_digest / cancel / run_now are confirm-gated, list / status / digest are free reads; every write is re-read before it is claimed (A1-store), reads never create the store file. |
+| system_apps | 90 | 46 | MIXED. `uninstall_app` honest ("launched", never implies removal); `print_file` WIRED (queue probe). Power/service/network actions sent-not-confirmed — next pass. `start_companion` / `stop_companion` / `companion_status` / `companion_pairing` (R7-5 kovrel): LAN-only phone remote, QR+PIN pairing, fresh PIN per start, no auto-start; screen sharing is consent-gated twice (capture guard at start, denylist per frame). `discord_presence` / `set_discord_client_id` (R8-9 pypresence adoption): Rich Presence in the local Discord client, opt-in and off by default — the application ID is operator-supplied, no VYUK application ID ships; the show is verified by Discord's SET_ACTIVITY ack (A5-sysreadback) and the ID save by file re-read (A4-filestat); no Discord running is an honest refusal. `ollama_status` / `ollama_pull` / `ollama_delete` (R11-1 ollama port): model management over the local Ollama server's REST API — own stdlib urllib code, nothing adopted (no Go server, no `ollama` PyPI client — it would drag pydantic + httpx for nothing the tree's own urllib calls do not already do); the status read is a loopback egress read with no taint entry (model-inventory metadata from the operator's own local server), pull is confirm-gated with the 'long' deadline and verified by a fresh /api/tags re-list (A5-sysreadback), delete is confirm-gated and refuses the configured brain model, verified by absence in a fresh re-list (A5-sysreadback); no push, no bundled models, no installer — the operator installs Ollama from ollama.com. |
+| travel | 12 | 1 | SELF-EVIDENCING (lookups / itineraries). |
+| utilities | 113 | 25 | SELF-EVIDENCING (pure computation; the result IS the evidence). `summarise_text` (R8-3 sumy port): extractive TextRank summary of caller-supplied text — pure computation, no model, no network, nothing leaves the machine. `fund_returns` / `mutual_fund_nav` (R8-8 mftool port): CAGR/XIRR on caller-supplied figures only, and the gated NAV display — AMFI's terms forbid commercial display, so the NAV tool answers with the honest refusal and makes no network call; no AMFI fetch exists in the tree. `solar_yield` (R17-8 pvlib port): sun position (NREL SPA), clear-sky irradiance (Ineichen/Perez) and plane-of-array irradiance (Hay-Davies) plus module/inverter yield (PVWatts DC + inverter, Ross cell temperature) — pure computation over caller-supplied figures, no weather fetch, no storage, nothing leaves the machine. |
+
+## 2. Wired through the seam this batch (6 tools)
+
+| Tool | Verification | Evidence |
+|---|---|---|
+| `write_file` | Re-read + byte compare (`file_written`) | `core/funnel/tools_handlers_data_services.py` (`_tool_write_file`) |
+| `create_art` | Re-read file on disk | `core/skills_creative_visual.py` |
+| `generate_melody` | Re-read file on disk | `core/skills_creative_sound_words.py` |
+| `generate_beat` | Re-read file on disk | `core/skills_creative2_art_music.py` |
+| `print_file` | win32print EnumJobs probe for the queued job | `core/skills_plus_apps_files.py` |
+| `speak_text` | Voice-engine start confirmation (2 s wait) | `core/skills_plus_voice_focus.py` |
+
+Plus two fail-open-audit follow-ups closed WITHOUT the seam (message
+honesty, not outcome type): **D6** `press_hotkey` — release failures
+named on all four paths (`core/desktop/control_input.py` pynput +
+ctypes; `core/platform/linux.py`; `core/platform/macos.py`; fake
+backend has no physical keys, untouched) with the rescue named
+(failsafe-tracked vs tap-the-key); **D4** sound sidecar — the
+"indicator live" claim now only appears when the indicator note
+landed (`core/sound_event_sidecar.py`). Plus one hedge:
+`adjust_volume`'s generic read-back exception now gets the same
+honest "couldn't be read back" note as the missing-pycaw case.
+
+Already verified in-handler before this batch (6 tools, sampled):
+`launch_application` (`_verify_launch`, honest middle verdict),
+`lock_screen` (return-code check), `uninstall_app` ("launched"
+wording), `adjust_volume` (pycaw read-back when available),
+`wallpaper_revert` (Fix 2 result dict), `close_application`
+(`_termination_outcome`, H16 — recognised in R1a triage; it was
+not in Fix 7's list). Next-pass pool: 309 − 6 − 6 = **297 effectful tools** to
+triage — most are record-writes whose store already reports failure
+honestly (FAILOPEN F21); the hole class inside the pool is "act on
+the external world, claim success on call-return alone" (keys,
+clicks, media keys, power, network, clipboard writes, file
+copy/move/delete). The pool is a triage list, not 297 holes.
+
+## 2b. R1a — seam pass 2, part 1 (13 tools newly wired; 2026-11-06)
+
+New helpers in `core/tool_outcome.py` (all verify in the world,
+never re-run the action, never raise): `clipboard_equals`
+(pyperclip paste-back), `clipboard_files_equal` (CF_HDROP /
+xclip uri-list), `file_copied` (chunked byte compare),
+`hash_file` / `file_matches_hash` (streaming SHA-256),
+`file_absent`, `process_running` (psutil, or /proc + tasklist
+fallback), `registry_dword_equals` (winreg HKCU read-back).
+Two helper bugs found by the R1a tests and fixed in the same
+batch: `_process_iter_psutil` was a generator (never returned
+None, so the no-psutil fallback never ran) and the no-psutil
+name-only fallback ignored `created_after` (a long-running
+namesake counted as launch evidence).
+
+| Tool | Verification | Evidence |
+|---|---|---|
+| `write_clipboard` | `clipboard_equals` paste-back at the handler | `core/funnel/tools_handlers_command_url.py` (`_tool_write_clipboard`) — closes the hole where a paste-back exception was silently assumed success |
+| `copy_file_to_clipboard` | `clipboard_files_equal` file-list read-back | `core/skills_files2_pdf_files.py` |
+| `clear_clipboard` | CountClipboardFormats verify-after-act (#38) | `core/skills_desktop_prefs.py` |
+| `file_control` (copy/move/rename/delete/create_folder) | `file_copied` / hash compare + `file_absent` / `is_dir` | `core/desktop/control_files.py` |
+| `replace_in_file` | `file_written` on the rewritten bytes | `core/skills_text.py` |
+| `shred_file` | `file_absent` after unlink | `core/skills_files2_pdf_files.py` |
+| `sync_folder` | `file_copied` per copied item, `file_absent` per mirror-delete; dry-run stays plain | `core/skills_files2_pdf_files.py` |
+| `sync_folders_two_way` | `file_copied` per copied item, `file_absent` per mirror-delete (via rescue); conflicts reported, never overwritten; dry-run stays plain | `core/two_way_sync.py` |
+| `fractal_art` | `file_written` | `core/skills_creative2_art_music.py` |
+| `palette_image` | `file_written` | `core/skills_studio.py` |
+| `gradient_css` (preview) | `file_written` on the preview; Outcome only when a preview was attempted | `core/skills_creative_play.py` |
+| `make_wallpaper` | Crop re-read + dimension check, set read-back | `core/skills_studio.py` |
+| `set_focus_assist` | `registry_dword_equals` (moved here from already-verified) | `core/skills_plus_voice_focus.py`; the two `skills_desktop_tiling.py` call sites now read it through `str(...)` |
+| `display_control` (dark_on/dark_off/set_wallpaper) | `registry_dword_equals` on both theme DWORDs; set_wallpaper keeps its H10 REG_SZ read-back, success wrapped in `verified()` | `core/desktop/control_plus_desktop.py` |
+
+Refactor only, no count change: `_launch_evidence`'s process
+leg now uses the shared `process_running` helper (same name +
+created-after rule); `launch_application` stays
+already-verified. Neighbour-triggered fix (full re-run done):
+`tests/test_wallpaper_revert.py::test_display_control_saves_before_change`
+did `assertIn` on `display_control`'s return — now an Outcome,
+not iterable — updated INTENTIONAL to read it through `str(...)`
+and to assert it is verified. Pinned for R1b, not forced: `read_clipboard` /
+`clipboard_files` (reads, self-evidencing), `type_clipboard`
+(sent-not-confirmed), the sent-not-confirmed class (media keys,
+`type_text`, power/service/network, browser raw-point verdicts),
+`comms_calendar` (SMTP-acceptance boundary, honest by design),
+`capture_vision` (binding impossible), the record-write families.
+Counts after R1a: seam-wired **19**, already-verified **6**,
+next-pass pool **284** (19 + 6 + 284 = 309; 346 + 309 = 655).
+
+## 2c. R1b — seam pass 2, part 2 (17 tools newly wired; 30 honestly unverifiable; 2026-11-06) + B2 open_url attach route (2026-11-06)
+
+The pool is closed. Every one of the 309 effectful tools now has a
+disposition. Counts after R1b: seam-wired **36** (6 Fix 7 + 13 R1a + 17 R1b),
+already-verified-in-handler **243** (6 Fix 7 + 237 R1b), honestly-unverifiable
+**30** (16 wrapped in code + 14 pinned on their already-honest message),
+next-pass pool **0** (36 + 243 + 30 = 309; 346 + 309 = 655).
+
+Counts after B2: seam-wired **37** (36 + `open_url`), already-verified-in-handler **243**, honestly-unverifiable **29**, next-pass pool **0** (37 + 243 + 29 = 309; 346 + 309 = 655).
+
+Counts after B13: seam-wired **44** (37 + 7 hands tools with a vision landing leg: `click_text`, `click_element`, `type_text`, `type_clipboard`, `paste_text`, `paste_snippet`, `drag_file_onto`), already-verified-in-handler **243**, honestly-unverifiable **22**, next-pass pool **0** (44 + 243 + 22 = 309; 346 + 309 = 655). The 7 are wired, not verified-by-default: the landing verdict rides the seam Outcome only when the B5 vision backend can read the screen (weights on disk); without weights they return honestly `unverified` exactly as before. The R-C contract (what "landed" must mean) is still owed — B13 is the lab half only.
+
+Counts after B-D1 (2026-11-09): seam-wired **44**, already-verified-in-handler **244** (243 + `window_place` — PyWinCtl geometry read-back after the act, mismatch reported honestly, A5-sysreadback, same disposition as `window_snap`), honestly-unverifiable **22**, next-pass pool **0** (44 + 244 + 22 = 310; 346 + 310 = 656).
+
+Counts after B-R1-8 (2026-11-09): seam-wired **44**, already-verified-in-handler **245** (244 + `watch_gestures` — A9-measure: the reported gesture IS the measurement, verified in the handler — the session reports a gesture only after 3 consecutive polls agree at confidence ≥ 0.5 with palm ≥ 0.5 and presence ≥ 0.5, so a flicker is never reported as a gesture; presence is only claimed from a detection in the current frame; a missing/denied camera is an honest refusal, never a silent fallback), honestly-unverifiable **22**, next-pass pool **0** (44 + 245 + 22 = 311; 346 + 311 = 657).
+
+Counts after R7-4 (2026-11-10): seam-wired **44**, already-verified-in-handler **247** (245 + `start_meeting` — A9-measure: the handler reports "recording" only after the capture guard allows the mic AND the backend stream opens AND the recording indicator is live — and `stop_meeting` — A4-filestat: the recording file is re-read after the write, its byte size rides the success line, and the notes are produced from a real transcript; a missing engine yields the saved recording's path and the error, never a fabricated transcript), honestly-unverifiable **22**, next-pass pool **0** (44 + 247 + 22 = 313; 348 + 313 = 661).
+
+Counts after R7-5 (2026-11-10): seam-wired **44**, already-verified-in-handler **249** (247 + `start_companion` — A9-measure: the handler reports "running" only after the socket binds the private LAN address AND the fresh PIN is generated AND the QR file is written — a refused bind or a non-private address yields the refusal, never a claimed URL — and `stop_companion` — A4-filestat: the server socket is closed, the session tokens are cleared, and the pairing QR file is deleted and its absence checked; a lingering server thread is reported, never hidden), honestly-unverifiable **22**, next-pass pool **0** (44 + 249 + 22 = 315; 350 + 315 = 665).
+
+Counts after R7-6 (2026-11-10): seam-wired **44**, already-verified-in-handler **251** (249 + `train_custom_wake_word` — A9-measure: the handler reports the trained model's held-out accuracy only after the model file is written AND re-loaded AND scored on held-out clips — a failed train yields the refusal, never a claimed model — and `enable_custom_wake_model` — A4-filestat: the active pointer file is re-read after the write and the success line names what the re-read found; a mic-consent refusal enables nothing), honestly-unverifiable **22**, next-pass pool **0** (44 + 251 + 22 = 317; 352 + 317 = 669).
+
+Counts after R7-7 (2026-11-10): seam-wired **44**, already-verified-in-handler **253** (251 + `define_workflow` — A4-filestat: the definition file is re-read after the write and the success line names what the re-read found; a refused definition stores nothing — and `run_workflow` — A9-measure: the run record is written to SQLite AND re-read before the summary is returned; a failed write yields the refusal, never a claimed run), honestly-unverifiable **22**, next-pass pool **0** (44 + 253 + 22 = 319; 354 + 319 = 673).
+
+Counts after R7-8 (2026-11-10): seam-wired **44**, already-verified-in-handler **255** (253 + `score_intervention` — A4-filestat: the score record is written to SQLite AND re-read before the handler returns; a failed record is disclosed in the message, never silently claimed — and `run_proactivity_bench` — A9-measure: the bench run record is written to SQLite AND re-read before the summary is returned; a failed record is disclosed, never silently claimed), honestly-unverifiable **22**, next-pass pool **0** (44 + 255 + 22 = 321; 356 + 321 = 677).
+
+Counts after R8-1 (2026-11-10): seam-wired **44**, already-verified-in-handler **256** (255 + `embed_knowledge` — A4-filestat: the vectors are written to the embeddings table AND the count is re-read from the table before the handler returns; a failed write is disclosed, never silently claimed), honestly-unverifiable **22**, next-pass pool **0** (44 + 256 + 22 = 322; 358 + 322 = 680).
+Counts after R8-3 (2026-11-10): seam-wired **44**, already-verified-in-handler **256**, honestly-unverifiable **22**, next-pass pool **0** (44 + 256 + 22 = 322; 359 + 322 = 681) — `summarise_text` is read-only (pure TextRank computation over caller-supplied text), so the effectful total and the §2c buckets do not move; the read total moves 358 -> 359 and the family moves utilities 109 -> 110.
+
+Counts after R8-4 (2026-11-10): seam-wired **44**, already-verified-in-handler **258** (256 + `eye_rest_timer` — A1-store: the nudge chain is the water_break shape, the scheduled nudges ARE the stored record — and `log_glass` — A4-filestat: the glass count is re-read from the store after the write before the handler claims it), honestly-unverifiable **22**, next-pass pool **0** (44 + 258 + 22 = 324; 360 + 324 = 684) — `breathing_guide` is read-only (pure timed script, no timer started, nothing measured or stored), so it moves only the read total 359 -> 360; the family moves productivity 118 -> 121 (effectful 62 -> 64).
+
+Counts after R8-5 (2026-11-10): seam-wired **44**, already-verified-in-handler **260** (258 + `wormhole_offer` — A1-store: the listener IS the record, the bind is verified before the phrase is returned — and `wormhole_receive` — A9-measure: the sender's tag is verified over the whole ciphertext before the success line names the file; a mismatch deletes the partial file and reports the failure, never the file), honestly-unverifiable **22**, next-pass pool **0** (44 + 260 + 22 = 326; 361 + 326 = 687) — `wormhole_status` is read-only (a pure read of the in-memory offers and transfer log), so it moves only the read total 360 -> 361; the family moves files 44 -> 47 (effectful 22 -> 24).
+
+Counts after R8-6 (2026-11-10): seam-wired **44**, already-verified-in-handler **261** (260 + `status_strip` — A1-store: the window IS the record, visibility is read back after the sink call returns and a show that did not make the strip visible is reported as a failure, never claimed), honestly-unverifiable **22**, next-pass pool **0** (44 + 261 + 22 = 327; 361 + 327 = 688) — the `status_strip` tool is effectful (show/hide move a window); its `status` action is a read of the same tool, so the read total does not move; the family moves desktop_control 63 -> 64 (effectful 51 -> 52).
+
+Counts after R8-7 (2026-11-10): seam-wired **44**, already-verified-in-handler **262** (261 + `audio_to_midi` — A4-filestat: the MIDI file is written AND re-read after the write and the success line names the note count the re-read found; a write that does not read back is reported as a failure, never claimed), honestly-unverifiable **22**, next-pass pool **0** (44 + 262 + 22 = 328; 362 + 328 = 690) — `audio_to_midi_status` is read-only (a pure read of the model file's presence + hash and the runtime's availability), so it moves only the read total 361 -> 362; the family moves media_audio 39 -> 41 (effectful 25 -> 26).
+
+Counts after R8-8 (2026-11-10): seam-wired **44**, already-verified-in-handler **262**, honestly-unverifiable **22**, next-pass pool **0** (44 + 262 + 22 = 328; 364 + 328 = 692) — `fund_returns` and `mutual_fund_nav` are both read-only (pure CAGR/XIRR computation on caller-supplied figures, and the NAV refusal — AMFI's terms forbid commercial display, so the tool answers with the honest reason and makes no network call), so the effectful total and the §2c buckets do not move; the read total moves 362 -> 364 and the family moves utilities 110 -> 112. The NAV fetch itself is STOPPED on the AMFI terms (personal, non-commercial use only; no storing any significant portion, no public display/transmit/publish, no derivative works) — no fetch code ships; the path back is a written agreement with AMFI or a licensed NAV source.
+
+Counts after R8-9 (2026-11-10): seam-wired **44**, already-verified-in-handler **264** (262 + `discord_presence` — A5-sysreadback: Discord's SET_ACTIVITY acknowledgement is read back after the call and a show is only claimed when the ack arrived — and `set_discord_client_id` — A4-filestat: the config file is re-read after the write), honestly-unverifiable **22**, next-pass pool **0** (44 + 264 + 22 = 330; 364 + 330 = 694) — both new tools are effectful, so the read total does not move; the family moves system_apps 85 -> 87 (effectful 42 -> 44).
+Counts after R9-2 (2026-11-10): seam-wired **44**, already-verified-in-handler **267** (264 + `init_backup_repo` — A5-sysreadback: the new repository must open in a snapshots probe before the creation is claimed — and `backup_files` — A5-sysreadback: the new snapshot id must be in the repository's own list before the backup is claimed — and `restore_backup` — A4-filestat: the destination is re-listed after the restore and must be non-empty), honestly-unverifiable **22**, next-pass pool **0** (44 + 267 + 22 = 333; 366 + 333 = 699) — `list_backup_snapshots` and `backup_status` are read-only (pure reads of the snapshot list and of the binary / default repository / snapshot count), so they move only the read total 364 -> 366; the family moves files 47 -> 52 (effectful 24 -> 27).
+Counts after R9-3 (2026-11-10): seam-wired **44**, already-verified-in-handler **268** (267 + `index_files` — A4-filestat: the file count is re-read after the write and must equal the expected total before the success line names any number), honestly-unverifiable **22**, next-pass pool **0** (44 + 268 + 22 = 334; 368 + 334 = 702) — `search_indexed_files` and `disk_index_status` are read-only (pure reads of the local FTS5 index and its status), so they move only the read total 366 -> 368; the family moves files 52 -> 55 (effectful 27 -> 28).
+Counts after R9-4 (2026-11-10): seam-wired **44**, already-verified-in-handler **269** (268 + `sync_folders_two_way` — A4-filestat: every copied file is byte-compared against its source and every mirror delete is verified absent before the success line names any number), honestly-unverifiable **22**, next-pass pool **0** (44 + 269 + 22 = 335; 369 + 335 = 704) — `two_way_sync_status` is read-only (a pure read of the sync-pair state files), so it moves only the read total 368 -> 369; the family moves files 55 -> 57 (effectful 28 -> 29).
+Counts after R9-8 (2026-11-10): seam-wired **44**, already-verified-in-handler **270** (269 + `organise_photos` — A4-filestat: every moved file is byte-compared against its pre-move hash and the source is verified absent before the success line names any number), honestly-unverifiable **22**, next-pass pool **0** (44 + 270 + 22 = 336; 370 + 336 = 706) — `preview_photo_organisation` is read-only (a pure read of the plan — it never moves, creates or writes anything), so it moves only the read total 369 -> 370; the family moves files 57 -> 59 (effectful 29 -> 30).
+
+Counts after R10-1 (2026-11-10): seam-wired **44**, already-verified-in-handler **270**, honestly-unverifiable **22**, next-pass pool **0** (44 + 270 + 22 = 336; 373 + 336 = 709) — `browser_console`, `browser_network` and `browser_performance` are all read-only (a live CDP watch over the attached real Chrome — console entries, request rows, one metrics snapshot — gated on the attach opt-in, nothing written anywhere), so the effectful total and the §2c buckets do not move; the read total moves 370 -> 373 and the family moves browser_web 28 -> 31. The MCP-server half of the finding is STOPPED, not built: exposing VYUK's tools to other MCP clients needs an owner ruling, and chrome-devtools-mcp itself stays DEV-ONLY per the PC-B11 verdict (it collects Google usage statistics by default; telemetry stays OFF) — see core/desktop/browser_cdp_inspect.py.
+
+Counts after R10-3 (2026-11-10): seam-wired **44**, already-verified-in-handler **270**, honestly-unverifiable **22**, next-pass pool **0** (44 + 270 + 22 = 336; 375 + 336 = 711) — `browser_history` and `browser_bookmarks` are both read-only (one-shot reads of a named profile's stored history / bookmarks — a copy of the History / places.sqlite / Bookmarks file is read, the live file is never opened and its size + mtime are verified unchanged before the answer is given — gated on the dedicated history opt-in, nothing written anywhere), so the effectful total and the §2c buckets do not move; the read total moves 373 -> 375 and the family moves browser_web 31 -> 33. Nothing is adopted from browser-history 0.5.0 (Apache-2.0): the port takes its two history SQL queries, its two bookmark readers and its copy-to-temp discipline, and drops the profile auto-discovery — the profile folder is named on every call and never guessed. Safari is out of scope (no Windows build).
+
+Counts after R10-4 (2026-11-10): seam-wired **44**, already-verified-in-handler **270**, honestly-unverifiable **22**, next-pass pool **0** (44 + 270 + 22 = 336; 377 + 336 = 713) — `check_url_blocked` and `filter_list_status` are both read-only (pure local computation on a URL and a list file the caller supplies — no network, no browser, nothing written anywhere), so the effectful total and the §2c buckets do not move; the read total moves 375 -> 377 and the family moves browser_web 33 -> 35. Nothing is adopted from python-adblock 0.6.0 (MIT OR Apache-2.0, dual): the port takes only the ABP matching semantics (domain anchors, substrings, wildcards, separators, exceptions, $domain, $third-party, resource types) in own stdlib code, and drops the native binding (stale since 2023-03-28, pins adblock-rust =0.5.6, 10.3 MB manylinux wheel). No filter list ships: EasyList is dual GPL-3.0 OR CC-BY-SA 3.0 — both copyleft — so bundling any well-known list is hard-blocked; lists are operator-supplied files only, never fetched, never guessed. The interception half is STOPPED, not built: patchright page.route() wiring would attach to an engine that ships OFF pending its live A/B win (the 42 s cut), and may_activate always returns False.
+
+Counts after R10-5 (2026-11-10): seam-wired **44**, already-verified-in-handler **270**, honestly-unverifiable **22**, next-pass pool **0** (44 + 270 + 22 = 336; 378 + 336 = 714) — `extract_article` is read-only (content scoring over a page's HTML — the URL form fetches through the existing web-lookup seams, the HTML form takes HTML the caller already has; no scripts run, no subresources are fetched, nothing is stored), so the effectful total and the §2c buckets do not move; the read total moves 377 -> 378 and the family moves browser_web 35 -> 36. Nothing is adopted from python-readability 0.9 (Apache-2.0): the port takes only the algorithm shape (text-density + class/id scoring, in the shape of Mozilla Readability) in own code over the tree's already-declared lxml (BSD-3), and drops chardet (absent from the Qt venv), cssselect (absent from both lab interpreters) and lxml-html-clean (absent from both — lxml.html.clean is not importable on either interpreter). The gap was narrower than the scout claimed: the tree already had tag-name strips (skills_web_lookup._page_text, skills_web6_helpers._PageText) and a main/article selector preference on the live-browser path (browser_read._page_text) — but no content scoring anywhere, so a div-built sidebar, ad block, cookie banner or "related articles" with <p> inside leaked through every existing path. The extractor is fail-closed: no scoring container, or under 140 characters of article text, refuses honestly and never falls back to the raw strip.
+Counts after R11-1 (2026-11-10): seam-wired **44**, already-verified-in-handler **272** (270 + `ollama_pull` — A5-sysreadback: the pulled model must appear in a fresh /api/tags list before the pull is claimed — and `ollama_delete` — A5-sysreadback: the model must be absent from a fresh /api/tags list before the delete is claimed), honestly-unverifiable **22**, next-pass pool **0** (44 + 272 + 22 = 338; 379 + 338 = 717) — `ollama_status` is read-only (a loopback read of the server version + installed-model list; an egress read with no taint entry, since the answers are model-inventory metadata from the operator's own local server), so it moves only the read total 378 -> 379; `ollama_pull` and `ollama_delete` are confirm-gated effectful tools, so they move the effectful total 336 -> 338, the confirm total 149 -> 151, and the family moves system_apps 87 -> 90 (effectful 44 -> 46). Nothing is adopted from ollama 0.6.3 (MIT — LICENSE read in full from main: 'Copyright (c) Ollama'): the port takes only the REST API shapes (/api/tags, /api/version, /api/pull with stream:false, /api/delete) in own stdlib code, and drops the Go server (not a Python dependency) and the `ollama` PyPI client (it requires pydantic>=2.9, declared nowhere, for nothing the tree's own urllib calls do not already do). No push (needs an ollama.ai account + public key), no bundled models, no installer — the operator installs Ollama from ollama.com; model switching stays in the GUI (Settings -> Brain). The gap was narrower than the scout claimed: the tree already had the Ollama backend (LocalLiveSessionOllamaMixin over stdlib urllib), the offline story at the session level (_check_ollama's honest 'Local brain offline' refusal), and the GUI model switch — what was missing was exactly the pull/list/delete management surface, and the tree's own gate message already named the pull command. The field leg is still owed: the local brain has never completed a real task on his Windows machine, so no offline PRO-tier claim is made here.
+
+Counts after R16-8 (2026-11-11): seam-wired **44**, already-verified-in-handler **277** (272 + `event_plan` — A1-store: the saved plan fact is re-read and the plan name confirmed before the creation is claimed — and `event_guest` — A1-store: the re-read plan must contain the guest — and `event_vendor` — A1-store: the re-read plan must contain the vendor — and `event_milestone` — A1-store: the re-read plan must contain the milestone — and `event_schedule` — A1-store: the re-read plan must contain the run-of-show item), honestly-unverifiable **22**, next-pass pool **0** (44 + 277 + 22 = 343; 380 + 343 = 723) — `event_budget` is read-only (pure computation over the stored plan: per-guest tier rate x guest count + vendor quotes; the tier rates are rough planning defaults, overridable with per_guest), so it moves only the read total 379 -> 380; the five writing tools are effectful, so they move the effectful total 338 -> 343, the family moves productivity 121 -> 127 (effectful 64 -> 69), and the confirm total does not move (the five write only to VYUK's own plan store, so they are free by design, "app-state", the budget_envelope / expense_log precedent). Nothing is adopted from drakebridgewater/the-wedding-website (Apache-2.0 per the LICENSE file from master — the GitHub API reports NOASSERTION): the build takes only the planner shape (plan / guests / vendors / budget + estimator / milestones / seating / run-of-show) as inspiration in own stdlib code, and drops the Django 4.2 + React 18 app, the public wedding website (hosting/share shape — needs an owner ruling), the RSVP link flow (guest-response shape — needs an owner ruling), the honeymoon fund (transaction surface — ruling 34), and the Google Sheets export. The gap was narrower than the scout claimed: the tree already had budget_envelope, expense_log, gift_log, scheduler reminders and the task ledger — what was missing was exactly the event plan store, the guest list, the vendor comparison, the budget estimator, the seating assignment and the run-of-show. The field leg is still owed: the dashboard has never been used for a real event on his Windows machine, so no planning claim beyond the lab is made here.
+
+Counts after R16-9 (2026-11-11): seam-wired **44**, already-verified-in-handler **278** (277 + `home_inventory` — A1-store: the saved item fact is re-read and the (item, box, room) row confirmed before the add is claimed), honestly-unverifiable **22**, next-pass pool **0** (44 + 278 + 22 = 344; 380 + 344 = 724) — `home_inventory` is effectful (it writes to VYUK's own home-item store), so it moves the effectful total 343 -> 344, the family moves productivity 127 -> 128 (effectful 69 -> 70), and the confirm total does not move (it writes only to VYUK's own item store, so it is free by design, "app-state", the asset_inventory / gift_log precedent). Nothing is adopted from lmmendes/attic (MIT per the LICENSE file from main — the copyright line is UNFILLED, "[year] [fullname]"): the build takes only the inventory shape (item + box + room + condition + value + purchase date + photo) as inspiration in own stdlib code over the tree's own memory-facts + admin shapes, and drops the Go self-hosted web app, the hosted multi-user shape and any photo upload/hosting. The gap was narrower than the scout claimed: the tree already had asset_inventory ({item, detail, value} + total), warranty_log, gift_log and borrow_log — what was missing was exactly the box + room location, the condition, the purchase date, the photo path and the per-box quantity. The field leg is still owed: the inventory has never been used for a real move or insurance claim on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R16-10 (2026-11-11): seam-wired **44**, already-verified-in-handler **279** (278 + `warehouse_stock` — A1-store: the stock row is re-read after a receive/ship/move and the expected quantity confirmed before the movement is claimed), honestly-unverifiable **22**, next-pass pool **0** (44 + 279 + 22 = 345; 380 + 345 = 725) — `warehouse_stock` is effectful (it writes to VYUK's own warehouse store), so it moves the effectful total 344 -> 345, the family moves productivity 128 -> 129 (effectful 70 -> 71), and the confirm total does not move (it writes only to VYUK's own warehouse store, so it is free by design, "app-state", the home_inventory / asset_inventory precedent). Nothing is adopted from GreaterWMS/GreaterWMS (Apache-2.0 per the LICENSE file from master, 201 lines): the build takes only the warehouse shape (stock locations + quantities, inbound/outbound, stock movements, occupancy) as inspiration in own stdlib code over the tree's own memory-facts + admin shapes, and drops the Django web app, the hosted multi-user shape, staff roles, the customer portal and any storage billing. The gap was narrower than the scout claimed: the tree already had home_inventory (item + box + room + quantity), asset_inventory ({item, detail, value} + total), borrow_log and the money + scheduler shapes — what was missing was exactly the stock location with capacity, the receive/ship/move flow with honest shortfall refusals, the movement ledger and the per-location occupancy. The field leg is still owed: the warehouse has never been used for a real storage unit on his Windows machine, so no claim beyond the lab is made here.
+Counts after R17-1 (2026-11-11): seam-wired **44**, already-verified-in-handler **280** (279 + `bookings` — SQLite-trigger + re-read: the booking row is re-read after the insert and the id, times and confirmed status confirmed before the booking is claimed, and the double-booking guarantee is the SQLite trigger, not the re-read), honestly-unverifiable **22**, next-pass pool **0** (44 + 280 + 22 = 346; 380 + 346 = 726) — `bookings` is effectful (it writes to VYUK's own booking store), so it moves the effectful total 345 -> 346, the family moves productivity 129 -> 130 (effectful 71 -> 72), and the confirm total does not move (it writes only to VYUK's own booking store, so it is free by design, "app-state", the warehouse_stock / event_plan precedent). Nothing is adopted from bookrail-dev/bookrail (Apache-2.0 per the LICENSE file from main, 201 lines, with a NOTICE file stating the "Bookrail" name and mark are MP Informatica Srl trademarks): the build takes only the booking-engine shape (resources + availability with explain + holds + bookings with frozen rules + idempotency + signed events) as inspiration in own stdlib code over the tree's own scheduler timezone shapes + its own SQLite store, and drops the Postgres backend, the HTTP API, the CLI, the MCP server, the TypeScript SDK and the hosted dashboard; the public booking link/page (hosting/share shape — needs an owner ruling), the guest shape (needs an owner ruling) and payment capture (ruling 34) are NOT built. The gap was narrower than the scout claimed: the tree already had Google Calendar reads, scheduler reminders, event planning (R16-8) and the warehouse location-capacity shape (R16-10) — what was missing was exactly the bookable resource with capacity + schedule, the availability computation with explain, the temporary hold, the atomic double-booking guarantee, the frozen-rules snapshot, the idempotency key and the event ledger. The field leg is still owed: the bookings have never been used for a real lesson, studio or rental on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R17-2 (2026-11-11): seam-wired **44**, already-verified-in-handler **280**, honestly-unverifiable **22**, next-pass pool **0** (44 + 280 + 22 = 346; 381 + 346 = 727) — `security_scan` is read-only (all four actions are reads: the vuln action fetches the keyless OSV feed, the secrets/licenses/sbom actions are local-only), so the effectful total and the §2c buckets do not move; the read total moves 380 -> 381 and the family moves diagnostics_dev 65 -> 66. Nothing is adopted from aquasecurity/trivy (Apache-2.0 per the LICENSE file from main, 201 lines, read in full): the build takes only the scanner shapes (CVE scan + secrets scan + licence scan + SBOM) as inspiration in own stdlib code over the tree's own reach.py recognizers + extension allow-list, and drops the Go binary, the container-image and Kubernetes targets, and the misconfig scanner (no containers, no Kubernetes, no IaC in the product — the 14 tree hits for the misconfig words are all false positives). The CVE data source is the OSV API (POST /v1/querybatch, keyless, no rate limits per its own docs, no account, no key, no paid feed); the live fetch could not be exercised from the lab (this VM's egress proxy stalls HTTP POSTs — GET reaches the OSV host and a real record, GHSA-462w-v97r-4m45, was fetched over GET), so the first real fetch on a buyer's machine is a field leg, and the lab verifies the client against that recorded real record through an injectable transport. The gap was narrower than the scout claimed: the tree already had CVE version pins (static floors, not a scanner), the secret recognizers in reach.py (text-only, pilot-only, never a gate), the licence allow-list in extension_safety_harness.py (one manifest string, not a package scan), and the signed integrity manifest (file hashes, not a package inventory) — what was missing was exactly the scanner that runs those over installed packages and files. The field leg is still owed: no real OSV fetch and no real scan of a buyer's installed packages has happened on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R17-3 (2026-11-11): seam-wired **44**, already-verified-in-handler **281** (280 + `ip_camera` — capture-gate + re-read/filestat: registry writes are re-read from the memory-facts store before the result is claimed, snapshot/MJPEG/record files are stat'ed before the path is claimed, and the RTSP probe claims only what the packets prove), honestly-unverifiable **22**, next-pass pool **0** (44 + 281 + 22 = 347; 381 + 347 = 728) — `ip_camera` is effectful (it writes to VYUK's own camera registry and writes picture/video files), so the effectful total moves 346 -> 347 and the family moves capture_vision 10 -> 11 (effectful 6 -> 7), and the confirm total does not move (it is free by design, "capture", the webcam_snapshot precedent — the camera permission gate, not a confirm, is the control). Nothing is adopted from AlexxIT/go2rtc (MIT per the LICENSE file from master, 21 lines, "MIT License / Copyright (c) 2022 Alexey Khit", read in full): the build takes only the camera-streaming shapes (RTSP ingest + ONVIF discovery/control + MJPEG/HTTP snapshot + recording) as inspiration in own stdlib Python over the tree's own capture-guard + memory-facts shapes, and drops the Go binary, the WebRTC restream (needs aiortc+PyAV, importable in neither lab interpreter — a from-scratch WebRTC stack is not a one-batch stdlib job; ruling owed: install the declared aiortc stack on the buyer's machine and verify the restream there) and HLS playback (no decoder, no player — Qt Multimedia absent). The gap was narrower than the scout claimed: the tree already detected when an app uses the local webcam, read one webcam frame for room brightness, and took webcam snapshots — what was missing was exactly the IP-camera ingest (RTSP packet-level probe, ONVIF discovery + stream URIs, MJPEG/HTTP snapshot, raw recording). The field leg is still owed: no real IP camera has been used on his Windows machine, so no claim beyond the lab is made here.
+Counts after R17-4 (2026-11-11): seam-wired **44**, already-verified-in-handler **282** (281 + `game_server` — A1-store + A5-sysreadback + process-leg: registry writes are re-read before the result is claimed, start claims only after the process is observed alive, stop claims only after it is observed exited, and the query actions claim only what the protocol reply proves), honestly-unverifiable **22**, next-pass pool **0** (44 + 282 + 22 = 348; 381 + 348 = 729) — `game_server` is effectful (it writes to VYUK's own server registry and starts/stops OS processes), so the effectful total moves 347 -> 348, the family moves desktop_control 64 -> 65 (effectful 52 -> 53), and the confirm total moves 151 -> 152 (start/stop/restart/send/rcon are human-gated, the service_control/process_control precedent, via an args-aware branch in _needs_confirmation; the reads and the registry writes stay free). Nothing is adopted from MCSManager/MCSManager (Apache-2.0 per the LICENSE file from master via the GitHub API license endpoint, 11,340 bytes, standard text, read in full — the raw download URL 404'd, so the API endpoint is where it was found): the build takes only the game-server-management shapes (Minecraft Server List Ping + RCON + Steam A2S query + process start/stop/monitor + console/log reading) as inspiration in own stdlib code over the tree's own live-process registry + kill tree, and drops the Node panel, the one-click deployment/marketplace (it would fetch server binaries — operator-supplied only), Docker, and the multi-user / distributed / hosting-panel shape (public/hosted — needs owner rulings). The gap was narrower than the scout claimed: the tree already detected installed games/launchers, ran one-shot and generic background jobs, and could list/kill processes by pid — what was missing was exactly the server registry, the three query/console protocols, and a process manager with stdin and a captured-output ring. The field leg is still owed: no real Minecraft or Steam server has been managed on his Windows machine, so no claim beyond the lab is made here. Neighbour-triggered fix, same batch: the first neighbour run caught a second shell=True spawn site (core/game_server.py) against the auditfix3 one-site pin — the spawn now goes through control_shell._spawn_shell itself with a new stdin_pipe=True option (default False, run_command behaviour unchanged), so the tree keeps exactly one shell spawn site; no census change.
+Counts after R17-5 (2026-11-11): seam-wired **44**, already-verified-in-handler **283** (282 + `ebook_library` — A1-store + A4-filestat: registry writes are re-read before the result is claimed, progress writes are re-read before the result is claimed, and the server claims its bind only after ThreadingHTTPServer is listening on the LAN address), honestly-unverifiable **22**, next-pass pool **0** (44 + 283 + 22 = 349; 381 + 349 = 730) — `ebook_library` is effectful (it writes to VYUK's own book/progress registry and starts/stops a LAN server), so the effectful total moves 348 -> 349, the family moves files 59 -> 60 (effectful 30 -> 31), and the confirm total does not move (it is free by design, "ebook", the companion precedent — the serve/stop calls themselves are the explicit opt-in, fresh password per start, LAN-only bind, dies with stop). Nothing is adopted from gotson/komga (MIT per the LICENSE file from master, 21 lines, "MIT License / Copyright (c) 2019 Gauthier Roebroeck", read in full): the build takes only the ebook-library shapes (EPUB/CBZ metadata scan + reading progress + OPDS 1.2 catalogue + KOReader Sync) as inspiration in own stdlib code over the tree's own memory-facts registry + companion LAN-server pattern, and drops the JVM server, the Kobo Sync half (kepub conversion + device auth flow, no Kobo in the lab — a second batch with a field leg), OPDS v2, CBR (RAR is not stdlib-readable) and PDF metadata (page counting is unreliable in stdlib), and the multi-user / hosted shape (public/hosted — needs owner rulings). The gap was total: the tree had no ebook surface at all — the only "epub" hits were an extension label and a substring inside "Republic". The field leg is still owed: no real e-reader has synced against the server on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R17-6 (2026-11-11): seam-wired **44**, already-verified-in-handler **284** (283 + `lodging` — SQLite-trigger + re-read: the double-booking guarantee lives in BEFORE INSERT / BEFORE UPDATE triggers, every write is re-read before the result is claimed, and the hash-chained event ledger is verified over the FULL ledger), honestly-unverifiable **22**, next-pass pool **0** (44 + 284 + 22 = 350; 381 + 350 = 731) — `lodging` is effectful (it writes to VYUK's own lodging store), so the effectful total moves 349 -> 350, the family moves productivity 130 -> 131 (effectful 72 -> 73), and the confirm total does not move (it is free by design, "app-state", the bookings precedent — writes only to VYUK's own store). Nothing is adopted from murdawkmedia/openstays (MIT per the LICENSE file from nostr-main, 21 lines, "MIT License / Copyright (c) 2026 Murdawk Media", read in full): the build takes only the lodging/PMS shapes (properties, units, seasonal rates, stays, guests, housekeeping, day view, frozen folios) as inspiration in own stdlib code over the tree's own SQLite-store shape, and drops the booking-engine half (already built as `bookings` in R17-1), payments, the public booking page, multi-user/staff roles, channel manager/OTA/iCal sync, groups and multi-currency conversion. The gap was total for the PMS half: the tree had no lodging surface at all — zero hits for lodging/campsite/glamping/yurt/property_management/pms/room_rate/rate_plan/seasonal/rentable/unit_type/no_show/folio, the one "nightly" hit is a sleep-target docstring, the five word-boundary check_in hits are a hotel-search URL builder, and the 13 housekeeping hits are the voice session's housekeeping loop plus a diagnostics label. The field leg is still owed: no real property has been run through this PMS on his Windows machine, so no claim beyond the lab is made here.
+Counts after R17-7 (2026-11-12): seam-wired **44**, already-verified-in-handler **285** (284 + `stage_lighting` — A1-store + send-return: registry writes are re-read before the result is claimed, output/blackout/scene-run/chase-step claim only after send returns the full packet length, and the hash-chained event ledger is verified over the FULL ledger), honestly-unverifiable **22**, next-pass pool **0** (44 + 285 + 22 = 351; 381 + 351 = 732) — `stage_lighting` is effectful (it writes to VYUK's own lighting store and sends DMX to the buyer's own lighting nodes), so the effectful total moves 350 -> 351, the family moves desktop_control 65 -> 66 (effectful 53 -> 54), and the confirm total moves 152 -> 153 (output/blackout/scene-run/chase-step are human-gated, the game_server precedent, via an args-aware branch in _needs_confirmation; the reads, the discovery probe and the registry writes stay free). Nothing is adopted from mcallegari/qlcplus (Apache-2.0 per the COPYING file from master, 10,173 bytes, 177 lines, standard text, read in full): the build takes only the lighting-control shapes (Art-Net + sACN output, fixture patching, scenes, chases) as inspiration in own stdlib code over the tree's own SQLite-store shape, and drops the DMX-over-USB half (operator hardware + driver), the virtual console / web UI / multi-user / hosted shape, QLC+ fixture-library import and timed auto-advance of a chase. The gap was total: the tree had no DMX / Art-Net / sACN / stage-lighting surface at all — zero hits for qlcplus/dmx/artnet/sacn/art-net/moving head, the 4 'lighting' hits are a room-brightness webcam check, an orb-glow comment and UI highlighting, the 41 'fixture' hits are the test-fixture sense of the word, and the 1 'dimmer' hit is an orb particle. The field leg is still owed: no real lighting rig has been driven from this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R17-8 (2026-11-12): seam-wired **44**, already-verified-in-handler **285**, honestly-unverifiable **22**, next-pass pool **0** (44 + 285 + 22 = 351; 382 + 351 = 733) — `solar_yield` is read-only (pure computation over caller-supplied figures: sun position from the NREL Solar Position Algorithm, clear-sky irradiance from Ineichen/Perez, plane-of-array irradiance from Hay-Davies, module/inverter yield from PVWatts + Ross cell temperature — nothing stored, nothing fetched), so the effectful total and the §2c buckets do not move; the read total moves 381 -> 382 and the family moves utilities 112 -> 113. Nothing is adopted from pvlib/pvlib-python (BSD-3-Clause per the LICENSE file from main, 1,622 bytes, 33 lines, standard text, read in full — copyrights 2023 pvlib python Contributors / 2014 PVLIB python Development Team / 2013 Sandia National Laboratories): the build takes only the PV-modelling shapes (solar position + clear-sky / plane-of-array irradiance + module/inverter yield) as inspiration in own stdlib code over the published formulas, and drops the numpy/pandas/scipy stack (the tree does not ship it), the measured-weather / TMY input, the shading model and the multi-array / system-level simulation. The gap was total: the tree had no PV surface at all — zero hits for pvlib / pv_system / irradiance / sun position / inverter / yield simulation / solar position / plane of array / dc power / photovoltaic, the 14 'solar' hits are a photo filter, NOAA sunrise/sunset times only, a name and a wordlist word, the 2 'clear sky' hits are weather-condition labels, the 3 'ac power' hits are laptop AC power, and the 16 'azimuth' hits are 3D camera rotation angles. The field leg is still owed: no real array has been sized or quoted with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R17-9 (2026-11-12): seam-wired **44**, already-verified-in-handler **286** (285 + `wardrobe` — A1-store: every write is re-read from the wardrobe store before the result is claimed, the hash-chained event ledger verifies over the full chain), honestly-unverifiable **22**, next-pass pool **0** (44 + 286 + 22 = 352; 382 + 352 = 734) — `wardrobe` is effectful, free by design (app-state): garments, outfits, daily suggestion from caller-supplied temperature + condition and wear history, one outfit per scheduled date, wear log. The family moves productivity 131 -> 132 (effectful 73 -> 74). Nothing is adopted from tandpfun/wardrobe (MIT per the LICENSE file from main, 1,083 bytes, 22 lines, standard text, read in full — Copyright (c) 2026 Open Wardrobe contributors): the build takes only the wardrobe shapes (garment catalogue, outfit builder, daily suggestion, scheduling) as inspiration in own stdlib code over its own SQLite store, and drops the gpt-image extraction/organisation and the AI outfit visualisations (a cloud model is not a build), the camera-roll scan, and any weather fetch. The gap was total: the tree had no wardrobe surface at all — zero hits for wardrobe / garment / closet / camera roll / what to wear / stylist / outfit visual / virtual wardrobe, the 1 'outfit' hit is a five-colour palette description, not a wardrobe. The field leg is still owed: no real wardrobe has been catalogued or suggested from with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R18-1 (2026-11-12): seam-wired **44**, already-verified-in-handler **287** (286 + `billing` — A1-store: every Stripe write is written to the local hash-chained ledger and re-read before the result is claimed, and the Stripe answer itself is checked for livemode false; the ledger chain verifies over the full chain), honestly-unverifiable **22**, next-pass pool **0** (44 + 287 + 22 = 353; 382 + 353 = 735) — `billing` is effectful and confirm-gated (154, was 153): test-mode-only Stripe plumbing — test customers, test subscriptions against operator-supplied Price IDs, test payment links, test Checkout sessions, test invoices, test refunds, local webhook-signature verification. The family moves productivity 132 -> 133 (effectful 74 -> 75). Nothing is adopted from stripe/stripe-node (MIT per the LICENSE file from master, 1,113 bytes, 20 lines, standard text, read in full — Copyright (C) 2011 Ask Bjørn Hansen / Copyright (C) 2013 Stripe, Inc.): the build takes only the payment shapes (customers, subscriptions, payment links, Checkout sessions, invoices, refunds, webhook signatures) as inspiration in own stdlib code over Stripe's REST API, verified against Stripe's own reference at docs.stripe.com, and drops live mode, price/product creation, raw card charges and the Billing portal (ruling 34). The gap was total: the tree had no payment surface at all — zero hits for stripe / payment processor / payment link / billing portal / charge a card / payment processing, the 3 'webhook' hits are a word list and a statement that there are no webhooks. The field leg is still owed: no real Stripe test-mode flow has been run against a live Stripe test account from this tool on his Windows machine (the lab proves the client, the gates and the signature math against a fake transport only), so no claim beyond the lab is made here.
+Counts after R18-3 (2026-11-12): seam-wired **44**, already-verified-in-handler **288** (287 + `mcp_registry` — A1-store: every server add/remove/enable/disable and every review is written to the local hash-chained registry ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain), honestly-unverifiable **22**, next-pass pool **0** (44 + 288 + 22 = 354; 382 + 354 = 736) — `mcp_registry` is effectful and confirm-gated (155, was 154): local single-user MCP server registry — the server directory over mcp_servers.json with an immediate bus re-read, central discovery across servers, and operator reviews bound to each tool's declaration digest. The family moves diagnostics_dev 66 -> 67 (effectful 25 -> 26). Nothing is adopted from IBM/mcp-context-forge (Apache-2.0 per the LICENSE file from main, 11,357 bytes, 202 lines, standard text, read in full): the build takes only the registry/discovery/governance shapes (server registry + central discovery + operator review + hash-chained event ledger) as inspiration in own stdlib code over the tree's own MCP client (core/mcp_client_config.py, core/mcp_client_bus.py, core/mcp_policy.py), and drops the hosted/centralised gateway (nothing VYUK serves is internet-reachable), the MCP server endpoint (VYUK is a client, not a server), the A2A/REST/gRPC federation and any multi-user/shared registry. The gap was real for the registry/discovery/guardrail layer: the tree had an MCP client (core/mcp_client.py) but no server registry, no central discovery and no guardrail — the 1 'server registry' hit is a comment about the GAME server registry, the 3 'guardrail' hits are a docstring and a meeting-duration cap, and the 20 'gateway' hits are network diagnostics (the machine's default-gateway IP). The field leg is still owed: no real MCP server has been registered, discovered or reviewed through this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R18-4 (2026-11-12): seam-wired **44**, already-verified-in-handler **289** (288 + `agent_call` — A1-store: every agent registration, every call and every cancel is written to the local hash-chained registry ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain), honestly-unverifiable **22**, next-pass pool **0** (44 + 289 + 22 = 355; 382 + 355 = 737) — `agent_call` is effectful and confirm-gated (156, was 155): VYUK as an A2A client — discover another agent's public card (GET /.well-known/agent-card.json), call it (JSON-RPC 2.0 SendMessage over HTTPS, plain HTTP loopback-only), and read/cancel its tasks (GetTask/ListTasks/CancelTask), with VYUK's own card returned as a static document that serves no endpoint. The family moves diagnostics_dev 67 -> 68 (effectful 26 -> 27). Nothing is adopted from a2aproject/A2A (Apache-2.0 per the LICENSE file from main, 11,358 bytes, 202 lines by wc -l, standard text, read in full): the build takes only the client shapes (agent-card discovery + JSON-RPC SendMessage/GetTask/ListTasks/CancelTask + task states + A2A error codes) as inspiration in own stdlib code over the tree's own urllib shape and SQLite-store shape, and drops the server side (no endpoint, no served card, no inbound calls — nothing VYUK serves is internet-reachable), streaming (SendStreamingMessage/SubscribeToTask over SSE), push-notification configs (needs a reachable URL), the extended agent card and authenticated agents (no credentials stored, no OAuth flow), the gRPC binding (JSON-RPC only), and any multi-user/shared directory. The wire format was verified against the spec source itself — the canonical a2a.proto (812 lines) and docs/specification.md (3,616 lines), both from main — not from the README. The gap was total: the tree had no A2A surface at all — the 2 'a2a' hits are the R18-3 module explicitly excluding A2A federation, and zero hits for agent discovery / agent card / Agent2Agent / external agent / agent-to-agent. The field leg is still owed: no real external agent has been discovered or called through this tool on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R18-5 (2026-11-12): seam-wired **44**, already-verified-in-handler **290** (289 + `prompt_tune` — A1-store: every prompt, dataset and run write is re-read before the result is claimed, and the ledger chain verifies over the full chain), honestly-unverifiable **22**, next-pass pool **0** (44 + 290 + 22 = 356; 382 + 356 = 738) — `prompt_tune` is effectful and confirm-gated (157, was 156): a local prompt-optimisation/evaluation loop — keep prompts and owner-supplied evaluation sets on this machine, run each candidate against the set through the owner's own configured Gemini endpoint, score every answer with a deterministic metric (exact / contains / token-F1), rank the candidates and promote the winner. The family moves diagnostics_dev 68 -> 69 (effectful 27 -> 28). Nothing is adopted from stanfordnlp/dspy (MIT per the LICENSE file from main, 1,085 bytes, 22 lines, standard text, read in full): the build takes only the optimisation-loop idea (measure candidate prompts on an evaluation set, keep the best) as inspiration in own stdlib code over the tree's own urllib shape and SQLite-store shape, and drops the DSPy framework itself (no port of its LM abstractions, signatures, modules or optimisers), weight training/fine-tuning (no training path, no torch), any cloud/hosted optimisation service, and LLM-as-judge scoring (scores are deterministic). The gap was total: zero hits for prompt optimisation/optimization, prompt_programme, dspy, LM evaluation, language model evaluation and 'prompt library' — and core/prompt_library.py does not exist (the scout's caveat cited a non-existent path). The field leg is still owed: no real prompt has been tuned against a real evaluation set through this tool on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R18-6 (2026-11-12): seam-wired **44**, already-verified-in-handler **291** (290 + `voice_agent` — A1-store: every agent, flow and call write is re-read before the result is claimed, and the ledger chain verifies over the full chain), honestly-unverifiable **22**, next-pass pool **0** (44 + 291 + 22 = 357; 382 + 357 = 739) — `voice_agent` is effectful and confirm-gated (158, was 157): a local voice-agent/call-flow engine plus an operator-supplied SIP trunk client — write call scripts (say/gather/branch/transfer/hangup), run them in a local text session, or run them on a real phone line through the owner's own SIP trunk (trunk credentials are supplied per call, never stored or echoed; the digest challenge means the password never crosses the wire in the clear, but the audio is plain RTP in v1). The family moves comms_calendar 24 -> 25 (effectful 8 -> 9). Nothing is adopted from fonoster/fonoster (MIT per the LICENSE file from main, 1,069 bytes, 21 lines, standard text, read in full): the build takes only the programmable-voice-application idea (a call script the agent follows, with speech in and out) as inspiration in own stdlib code over the tree's own Kokoro TTS and Gemini STT shapes and SQLite-store shape, and drops the PBX, multi-tenancy/RBAC/OAuth2/JWT, the hosted service, trunk/number provisioning, S3 and Let's Encrypt endpoints, call recording, and transfer to an arbitrary number. The gap was total: zero hits for voice call, telephony, receptionist, call handling and fonoster, and the 4 'phone call' and 8 SIP hits are all false positives (the user making their own call, the mutual-fund SIP, 'sip' the verb, 'Mississippi', and a call_control.py docstring saying 'No SIP, no VoIP'). The field leg is still owed: no real call has been placed or answered through a real SIP trunk on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R18-7 (2026-11-12): seam-wired **44**, already-verified-in-handler **292** (291 + `event_tickets` — A1-store: every ticket-type, sale and check-in write is re-read before the result is claimed, and the ledger chain verifies over the full chain), honestly-unverifiable **22**, next-pass pool **0** (44 + 292 + 22 = 358; 382 + 358 = 740) — `event_tickets` is effectful and free by design (158, unchanged): ticket types, sale records and QR check-in for one event plan — a sale is a record the owner made (the money moved outside VYUK, the tool never takes payment), each ticket gets its own code rendered as a QR PNG with the tree's own qr_encode, and check-in is a local record that refuses duplicates and unknown codes honestly. The family moves productivity 133 -> 134 (effectful 75 -> 76). Nothing is adopted from Attendize/Attendize (Attribution Assurance License per the LICENSE file from develop, 2,073 bytes, 39 lines, read in full): the build takes only the ticketing shape (ticket types, sales records, attendee list, QR check-in) as inspiration in own stdlib code over the tree's own money + event-planning + QR shapes, and drops the hosted ticketing site, payment capture, refunds as money movement, multi-organiser accounts, public event listings, messaging attendees and affiliate tracking. The gap was total: zero hits for ticket selling, ticket sale, attendee check-in, event ticket, ticketing and attendize, and the 'ticket' and 'check-in' hits are all false positives (approval_ticket, travel tickets, support-ticket claims, mood check-ins and proactive check-ins). The field leg is still owed: no real event has sold tickets or checked attendees in on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R18-8 (2026-11-12): seam-wired **44**, already-verified-in-handler **293** (292 + `technical_analysis` — A1-store: every dataset add is re-read from the store before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 293 + 22 = 359; 382 + 359 = 741) — `technical_analysis` is effectful and free by design (158, unchanged): 25 indicators (RSI, MACD, Bollinger Bands, ATR, SMA/EMA/WMA, ADX, CCI, PSAR, Aroon, MFI, OBV, CMF, VWAP, Stochastic, Williams %R, ROC, TSI and returns) over operator-supplied OHLCV candles, with stored datasets and mechanical signal readings that are never advice. The family moves productivity 134 -> 135 (effectful 76 -> 77). Nothing is adopted from bukosabino/ta (MIT per the LICENSE file from master, 1,096 bytes, 21 lines, standard text, read in full — Copyright 2020 Darío López Padial (Bukosabino)): the build takes only the indicator shapes (the published formulas for 25 of ta's 43 indicators, across its five groups) as inspiration in own stdlib code, and drops the pandas/numpy stack, the remaining 18 indicators, and every data source — there is no live price feed, no yfinance fetch, no market-data download and no network call anywhere in the module; the mutual_fund.py no-fetch boundary is untouched. The gap was total: zero hits for technical analysis, technical_analysis, ta_lib, OHLCV and Bollinger, zero word-boundary hits for RSI, and the only MACD hit is "Old MacDonald Had a Farm" while the only yfinance hit is a dependency note in a comment in mutual_fund.py. The field leg is still owed: no real price data has been analysed with this tool on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R18-10 (2026-11-12): seam-wired **44**, already-verified-in-handler **294** (293 + `time_tracker` — A1-store: every project/record write is re-read from the store before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 294 + 22 = 360; 382 + 360 = 742) — `time_tracker` is effectful and free by design (158, unchanged): projects, start/stop, records, status and reports in decimal hours over the owner's own working time, with a hash-chained ledger. The family moves productivity 135 -> 136 (effectful 77 -> 78). Nothing is adopted. The field leg is still owed: no real working time has been tracked with this tool on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after R19-1 (2026-11-12): seam-wired **44**, already-verified-in-handler **295** (294 + `audio_localise` — A1-store: every project/segment/translation/dub write is re-read from the store before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 295 + 22 = 361; 382 + 361 = 743) — `audio_localise` is effectful and confirm-gated for translate/localise (159, was 158): transcribe an audio file (faster-whisper), translate the segments (the product's own Gemini key), write subtitle files (SRT/VTT) and dub the translation with the tree's own Kokoro TTS into a full-length dubbed WAV, over a hash-chained ledger. The family moves media_audio 41 -> 42 (effectful 26 -> 27). Nothing is adopted. The field leg is still owed: no real audio has been localised with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-2 (2026-11-12): seam-wired **44**, already-verified-in-handler **296** (295 + `optimise` — A1-store: every solve is appended to the hash-chained ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 296 + 22 = 362; 382 + 362 = 744) — `optimise` is effectful and free by design (app-state): a combinatorial optimisation engine in own stdlib code (TSP/VRP heuristics, bin packing, knapsack DP, Dijkstra, Hungarian assignment, Edmonds-Karp max flow, two-phase simplex LP, a small backtracking constraint solver). The family moves productivity 136 -> 137 (effectful 78 -> 79). Nothing is adopted. The field leg is still owed: no real route, packing or schedule has been optimised with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-3 (2026-11-12): seam-wired **44**, already-verified-in-handler **297** (296 + `erp` — A1-store: every business write is appended to the hash-chained ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 297 + 22 = 363; 382 + 363 = 745) — `erp` is effectful and free by design (app-state): a unified local business record in own stdlib code (customers, leads, products, stock derived from the movement ledger, sales/purchase orders, invoices, payments, employees, projects). Invoices and payments are records the owner made — the money moved outside VYUK, the tool never takes payment, never computes tax, never keeps payroll. The family moves productivity 137 -> 138 (effectful 79 -> 80). Nothing is adopted. The field leg is still owed: no real customer, order, invoice or payment has been recorded with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-4 (2026-11-12): seam-wired **44**, already-verified-in-handler **298** (297 + `media_chat` — A1-store: every media/Q&A/summary write is appended to the hash-chained ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 298 + 22 = 364; 382 + 364 = 746) — `media_chat` is effectful and confirm-gated for ask/summarize (160, was 159): chat with your media — register a transcript (from an audio_localise project or an operator-supplied SRT/VTT/plain-text file), then ask questions or request a summary over it, answered by the product's own Gemini key from the transcript alone, with every answer stored against the transcript's hash. The downloader is STOPPED, not built: extending the tree's yt-dlp clearance (BR-2, library-only for music playback) from playback to download is a ToS/scope question for the parent to rule — no download code ships. Speaker diarization is STOPPED, not built: pyannote needs torch (BLOCKED); a torch-free route exists in principle (ONNX speaker embeddings, speakeronnx/wespeaker-resnet34 under onnxruntime + numpy only) but the model licences are unverified and the segmentation + embedding + clustering pipeline is a follow-up batch. The family moves media_audio 42 -> 43 (effectful 27 -> 28). Nothing is adopted. The field leg is still owed: no real question has been asked over a real transcript with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-5 (2026-11-12): seam-wired **44**, already-verified-in-handler **299** (298 + `invoice` — A1-store: every render and send is appended to the hash-chained ledger and re-read before the result is claimed, the rendered PDF is verified by a stdlib-only xref parser before the render is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 299 + 22 = 365; 382 + 365 = 747) — `invoice` is effectful and confirm-gated for send (161, was 160): render an erp invoice as a PDF (three templates: classic, modern, minimal) with a minimal stdlib PDF writer (no PDF library, no new dependency) and send it by email with the PDF attached (the send_email tool, extended in this batch with an optional `attachments` property). The invoice record itself lives in erp; the line items come from the sales order (order-based) or operator-supplied lines (standalone). The send_email tool gains one property (`attachments`), so the params total moves 1971 -> 1987 (15 invoice properties + 1 send_email property). The family moves productivity 138 -> 139 (effectful 80 -> 81). Nothing is adopted. The field leg is still owed: no real invoice has been rendered or sent with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-6 (2026-11-12): seam-wired **44**, already-verified-in-handler **300** (299 + `translations` — A1-store: every project/key/translation/import/translate/export write is appended to the hash-chained ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 300 + 22 = 366; 382 + 366 = 748) — `translations` is effectful and confirm-gated for translate (162, was 161): local UI string localization in own stdlib code (projects, keys, translations per language, import/export in JSON/PO/XLIFF with own parsers and writers, machine translation with the product's own Gemini key via prompt_tune's _lm_call, each machine translation stored with the source text's hash). The family moves productivity 139 -> 140 (effectful 81 -> 82). Nothing is adopted from tolgee/tolgee-platform (multi-licence monorepo: the main LICENSE from main, 11,865 bytes, 211 lines, Apache License 2.0 for all content outside ee/ and /webapp/src/ee, read in full; ee/LICENSE, 4,640 bytes, 76 lines, Tolgee EE License v1 — NON-COMMERCIAL only, read in full, and EXCLUDED: no ee/ code is used, adopted or shipped): the build takes only the localization shapes (projects, keys, translations per language, import/export, machine translation) as inspiration in own stdlib code, and drops the web platform, the ee/ features, in-context editing and audio translation. The gap was total: the tree had no UI string localization tool — zero hits for tolgee, localization, i18n, "translation key", "translation management", gettext, xliff and "in-context", the 9 'localisation' hits are audio localisation + a planning concept, the 28 'locale' hits are speech/language codes, the 3 'in_context' hits are a weather variable. The field leg is still owed: no real project's strings have been localised with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-7 (2026-11-12): seam-wired **44**, already-verified-in-handler **301** (300 + `filament` — A1-store: every vendor/filament/spool write and every use is appended to the hash-chained ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 301 + 22 = 367; 382 + 367 = 749) — `filament` is effectful and free by design ("app-state", 162 unchanged): a local 3D-printer filament spool inventory in own stdlib code (vendors, filament types with density/diameter/colour/weight, spools with remaining weight and remaining length derived from density and diameter, usage recording with honest shortfall refusals, low-stock warnings). The family moves productivity 140 -> 141 (effectful 82 -> 83). Nothing is adopted from Donkie/Spoolman (MIT per the LICENSE file from master, 1,072 bytes, 21 lines, "Copyright (c) 2023 Daniel Hultgren", read in full): the build takes only the inventory shapes (vendor, filament, spool, weights, usage) as inspiration in own stdlib code, and drops the web service, the REST API, the websockets, the OctoPrint/Klipper/Moonraker integration, the SpoolmanDB central database and the QR label designer. The gap was total: the tree had no 3D-printer filament spool inventory — zero hits for spoolman, "filament spool", "3d print", "3dprinter", "3d printer", "print bed" and "printer queue"; the "filament" hits are all "no Filament" (the PHP admin-panel framework named in the erp module's STOP list) and the "spool" hits are all the Windows print spooler. The field leg is still owed: no real filament spool has been tracked with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-8 (2026-11-12): seam-wired **44**, already-verified-in-handler **302** (301 + `deals` — A1-store: every pipeline/deal/ticket write is appended to the hash-chained ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 302 + 22 = 368; 382 + 368 = 750) — `deals` is effectful and free by design ("app-state", 162 unchanged): a deal pipeline and support tickets on erp customers in own stdlib code (pipelines with the seeded six stages, deals with probability auto-set from the stage and aging green/yellow/red, tickets with priority, SLA targets, pause-on-Pending and respond/close/reopen). The family moves productivity 141 -> 142 (effectful 83 -> 84). Nothing is adopted from Django-CRM/Django-CRM (MIT per the LICENSE file from master, 1,101 bytes, 22 lines, "Copyright (c) 2017 MicroPyramid / Copyright (c) 2026 RunCode Inc.", read in full): the build takes only the CRM shapes (deal pipeline with stages and probability, support tickets with status/priority/SLA) as inspiration in own stdlib code, and drops the Django web app, the hosted multi-user shape, the customer/lead/invoice records (erp keeps those), custom stages, the business-hours calendar, inbound email, webforms, macros, the knowledge base and sales goals. The gap was narrow: the tree already had the CRM core (erp customers + leads with lead→customer conversion) and invoicing (erp + invoice) — zero hits for django-crm, "customer relationship", "customer management", "customer record", "contact history", "deal pipeline", "sales pipeline", "support ticket", "helpdesk" and "case management"; the "crm" hits are the erp module itself and the "ticket" hits are event_tickets (event ticketing), not support tickets — what was missing was exactly the deal/opportunity pipeline and support-ticket tracking. The field leg is still owed: no real deal has been closed and no real support ticket has been worked with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after R19-10 (2026-11-12): seam-wired **44**, already-verified-in-handler **303** (302 + `vehicle_routes` — A1-store: every plan is appended to the hash-chained ledger and re-read before the result is claimed, and the ledger chain verifies over the full chain; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 303 + 22 = 369; 382 + 369 = 751) — `vehicle_routes` is effectful and free by design ("app-state", 162 unchanged): advanced vehicle routing in own stdlib code (time-windowed routes, pickup-and-delivery shipments, multi-depot heterogeneous fleets, vehicle skills, breaks and working hours; cheapest-insertion + 2-opt heuristic, every returned route feasible, unassigned jobs reported with the reason). The family moves productivity 142 -> 143 (effectful 84 -> 85). Nothing is adopted from VROOM-Project/vroom (BSD-2-Clause per the LICENSE file from master, 1,296 bytes, 24 lines, "Copyright (c) 2015-2025, Julien Coupey", read in full): the build takes only the routing shapes (vehicles, jobs, shipments, time windows, skills, priority, breaks) as inspiration in own stdlib code, and drops the C++ engine, the Vroom binary, the routing engines (OSRM / Openrouteservice / Valhalla), live traffic and any network call. The gap was narrow: the tree already had basic CVRP (optimise's VRP — Clarke-Wright savings with a capacity limit, single depot at node 0) — zero hits for vroom, "vehicle routing", "route optimization", "travelling salesman", "delivery route", "vehicle routing problem", "route planning", "fleet routing", "time_window", "pickup", "multi-depot" and "vehicle skill"; the "vrp" hits are the optimise tool and the "time window" hits are a Windows event-log window and a query window, not routing windows — what was missing was exactly time windows, pickup-and-delivery, multi-depot, vehicle skills, breaks and priority/unassigned jobs. The field leg is still owed: no real delivery route has been planned with this tool on his Windows machine, so no claim beyond the lab is made here.
+Counts after GAPS-7 (2026-11-13): seam-wired **44**, already-verified-in-handler **304** (303 + `sync_updates` — A1-store: every watermark save is written atomically (tmp + os.replace) and re-read verified before the result is claimed; reads never create the store file), honestly-unverifiable **22**, next-pass pool **0** (44 + 304 + 22 = 370; 382 + 370 = 752) — `sync_updates` is effectful and free by design ("app-state", 162 unchanged): what's new in Gmail and Google Calendar since the last sync, through the shared sync engine (core/connector_sync.py) — pagination via pageToken until exhausted, retry with exponential backoff on transient failures only, and a per-source watermark so a re-sync fetches only what's new; a partial sync reports what landed, never advances the watermark, and says so. The family moves comms_calendar 25 -> 26 (effectful 9 -> 10). Nothing is adopted: the engine and the tool are own stdlib code over the tree's own Google API shapes — no new provider, no new connector, no paid call. The gap was proved on the backup first: a 60-message mailbox asked for 60 returned 25 in one list call (maxResults=25, the nextPageToken never followed), a transient 503 failed the read outright in one attempt, and core/ held zero pageToken/nextPageToken/connector_sync/SyncState hits. The listing caps rise from 25 to 250 with the same engine underneath (unread_email, search_email, upcoming_events, todays_schedule, next_events). The field leg is still owed: no real sync has run against his live Gmail/Calendar on his Windows machine, so no claim beyond the lab is made here.
+
+Counts after SOCIAL Phase 1 (2026-11-13): seam-wired **44**, already-verified-in-handler **305** (304 + `social_send` — A9-measure: `done` only when the message is seen in the thread after the owner's spoken send confirmation, and a send not observed is `unverified`, never "sent" on a guess; the pending-draft state file holds only the text's SHA-256, never the text, and is written atomically and re-read verified), honestly-unverifiable **22**, next-pass pool **0** (44 + 305 + 22 = 371; 382 + 371 = 753) — `social_send` is effectful and confirm-gated (163, was 162): WhatsApp send via the official wa.me Click to Chat link, with the owner sending by voice (Windows Voice Access presses Enter at his spoken command) — VYUK prepares (resolves the recipient from contact cards, never guesses; drafts the exact text), opens the wa.me link, verifies the conversation header and the pre-filled text before arming, and reads the thread back after the send. VYUK types nothing and presses nothing. The family moves comms_calendar 26 -> 27 (effectful 10 -> 11). Nothing is adopted: the mechanism is own stdlib code — no FatihMakes code (CC BY-NC 4.0, non-commercial, cannot be adopted); only the honest-outcomes idea (done/unverified/failed) and the guard idea are taken. The gap was proved on the backup first: comms_tools declares "NOT a send pipeline" and its only send-named function is the readiness reporter; the `whatsapp:` URI alias opens only, with no recipient or text; zero `wa.me` hits in core/; zero `social_send` hits in the tree. The field leg is still owed: no real message has been sent through real WhatsApp on his Windows machine, the guard has not been proven on a real conversation, no deliberate wrong-conversation test has been refused, and the Voice Access step (the owner says "press Enter" and the message sends) has not been proven — so no claim beyond the lab is made here.
+
+Counts after GAPS-8 (2026-11-13): seam-wired **44**, already-verified-in-handler **306** (305 + `scheduled_agents` — A1-store + A9-measure: the manifest store is written atomically and re-read verified before the setup is claimed, the digest record is appended and read back before the run is reported as done, and a job with no manifest or a step outside its manifest is refused and the refusal recorded in the ledger, never silently run), honestly-unverifiable **22**, next-pass pool **0** (44 + 306 + 22 = 372; 382 + 372 = 754) — `scheduled_agents` is effectful and confirm-gated (164, was 163): the OperatorManifest + OperativeAgent layer over the existing APScheduler engine (per-job timezone, misfire grace, coalescing, DST — the engine is used as-is, not rebuilt), plus the morning digest as the first scheduled agent (7am, Asia/Calcutta, setup-only, reads + speaks, no effectful action). The family moves productivity 143 -> 144 (effectful 85 -> 86). Nothing is adopted: the layer and the digest are own stdlib code — OpenJarvis's OperatorManifest (declares required_capabilities, never enforces them) and MorningDigestAgent (collect 24h -> LLM <=200 words -> self-eval -> TTS -> DigestStore) are the inspiration only, and this build enforces what OpenJarvis does not. The gap was proved on the backup first: job_scheduler.py (1,393 lines) had zero production callers (only tests + the boot_sequence read-only health beat), and zero OperatorManifest / OperativeAgent / morning-digest hits anywhere in the tree. The field leg is still owed: no real scheduled run has ever fired on his Windows machine, the 7am digest has never spoken on a real morning, and the app-startup wiring (ensure_engine_running at boot) is not yet in the GUI boot path — so no claim beyond the lab is made here.
+
+Counts after click-anywhere (2026-11-14): seam-wired **44**, already-verified-in-handler **307** (306 + `click_anywhere` — A6-browser: every click dispatch is verified by before/after probes, and the edit action re-reads both sides of the byte range (P-14/M-47)), honestly-unverifiable **22**, next-pass pool **0** (44 + 307 + 22 = 373; 382 + 373 = 755) — `click_anywhere` is effectful and free by design ("hands", 164 unchanged): one tool with 9 properties (action, target, by, action_class, role, name, text, browser, route) that clicks anywhere he asks — browser DOM-level exact via the extension bridge (CDP + host launcher) in his real Chrome, whole desktop via UIA/mark/OCR/raw coordinates; consequential clicks confirm-gated, messaging sends refused (D-17), occluded windows refused, login walls and captchas stop. The family moves desktop_control 66 -> 67 (effectful 54 -> 55). The params total moves 2064 -> 2073 (9 click_anywhere properties). Nothing is adopted: the bridge, the viewport conversion, the editor truth and the tool are own stdlib code — no third-party code adopted, no name used. The field leg is still owed: no real click has been driven on his Windows machine (his Chrome, VS Code), the M-65 DevTools console gate, the write-proof leg and the ResoBin/VS Code field proofs are all owed after endsem — so no claim beyond the lab is made here.
+
+Counts after RET-2 (2026-11-15): seam-wired **44**, already-verified-in-handler **307**, honestly-unverifiable **22**, next-pass pool **0** (44 + 307 + 22 = 373; 382 + 373 = 755) — no tool added: two new actions on the existing `scheduled_agents` tool (`save_routine`, confirm-gated, and `run_routine`, free dispatch), with three new schema properties (name, steps, schedule). The params total moves 2073 -> 2076 (3 scheduled_agents properties). The census is otherwise unchanged (755 tools / 382 read / 373 effectful / 164 confirm-gated, 752 grouped, 754 closed, 307 verified). Nothing is adopted: the actions, the transient-manifest run path and the per-step report are own stdlib code over the existing manifest + OperativeAgent path. The gap was proved on the backup first (gap_ret2.py: 14 FAILs, the build's checks; the regression guards pass). The field leg is still owed: no routine has been saved or re-run by voice or tap on his Windows machine — lab proof only.AUDIT-TOTALS: seam_wired=44 already_verified=262 honestly_unverifiable=22 pool=0 total=690 read=362 effectful=328
+
+Counts after RET-5 (2026-11-15): seam-wired **44**, already-verified-in-handler **307**, honestly-unverifiable **22**, next-pass pool **0** (44 + 307 + 22 = 373; 382 + 373 = 755) — no tool added: the routine-template gallery (JSON template format + validator, GUI listing + import, bundled templates file) and the demo checklist (a standing document, not code). The census is unchanged (755 tools / 382 read / 373 effectful / 164 confirm-gated, params 2076, 752 grouped, 754 closed, 307 verified). Templates are read-only in v1 (a gated step is refused at export and at import, whole, with the reason); export is confirm-gated and shows the exact template JSON first; import goes through the confirm-gated save_routine action and never pre-approves the steps. Where the gallery lives is D-RET-2, owed — no public page in this batch. Nothing is adopted: the format, the validator, the gallery and the checklist are own code. The gap was proved on the backup first (gap_ret5.py: 21 FAILs, the build's checks; the regression guards pass). The field leg is still owed: no template has been imported on his Windows machine, and no demo has been recorded — lab proof only.
+Counts after Voice-control (2026-11-16): seam-wired **44**, already-verified-in-handler **307**, honestly-unverifiable **22**, next-pass pool **0** (44 + 307 + 22 = 373; 382 + 373 = 755) — no tool added: the voice-control bug audit + fix (29 code files, 53 swept test files, new tests/test_voicecontrol.py, 47 tests) — C3 binds the three file-writing tools (audio_to_midi, organise_photos, sync_folders_two_way) to the Files permission (files 119 -> 122; the scope map already had them, so a denied Files grant had let them write unchecked), C4 gives click_anywhere a `confirm` property (9 -> 10 properties; params 2076 -> 2077), C2 makes use_toolbox return the inner funnel dict for every non-success outcome, and the mic-loop / watchdog / PTT / STT fixes (B1–B4, V1/V2/V5/V9, O3/O4/O7, P1/P2/P6) plus the OS microphone-denial surfacing (Section 10). The census is otherwise unchanged (755 tools / 382 read / 373 effectful / 164 confirm-gated, 752 grouped, 754 closed, 307 verified). Nothing is adopted: the fixes are own stdlib code over the existing funnel, watchdog and mic paths. The field leg is still owed: no voice-control fix has been proven on his Windows machine (a real mic session, a real raw-point click, a real PTT press) — lab proof only.
+
+Counts after field-check fix #32 (2026-11-18): seam-wired **44**, already-verified-in-handler **308**, honestly-unverifiable **22**, next-pass pool **0** (44 + 308 + 22 = 374; 382 + 374 = 756) — one new tool, `run_anticipation_routine` (free dispatch, "executor dispatch" like `run_routine`): the production executor for anticipation routines (round-2 N5 — plain-language steps resolved to tool calls at RUN time through the funnel's own gates, with an unresolvable step refusing honestly naming the step, a step needing arguments refusing naming the tool + the missing params + the explicit form, and a confirm-gated step halting the routine at that step, never auto-confirmed; routine-management tools and `use_toolbox` are refused in all resolution paths). The census moves 755 -> 756 tools / 373 -> 374 effectful (read stays 382, confirm-gated stays 164 — the tool itself asks nothing, its steps ask for themselves), params 2077 -> 2078 (one `name` property), grouped 752 -> 753 (Mind 105 -> 106), closed 754 -> 755 (additionalProperties False by the registry default), verified 307 -> 308 (A7-coordinator §2c row), family productivity 144 -> 145 (effectful 86 -> 87), §2c rows 373 -> 374, snapshot entries 755 -> 756. Nothing is adopted: the executor, the ranking-confidence reuse, and the tool registration are own stdlib code over the existing funnel registry, ranking, and anticipation store. The field leg is still owed: no routine has been run by voice on his Windows machine, and the live-voice leg needs the V3 harness fixed first (round-2 item 14) — lab proof only.
+
+### Dispositions
+
+- **W** — wired through the seam this batch (17 R1b + 1 B2 + 7 B13) or earlier (19).
+- **A** — already verified in the handler; pinned here with file/line evidence.
+- **U** — honestly unverifiable: the tool returns `unverified` with its reason
+  instead of claiming success. `U(code)` = the code was wrapped in this batch;
+  `U(pin)` = the message already disclaimed it, so only the pin was added.
+
+### Already-verified cluster legend (A1–A10)
+
+- **A1-store** — MemoryStore.save_fact read-back (INSERT then get_fact re-read, core/memory/memory.py:149-165); failures raise and surface as handler errors. Exemplars: skills_admin_helpers.py:116-121 (_save), skills_productivity.py:125 (_save_store atomic), skills_study_flashcards.py:51-53, skills_words_make.py:85.
+- **A10-section7** — The section-7 machinery carries a verification field and renders it in the receipt ('verified' / 'invoked-without-verification' / 'reported by the surface, not verified' / 'dropped-without-verification'). Exemplars: core/desktop/menu_paths.py:587-589, core/desktop/system_surfaces.py:157-160, core/desktop/drag_drop.py:686, core/desktop/context_menus_helpers.py:265.
+- **A2-descriptor** — JSON descriptor write via target.write_text(json.dumps(record)) inside try/except -> _error on any exception; success names report_path. Exemplars: trust_spine_tools.py:201-204, travel_tools.py:211-214. Residual: no re-read of the written JSON (see residuals).
+- **A3-atomic** — Atomic whole-store write (mkstemp + os.replace) returning bool / write_error; callers check it and report failure honestly. Exemplars: skills_games_helpers.py:61-73 (_save_games) + :76-82 (_finish warns), planner_plans.py:420-421 (_save_list), skills_desktop_layouts.py (_save_layouts), skills_web_research.py (_save_watches), skills_web6_watch.py (_save_prices); social/finance ledger: social_occasions_ledger atomic JSON write (decision_leaves_t4.py:62 docstring, _ledger.add_promise/add_debt at :303/:335).
+- **A4-filestat** — Output file re-read after the write (dest/final.stat().st_size in the success line, or _result_line in skills_photo_helpers.py:154). Exemplars: skills_media_image.py:164 (compress), skills_media_convert.py:323 (convert), skills_photo_edit.py:71/146/213/351 (_result_line), skills_files2_pdf_files.py:118.
+- **A5-sysreadback** — OS read-back after the act (registry / WMI / API / process state); mismatch or unreadable reported honestly. Exemplars: skills_system_tuning.py (set_process_priority nice() read-back), skills_display_settings.py (refresh/rotation 'confirmed by read-back'), skills_media_audio.py:260-273 (app_volume GetMasterVolume/GetMute), skills_system_apps_startup.py (winget_install post-install list re-read).
+- **A6-browser** — Per-action verification rides through the dispatch: element modes verified via before/after page probe, raw-point modes probe before/after and say 'raw coordinate'; browser_type input_value read-back (R1b V); browser_press honestly unverified (R1b U). Exemplars: core/desktop/browser_click.py, core/browser_dispatch.py.
+- **A7-coordinator** — Coordinator verification phase judges the run (expect fields; not-met = task FAILS honestly) or the replay/sandbox transcript records per-step outcomes. Exemplars: core/replay.py:86-87 (transcript), core/resilience/resilience_gate.py:448-455 (undo: nothing reported undone unless the restorer verified it).
+- **A8-delegated** — Delegates to a seam-wired or read-back-verified tool; the delegate's verdict is the verification. Exemplars: read_selection_aloud -> Fix 7-wired speak_text; focus_session -> R1a-wired set_focus_assist; screen_brightness_auto -> read-back-verified set_brightness.
+- **A9-measure** — The returned value IS the measurement (live read / API-returned resource / pure computation); failures are named, never claimed. Exemplars: google_services_calendar.py:304-313 (created event + id), creative_rights_ledger.py:132 (SQLite lastrowid), triage3_identity_redact_select.py:334-342 (EXIF/XMP round-trip), creative_dev_social_t2.py:402-414 (vCard round-trip).
+
+### Newly wired this batch (25 — 17 R1b + 1 B2 + 7 B13)
+
+| Tool | Verification |
+|---|---|
+| `app_settings` | _confirm_set: _current(key) read-back after every set leg — core/app_settings.py |
+| `binaural_tone` | file_written on the saved WAV — core/skills_creative_play.py |
+| `browser_type` | loc.input_value() read-back at all 4 returns — core/desktop/browser_interact.py |
+| `click_element` | B13: vision landing leg — Qwen3-VL describe yes/no on the element name; unverified without weights — core/desktop/control_plus.py |
+| `click_text` | B13: vision landing leg — Qwen3-VL describe yes/no on the clicked text; unverified without weights — core/desktop/control_plus_click.py |
+| `compose_song` | file_written on the saved WAV — core/skills_creative2_art_music.py |
+| `create_shortcut` | file_written on the .lnk — core/skills_media_capture.py |
+| `download_email_attachment` | file_written(target, expected_bytes=raw) — core/google_services_gmail.py |
+| `drag_file_onto` | B13: vision landing leg — Qwen3-VL describe yes/no on the file open in its target window; unverified without weights — core/skills_hands3_window_manip.py |
+| `eject_drive` | drive-gone poll 4x0.5s — core/skills_plus_devices.py |
+| `env_backup` | file_written on the backup JSON — core/skills_system_bench.py |
+| `forget_wifi` | profile-list read-back after netsh delete — core/skills_network_wifi_net.py |
+| `metronome` | file_written on the saved WAV — core/skills_creative_play.py |
+| `monitor_control` | window-rect read-back after SetWindowPos (move leg) — core/skills_plus_devices.py |
+| `network_control` | netsh adapter-state / connected-SSID read-back — core/desktop/control_plus_volume_network.py |
+| `open_url` | B2: routes through browser_control's goto when the Fix 3 opt-in is on (verified attach + page-load probe, seam Outcome); fallback stays fire-and-forget with the boundary stated — core/funnel/tools_handlers_command_url.py |
+| `paste_snippet` | B13: vision landing leg — Granite read_page must show the snippet text; unverified without weights — core/skills_productivity.py |
+| `paste_text` | B13: vision landing leg — Granite read_page must show the pasted text; unverified without weights — core/skills_network_display_input.py |
+| `play_music` | marker wrap on rung evidence (confirmed->verified) — core/funnel/tools_handlers_command_url.py |
+| `split_pdf` | file_written re-read of every part file — core/skills_media_convert.py |
+| `type_clipboard` | B13: vision landing leg — Granite read_page must show the typed text (the inner type_text verdict is returned as-is when it already checked) — core/skills_hands3_capture_scroll.py |
+| `type_text` | B13: vision landing leg — Granite read_page must show the typed text; unverified without weights — core/desktop/control_input.py |
+| `wallpaper_apply` | HKCU Wallpaper REG_SZ read-back — core/funnel/tools_handlers_pack_libwire.py |
+| `window_always_on_top` | GetWindowLongW WS_EX_TOPMOST read-back — core/skills_network_display_input.py |
+| `window_opacity` | GetLayeredWindowAttributes read-back (+-1) — core/skills_network_display_input.py |
+
+### Honestly unverifiable (22)
+
+| Tool | Reason |
+|---|---|
+| `browser_press` | U(code). key dispatched; page label is page identity, not proof the key acted — core/desktop/browser_interact.py |
+| `click_and_drag_path` | U(code). drag dispatched along waypoints; drop landing not confirmed — core/skills_hands3_capture_scroll.py |
+| `cursor_control` | U(code). click/scroll/drag legs dispatched, no landing read-back; move leg verified by position read-back — core/desktop/cursor_control.py |
+| `desktop_control` | U(code). hotkey combo sent; no read-back for whether the desktop obeyed — core/desktop/control_plus_desktop.py |
+| `drag_mouse` | U(code). drag dispatched; drop landing not confirmed — core/desktop/control_plus_files.py |
+| `media_control` | U(code). VK key sent; no OS read-back for whether any app acted on it — core/desktop/control_system.py |
+| `mouse_control` | U(code). click/scroll/drag dispatched, no landing read-back; move verified by position read-back — core/desktop/control_input.py |
+| `notify_user` | U(code). toast shown per the API; no read-back for whether the user saw it — core/skills_desktop_prefs.py |
+| `open_path` | U(code). launch requested; no read-back for whether the app opened it — core/desktop/control_system.py |
+| `open_settings_page` | U(code). Settings page launched; no read-back for whether it rendered — core/skills_desktop_prefs.py |
+| `press_hotkey` | U(code). key event sent; no OS read-back for whether the app acted on it — core/desktop/control_input.py |
+| `capture_window` | U(pin). frame captured but binding to a live element cannot be verified — single-slot ledger — pin only |
+| `click_by_mark` | U(pin). message already carries the F-08 _with_dispatch_trailer ('landing not verified') — pin only |
+| `occluded_capture` | U(pin). frame captured but the occlusion claim cannot be verified — no live-element binding — pin only |
+| `screenshot_region` | U(pin). frame captured but binding to a live element cannot be verified — single-slot ledger — pin only |
+| `screenshot_to_text_note` | U(pin). frame captured but binding to a live element cannot be verified — single-slot ledger — pin only. B5: the text leg now reads via Granite-Docling when its weights are present (OCR otherwise); the vision read does NOT verify the live-element binding, so the pin stands. |
+| `send_email` | U(pin). Gmail API returns message id; SMTP acceptance != delivered — honest boundary, pin only |
+| `speaker_check` | U(pin). message already says 'Only you can confirm you actually heard it' — pin only |
+| `take_screenshot` | U(pin). frame captured but binding to a live element cannot be verified — single-slot ledger — pin only |
+| `virtual_desktop` | U(pin). message already says 'Windows gives no confirmation' — pin only |
+| `wake_on_lan` | U(pin). message already says "I can't confirm from here whether it actually woke up" — pin only |
+| `webcam_snapshot` | U(pin). frame captured but binding to a live element cannot be verified — single-slot ledger — pin only |
+
+### B2 — open_url attach route (2026-11-06)
+
+The R1b U(pin) on `open_url` is stale: it was pinned only because no
+drivable browser existed. Fix 3's verified attach now exists, so the
+tool routes through it. ONE design, decided up front on the opt-in:
+
+- **Attached route** — opt-in on, default browser, page URL (the ONE
+  scheme guard `_goto_target` raises no refusal): `browser_control`
+  `goto`, the same verified attach + page-load probe as
+  `browser_control` itself. "Opened '<title>' — <url>." is verified
+  by the page-label read-back; "Still loading ..." is unverified; a
+  failed load or a failed attach is failed. NO silent fallback to
+  `webbrowser.open` on this path.
+- **Fallback** — opt-in off, empty URL, explicit non-http(s) scheme
+  (`file://`, custom scheme), or a named browser: the `webbrowser.open`
+  code runs exactly as before, with the honest "can't see or drive
+  afterwards" wording. The opt-in is read, never written — `open_url`
+  never enables the browser.
+
+Rejected: a second navigation implementation beside `browser_control`
+goto (one path for navigation); routing named-browser requests through
+the attach (the user's explicit browser choice is honoured as today —
+named-Chrome-through-attach is a stated residual, not this batch);
+auto-enabling on a plain open request (Fix 3 boundary); applying the
+`_goto_target` scheme refusal to non-page URLs on the fallback (the
+brief holds today's behaviour for those). Tests:
+`tests/test_open_url_attach.py` (14 tests, both interpreters).
+Field leg still owed: open through his real attached Chrome, and the
+fallback on his machine with the browser not enabled.
+
+### B13 — hands landing checks via the B5 vision backend (2026-11-07)
+
+L10 lab half: the 16 hands tools are honestly unverifiable, and the
+coordinator records them as success because it never reads
+`outcome_verified` (B1's proof). ONE design — one helper, one
+channel: `core/tool_outcome.py:hands_landing_check` reads the
+screen after the act through the B5 vision backend and the landing
+verdict rides the seam Outcome (verified / unverified-with-reason /
+`landing_failed`); the dispatch carries the kind through
+(`outcome_kind`) so the coordinator can tell a failed landing from
+an unreadable screen, and `_run_step` turns a `landing_failed`
+into a StepOutcome failure the B4 jump / halt acts on. Where vision
+cannot read, the tools stay honestly `unverified` — never upgraded.
+
+- **type/paste** (`type_text`, `type_clipboard`, `paste_text`,
+  `paste_snippet`) — the expectation is the text itself; Granite
+  `read_page` must show it on screen (normalised substring).
+  Present → verified; read ok but absent → `landing_failed`;
+  backend/capture failure → unverified with the reason.
+- **click** (`click_text`, `click_element`) — the expectation is
+  the clicked text/name; Qwen3-VL `describe` answers one strict
+  yes/no question about it. Leading "yes" → verified, leading
+  "no" → `landing_failed`, anything else → unverified.
+- **drag_file** (`drag_file_onto`) — the expectation is the file
+  open in its target window; same yes/no describe leg.
+- **Stay honestly unverifiable (22):** `click_by_mark` (its
+  `expect` arg already verifies via the UIA engine — the vision
+  leg is not added to the shared verifier); `cursor_control`,
+  `mouse_control` (coordinate-only acts, no named target);
+  `drag_mouse`, `click_and_drag_path` (multi-point paths — the C7
+  crop producer's own rule: one region cannot stand for a path);
+  `press_hotkey`, `desktop_control`, `media_control`,
+  `browser_press` (no visible target). The R-C contract (what
+  "landed" must mean) is still owed — B13 is the lab half only.
+- **Readiness first:** the production path checks the vision leg's
+  readiness (weights on disk) BEFORE capturing — without weights
+  the check costs nothing and every wired handler returns its
+  previous honestly-unverified receipt byte-identical.
+- **Coordinator scope:** only `landing_failed` fails a step; other
+  failed Outcomes are untouched, and `landing_failed` is NOT in
+  `_TRANSIENT_FAILURE_KINDS` (a click that did not land does not
+  prove transient; the B4 jump is the recovery path).
+
+Tests: `tests/test_hands_landing.py` (both interpreters). Field leg
+still owed: a real click on his machine whose landing the vision
+backend confirms or denies, and whether his llama_cpp wheel exposes
+`Qwen3VLChatHandler`.
+
+### Already verified in-handler (237)
+
+| Tool | Cluster |
+|---|---|
+| `access_record_preference` | A2-descriptor |
+| `accessconf_record` | A2-descriptor |
+| `adapter_action` | A10-section7 |
+| `add_border` | A4-filestat |
+| `agent_call` | A1-store + send-return. Registry writes (discover/register, call, task cancel, remove) are re-read from the agent registry before the result is claimed; a call claims only what the agent's JSON-RPC answer proves (task id + state from the returned task object, artifact text from its parts, agent message text from its parts), and a mismatched request id, a missing jsonrpc version, or a result that is neither a task nor a message is reported as a failure, never claimed; authenticated agents, non-JSONRPC cards and plain-HTTP remote interfaces are refused before anything is sent; the hash-chained event ledger is verified over the FULL ledger — core/agent_call.py (agent_call + _AgentCallDB.verify_chain) |
+| `prompt_tune` | A1-store + score-return. Prompt, dataset and run writes are re-read from the store before the result is claimed; a score claims only what the LM's returned text proves under the stated metric (exact / contains / token-F1 over the owner's expected answers), and a failed LM call scores 0 and is reported, never hidden; the winner is stored as a prompt and re-read before it is made current; with no key configured the LM actions refuse before anything is sent, and the key is never echoed or written to the store or the ledger. |
+| `adjust_image` | A4-filestat |
+| `ambient_scene` | A9-measure |
+| `antic_cards_report` | A2-descriptor |
+| `app_volume` | A5-sysreadback |
+| `asset_inventory` | A1-store |
+| `audio_fade` | A4-filestat |
+| `audio_speed_change` | A4-filestat |
+| `audio_to_midi` | A4-filestat |
+| `audio_trim` | A4-filestat |
+| `backup_files` | A5-sysreadback. The new snapshot id from the backup output is looked up in the repository's own snapshots list before the backup is claimed; a snapshot that is not in the list is reported as a failure, never claimed — core/rustic_backup.py (backup_files). |
+| `batch_rename` | A4-filestat |
+| `batch_watermark` | A4-filestat |
+| `bill_calendar` | A1-store |
+| `bookings` | SQLite-trigger + re-read. The double-booking guarantee is the BEFORE INSERT / BEFORE UPDATE trigger on the bookings table (and BEFORE INSERT on holds): the write aborts when the overlapping live bookings + live holds already fill the resource's capacity, inside the same transaction as the insert. After a book/reschedule the row is re-read and the id, times and confirmed status must be found before the booking is claimed; list/availability/events are reads of the same store — core/bookings.py (bookings). |
+| `borrow_log` | A1-store |
+| `browser_click` | A6-browser |
+| `browser_control` | A6-browser |
+| `browser_read` | A6-browser |
+| `browser_select` | A6-browser |
+| `budget_envelope` | A1-store |
+| `clean_temp_files` | A5-sysreadback |
+| `click_anywhere` | A6-browser. Every click dispatch is verified by before/after probes (element modes via before/after page probe; raw-point modes probe before/after and say 'raw coordinate'); the edit action re-reads both sides of the byte range (P-14/M-47) — `core/click_anywhere_tool.py` (`click_anywhere`). |
+| `comms_record_draft` | A2-descriptor |
+| `compress_image` | A4-filestat |
+| `connect_wifi` | A5-sysreadback |
+| `contact_card` | A1-store |
+| `context_menu_action` | A10-section7 |
+| `continuous_delete_data` | A2-descriptor |
+| `continuous_record_choice` | A2-descriptor |
+| `convert_image` | A4-filestat |
+| `countdown` | A3-atomic |
+| `create_calendar_event` | A9-measure |
+| `create_plan` | A3-atomic |
+| `create_restore_point` | A5-sysreadback |
+| `creative_mark_image` | A9-measure |
+| `creative_rights_add` | A9-measure |
+| `creative_subtitle_export` | A2-descriptor |
+| `crop_image` | A4-filestat |
+| `decision_log` | A1-store |
+| `define_workflow` | A4-filestat. The definition file is re-read after the write and the success line names what the re-read found; a refused definition stores nothing — core/dagflow.py (define_workflow). |
+| `delete_plan` | A3-atomic |
+| `delete_routine` | A3-atomic |
+| `delete_snippet` | A1-store |
+| `delete_window_layout` | A3-atomic |
+| `discord_presence` | A5-sysreadback. Discord's SET_ACTIVITY acknowledgement is read back after the call — a show is only claimed when the ack arrived; a refused or unacknowledged set is reported as a failure, never claimed — core/discord_presence.py (discord_presence). |
+| `disk_speed_test` | A5-sysreadback |
+| `dns_flush` | A5-sysreadback |
+| `document_vault` | A1-store |
+| `download_file` | A2-descriptor |
+| `drag_drop_action` | A10-section7 |
+| `duotone_image` | A4-filestat |
+| `embed_knowledge` | A4-filestat. The vectors are written to the embeddings table AND the count is re-read from the table before the handler returns; a failed write is disclosed, never silently claimed — core/w6_wiring.py (knowledge_embed_missing + KnowledgeStore.embed_missing). |
+| `emergency_card` | A1-store |
+| `empty_recycle_bin` | A5-sysreadback |
+| `enable_custom_wake_model` | A4-filestat. The active pointer file is re-read after the write and the success line names what the re-read found; a mic-consent refusal enables nothing, and enabling a model does not enable wake — core/voice/wake_training.py (enable_custom_wake_model) + core/voice/wake_model.py (set_active). |
+| `env_var` | A5-sysreadback |
+| `event_guest` | A1-store. The re-read plan must contain the guest before the add is claimed; a write that does not verify is reported as a failure, never claimed — core/event_planning.py (event_guest). |
+| `event_milestone` | A1-store. The re-read plan must contain the milestone before the add is claimed; a write that does not verify is reported as a failure, never claimed — core/event_planning.py (event_milestone). |
+| `event_plan` | A1-store. The saved plan fact is re-read and the plan name confirmed before the creation is claimed; a write that does not verify is reported as a failure, never claimed — core/event_planning.py (event_plan). |
+| `event_schedule` | A1-store. The re-read plan must contain the run-of-show item before the add is claimed; a write that does not verify is reported as a failure, never claimed — core/event_planning.py (event_schedule). |
+| `event_tickets` | A1-store. The re-read ticketing fact must contain the ticket type / sale / check-in before the add is claimed; a write that does not verify is reported as a failure, never claimed — core/event_ticketing.py (event_tickets). |
+| `event_vendor` | A1-store. The re-read plan must contain the vendor before the add is claimed; a write that does not verify is reported as a failure, never claimed — core/event_planning.py (event_vendor). |
+| `expense_log` | A1-store |
+| `extension_approve` | A9-measure |
+| `extension_disable` | A9-measure |
+| `extension_enable` | A9-measure |
+| `extension_register` | A9-measure |
+| `extension_revoke` | A9-measure |
+| `eye_rest_timer` | A1-store |
+| `fast_startup_control` | A5-sysreadback |
+| `feel_report` | A2-descriptor |
+| `file_dialog_action` | A6-browser |
+| `filter_image` | A4-filestat |
+| `finance_playbook_add` | A3-atomic |
+| `finance_playbook_curate` | A3-atomic |
+| `finance_playbook_delete` | A3-atomic |
+| `finance_playbook_vote` | A3-atomic |
+| `firewall_control` | A5-sysreadback |
+| `firstrun_record` | A2-descriptor |
+| `flashcard_add` | A1-store |
+| `flashcard_answer` | A1-store |
+| `flashcard_review` | A1-store |
+| `focus_session` | A8-delegated |
+| `focus_window_by_text` | A5-sysreadback |
+| `folder_watch_cook` | A3-atomic |
+| `game_record_gaming` | A2-descriptor |
+| `game_server` | A1-store + A5-sysreadback + process-leg. Registry writes (add/remove) are re-read from the memory-facts store before the result is claimed; start claims only after the spawned process is observed alive (poll() is None) and stop claims only after the process is observed exited (or the kill tree + re-poll proves it gone); the query actions claim only what the protocol reply proves (SLP JSON fields / A2S fields); RCON claims only the bytes the server returned; the RCON password is per call only — never stored, never echoed — core/game_server.py (game_server). |
+| `ebook_library` | A1-store + A4-filestat. Registry writes (scan/remove) are re-read from the memory-facts store before the result is claimed; progress writes are re-read before the result is claimed; the server claims its address only after ThreadingHTTPServer is listening on the LAN address; file downloads serve only a registered book by its hash (never a raw path) and covers are re-read from the book file at request time; the KOReader endpoints claim only what the stored progress proves (404 for an unknown hash, 409 for a duplicate hash) — core/ebook_library.py (ebook_library). |
+| `generate_password` | A9-measure |
+| `get_pixel_color` | A5-sysreadback |
+| `gift_log` | A1-store |
+| `glitch_image` | A4-filestat |
+| `grad_record` | A2-descriptor |
+| `gratitude_log` | A1-store |
+| `grocery_list` | A1-store |
+| `habit_checkin` | A1-store |
+| `habit_track` | A1-store |
+| `hangman` | A3-atomic |
+| `hardware_record_plan` | A2-descriptor |
+| `health` | A9-measure |
+| `hibernate_setting` | A5-sysreadback |
+| `home_inventory` | A1-store. The saved item fact is re-read and the (item, box, room) row must be found before the add is claimed; list/find are reads of the same store — core/skills_admin_lend_assets.py (home_inventory). |
+| `image_contact_sheet` | A4-filestat |
+| `improvement_report` | A2-descriptor |
+| `index_files` | A4-filestat. The file count is re-read after the write and must equal the expected total (files outside the indexed roots, untouched, plus the files indexed under them this run) before the success line names any number; a mismatch is reported as a failure, never claimed — core/disk_index.py (index_files). |
+| `init_backup_repo` | A5-sysreadback. The new repository must open in a snapshots probe (which returns an empty list for a fresh repository) before the creation is claimed; a repository that does not open, or one that already holds snapshots, is reported as a failure, never claimed — core/rustic_backup.py (init_backup_repo). |
+| `iot_record_device` | A2-descriptor |
+| `ip_camera` | A1-store + A4-filestat + capture-gate. Registry writes (add/remove) are re-read from the memory-facts store before the result is claimed; snapshot/MJPEG/record files are stat'ed (size must match the bytes written, zero is a failure) before the path is claimed; the RTSP probe claims only what the packets prove (codec + resolution from the SPS, frame count from distinct RTP timestamps); camera actions refuse before any frame is read when the capture guard denies the session, and credentials are per-call only — never stored, never echoed — core/ip_camera.py (ip_camera). |
+| `ip_renew` | A5-sysreadback |
+| `journal_action` | A3-atomic |
+| `kaleidoscope_image` | A4-filestat |
+| `keep_awake` | A5-sysreadback |
+| `learnlast_report` | A2-descriptor |
+| `list_app_updates` | A5-sysreadback |
+| `listen_for_sound` | A9-measure |
+| `lodging` | SQLite-trigger + re-read. The double-booking guarantee is the BEFORE INSERT / BEFORE UPDATE trigger on the stays table (blocked_until = check_out + turnover nights, frozen at booking): the write aborts when an overlapping stay in a blocking status already holds the unit, inside the same transaction as the insert. After a book/cancel/checkin/checkout/no-show the row is re-read and its status must be found before the change is claimed; availability/list/guest/day/events are reads of the same store; the hash-chained event ledger is verified over the FULL ledger — core/lodging.py (lodging). |
+| `stage_lighting` | A1-store + send-return. Registry writes (node/patch/fixture/scene-save/chase-save/remove/delete) are re-read from the lighting store before the result is claimed; output/blackout/scene-run/chase-step claim only after send returns the full packet length, and the packet is built by a pure builder whose wire bytes the suite proves against a loopback receiver (Art-Net header + OpDmx + levels; sACN preamble + vectors + levels); discovery claims only what the OpPollReply proves (IP, port, names, universe); the hash-chained event ledger is verified over the FULL ledger — core/stage_lighting.py (stage_lighting). |
+| `log_glass` | A4-filestat. The glass count is written to the store AND re-read from the store before the handler returns; a failed write is disclosed, never silently claimed — core/eye_rest.py (log_glass + _load_glasses / _save_glasses). |
+| `make_collage` | A4-filestat |
+| `make_sprite_sheet` | A4-filestat |
+| `mcp_registry` | A1-store. Every server add/remove/enable/disable and every review is written to the local hash-chained registry ledger and re-read before the result is claimed, and the ledger chain is verified over the full chain; list/discover/policy/status/events are reads of the server config, the bus snapshot and the review store — core/mcp_registry.py (mcp_registry + _RegistryDB.verify_chain) |
+| `menu_action` | A10-section7 |
+| `merge_pdfs` | A4-filestat |
+| `mic_control` | A5-sysreadback |
+| `mission_journal_append` | A3-atomic |
+| `mission_run_job` | A7-coordinator |
+| `mood_log` | A1-store |
+| `mouse_settings` | A5-sysreadback |
+| `move_window_to_monitor` | A5-sysreadback |
+| `multiverse_compile_report` | A2-descriptor |
+| `music_trivia` | A3-atomic |
+| `net_record_network` | A2-descriptor |
+| `number_guess` | A3-atomic |
+| `ollama_delete` | A5-sysreadback. The model must be absent from a fresh /api/tags list before the delete is claimed; a model still listed afterwards is reported as a failure, never claimed — core/ollama_models.py (ollama_delete). |
+| `ollama_pull` | A5-sysreadback. The pulled model must appear in a fresh /api/tags list before the pull is claimed; a model not listed afterwards is reported as a failure, never claimed — core/ollama_models.py (ollama_pull). |
+| `page_change_summary` | A9-measure |
+| `page_watch` | A3-atomic |
+| `billing` | A1-store. Every Stripe write (test customer/subscription/payment-link/Checkout-session/refund create, test subscription cancel) is written to the local hash-chained billing ledger and re-read before the result is claimed, and the Stripe answer itself is checked for livemode false before it is reported; list/get/status/verify are reads of Stripe test-mode records or pure local computation; the hash-chained event ledger is verified over the full chain — core/billing.py (billing + _BillingDB.verify_chain) |
+| `pdf_extract_images` | A4-filestat |
+| `pdf_merge_bookmarks` | A4-filestat |
+| `pdf_split_by_text` | A4-filestat |
+| `peripheral_roll_call` | A5-sysreadback |
+| `personal_skills` | A9-measure |
+| `pet_feeding_log` | A1-store |
+| `phase5_report` | A2-descriptor |
+| `photo_face_blur` | A4-filestat |
+| `pilot_record_pilot` | A2-descriptor |
+| `ping_host` | A9-measure |
+| `pixelate_image` | A4-filestat |
+| `plant_care_log` | A1-store |
+| `pomodoro` | A3-atomic |
+| `port_roundtrip` | A9-measure |
+| `power_control` | A5-sysreadback |
+| `power_plans` | A5-sysreadback |
+| `practice_log` | A1-store |
+| `price_watch` | A3-atomic |
+| `process_control` | A5-sysreadback |
+| `quiz_me` | A9-measure |
+| `quote_vault` | A1-store |
+| `read_selection_aloud` | A8-delegated |
+| `reading_list` | A1-store |
+| `record_audio` | A4-filestat |
+| `release_checklist_report` | A2-descriptor |
+| `release_record` | A2-descriptor |
+| `remember_person` | A1-store |
+| `remember_promise` | A1-store |
+| `remember_today` | A1-store |
+| `remember_user_fact` | A1-store |
+| `replay_programme` | A7-coordinator |
+| `resize_image` | A4-filestat |
+| `restore_backup` | A4-filestat. The destination folder is re-listed after the restore and must be non-empty before the restore is claimed; an empty destination is reported as a failure, never claimed — core/rustic_backup.py (restore_backup). |
+| `restore_point_before_changes` | A5-sysreadback |
+| `restore_window_layout` | A5-sysreadback |
+| `riddle_time` | A3-atomic |
+| `rock_paper_scissors` | A3-atomic |
+| `rotate_image` | A4-filestat |
+| `rotate_pdf` | A4-filestat |
+| `run_anticipation_routine` | A7-coordinator |
+| `run_command` | A7-coordinator |
+| `run_proactivity_bench` | A9-measure. The bench run record IS the measurement: the handler writes the run to SQLite AND re-reads it before the summary is returned; a failed record is disclosed in the message, never silently claimed — core/proactivity.py (run_proactivity_bench_handler + record_bench_run/get_bench_run). |
+| `run_routine` | A7-coordinator |
+| `run_workflow` | A9-measure. The run record IS the measurement: the handler writes the run to SQLite AND re-reads it before the summary is returned; a failed write yields the refusal, never a claimed run — core/dagflow.py (run_workflow_handler + save_dag_run/get_run_detail). |
+| `safe_eject_all` | A5-sysreadback |
+| `sandbox_run` | A7-coordinator |
+| `save_routine` | A1-store |
+| `save_snippet` | A1-store |
+| `save_window_layout` | A3-atomic |
+| `scheduled_agents` | A1-store + A9-measure. The manifest store is written atomically (tmp + os.replace) and re-read verified before the setup is claimed; the digest record is appended and the last line read back before the run is reported as done; a job with no manifest, or a step outside its manifest, is REFUSED and the refusal is recorded in the ledger — never silently run — `core/scheduled_agents.py` (`store_manifest`, `run_job`, `_run_steps_job`). |
+| `score_intervention` | A4-filestat. The score record is written to SQLite AND re-read before the handler returns; a failed record is disclosed in the message, never silently claimed — core/proactivity.py (score_intervention_handler + record_score). |
+| `screen_brightness_auto` | A5-sysreadback |
+| `screen_diff` | A5-sysreadback |
+| `screen_look` | A6-browser |
+| `screen_time_today` | A5-sysreadback |
+| `scroll_until_found` | A6-browser |
+| `service_control` | A5-sysreadback |
+| `service_schedule` | A1-store |
+| `set_brightness` | A5-sysreadback |
+| `set_default_printer` | A5-sysreadback |
+| `set_discord_client_id` | A4-filestat. The config file is re-read after the write and the save is only claimed when the re-read finds exactly what was written — core/discord_presence.py (set_discord_client_id). |
+| `set_microphone_mute` | A5-sysreadback |
+| `set_process_priority` | A5-sysreadback |
+| `set_refresh_rate` | A5-sysreadback |
+| `set_reminder` | A9-measure |
+| `set_resolution` | A5-sysreadback |
+| `set_screen_rotation` | A5-sysreadback |
+| `set_screen_timeout` | A5-sysreadback |
+| `set_startup_program` | A5-sysreadback |
+| `set_volume_level` | A5-sysreadback |
+| `set_wallpaper` | A5-sysreadback |
+| `shopping_list` | A1-store |
+| `silence_trim` | A4-filestat |
+| `sim_predict_report` | A2-descriptor |
+| `social_debt_add` | A3-atomic |
+| `social_debt_settle` | A3-atomic |
+| `social_entry_delete` | A3-atomic |
+| `social_gift_add` | A3-atomic |
+| `social_nudge_pause` | A3-atomic |
+| `social_nudge_snooze` | A3-atomic |
+| `social_occasion_add` | A3-atomic |
+| `social_promise_add` | A3-atomic |
+| `social_promise_complete` | A3-atomic |
+| `social_send` | A9-measure. The reported outcome IS the measurement: `done` only when the message is seen in the thread after the owner's spoken send confirmation (or, on the tap path, after the owner tapped send) — a send that was not observed is `unverified`, never "sent" on a guess; the conversation guard reads the header and the pre-filled text back before anything is armed, and a mismatch is `failed`, "don't send", with no fallback to typing — `core/social_send.py` (`social_send`, `guard_check`, `thread_contains`). |
+| `social_stay_in_touch` | A3-atomic |
+| `spelling_bee` | A9-measure |
+| `ssl_cert_info` | A9-measure |
+| `stand_up_nudge` | A1-store |
+| `start_companion` | A9-measure. The reported state IS the measurement: the handler reports "running" only after the socket binds the private LAN address AND the fresh PIN is generated AND the QR file is written; a refused bind or a non-private address yields the refusal, never a claimed URL — core/companion.py (_CompanionSession.start). |
+| `start_meeting` | A9-measure. The reported state IS the measurement: the handler reports "recording" only after the capture guard allows the mic AND the backend stream opens AND the recording indicator is live; a refused/denied mic is an honest refusal, never a silent fallback — core/meeting.py (MeetingSession.start). |
+| `stop_companion` | A4-filestat. The server socket is closed, the session tokens are cleared, and the pairing QR file is deleted and its absence checked; a lingering server thread is reported, never hidden — core/companion.py (_CompanionSession.stop). |
+| `stop_meeting` | A4-filestat. The recording file is re-read after the write (its byte size rides the success line) and the notes are produced from a real transcript; a missing engine yields the saved recording's path and the error, never a fabricated transcript — core/meeting.py (MeetingSession.stop). |
+| `stopwatch` | A3-atomic |
+| `story_chain` | A3-atomic |
+| `strip_image_metadata` | A4-filestat |
+| `study_exam_prep` | A2-descriptor |
+| `study_export_deck` | A2-descriptor |
+| `study_plan` | A2-descriptor |
+| `study_progress` | A2-descriptor |
+| `study_review` | A2-descriptor |
+| `study_session` | A2-descriptor |
+| `subscription_audit` | A1-store |
+| `system_surface_action` | A10-section7 |
+| `task_scheduler_control` | A5-sysreadback |
+| `teach_record_sequence` | A2-descriptor |
+| `teach_replay_sequence` | A7-coordinator |
+| `technical_analysis` | A1-store. The re-read dataset row must contain the stored candles before the add is claimed, and the ledger chain verifies over the full chain; reads never create the store file; the signals action reports mechanical readings of the indicator values only, never advice — core/technical_analysis.py (technical_analysis). |
+| `tic_tac_toe` | A3-atomic |
+| `time_tracker` | A1-store. The re-read project/record row must contain the stored values before the write is claimed, and the ledger chain verifies over the full chain; reads never create the store file; start refuses when already tracking, stop refuses when nothing is running, and a record that would overlap an existing record is refused with the numbers; hours only — no rate, no amount, no invoice — core/time_tracker.py (time_tracker). |
+| `tile_windows` | A5-sysreadback |
+| `toggle_dark_mode` | A5-sysreadback |
+| `trace_route` | A9-measure |
+| `train_custom_wake_word` | A9-measure. The reported numbers ARE the measurement: the handler reports the trained model's held-out accuracy only after the model file is written AND re-loaded AND scored on held-out clips; a failed train yields the refusal, never a claimed model — core/voice/wake_training.py (train_custom_wake_word). |
+| `travel_record` | A2-descriptor |
+| `trivia_quiz` | A3-atomic |
+| `trust_record` | A2-descriptor |
+| `typing_test` | A9-measure |
+| `uia_click_control` | A6-browser |
+| `uia_type_text` | A6-browser |
+| `undo_last_change` | A7-coordinator |
+| `update_plan_step` | A3-atomic |
+| `use_toolbox` | A7-coordinator |
+| `vcard_export` | A9-measure |
+| `voice_agent` | A1-store + send-return. Agent, flow and call writes are re-read from the store before the result is claimed; a call claims only what the SIP peer's answers prove (the REGISTER challenge, the INVITE 200 OK with its SDP answer, the DTMF digits and the speech transcript), and a failed REGISTER, a failed INVITE, or a TTS/STT failure is reported, never claimed as a completed call; trunk credentials are supplied per call, never stored or echoed, and transfer goes only to the agent's configured transfer_to; the hash-chained event ledger is verified over the FULL ledger — core/voice_agent.py (voice_agent + VoiceAgentStore.verify_chain) |
+| `audio_localise` | A1-store. Project, segment, translation and dub writes are re-read from the store before the result is claimed; the subtitle files and the dubbed WAV are written only after their segments are stored, and a translation whose line count does not match its segment count is refused (never guessed); the hash-chained event ledger is verified over the FULL ledger — core/audio_localise.py (audio_localise + _AlStore.verify_chain) |
+| `optimise` | A1-store. Every solve is appended to the hash-chained ledger and re-read (hash + payload) before the result is claimed; the ledger chain is verified over the FULL ledger — core/optimise.py (optimise + _OptStore.verify_chain) |
+| `erp` | A1-store. Every business write (customer, lead, product, stock move, order, invoice, payment, employee, project) is appended to the hash-chained ledger and re-read (row + hash + payload) before the result is claimed; stock is derived from the movement ledger, never a stored counter; fulfilment refuses a shortfall with the numbers, overpayment is refused with the numbers, and the ledger chain is verified over the FULL ledger — core/erp.py (erp + _ErpStore.verify_chain) |
+| `media_chat` | A1-store. Every media, Q&A and summary write is appended to the hash-chained ledger and re-read (row + hash + payload) before the result is claimed; the LM is told to answer only from the transcript and to say so when the transcript does not contain the answer; every answer and summary is stored with the transcript's hash, so it is attributable to the exact transcript version it was drawn from; the ledger chain is verified over the FULL ledger — core/media_chat.py (media_chat + _McStore.verify_chain) |
+| `invoice` | A1-store. Every render and send is appended to the hash-chained ledger and re-read (row + hash + payload) before the result is claimed; the rendered PDF is verified by a stdlib-only xref parser (header, xref offsets, trailer /Root and /Size, page count) before the render is claimed, and the stored sha256 is the content-integrity check; a supplied-lines total must match the invoice total before rendering; the email send is confirm-gated and the Gmail message id is stored with the send record; the ledger chain is verified over the FULL ledger — core/invoice.py (invoice + _InvoiceStore.verify_chain) |
+| `translations` | A1-store. Every project/key/translation/import/translate/export write is appended to the hash-chained ledger and re-read (row + hash + payload) before the result is claimed, and the ledger chain is verified over the FULL ledger; reads never create the store file; the import file is capped at 2 MB and parsed by own stdlib parsers (JSON flat/nested, PO msgid/msgstr, XLIFF trans-unit via ElementTree — no external entities are ever resolved); a machine translation is stored with the source text's sha256 so every machine translation is attributable to the exact source text; the translate action is confirm-gated (it calls the owner's Gemini endpoint) — core/translations.py (translations + _TranslationsStore.verify_chain) |
+| `filament` | A1-store. Every vendor/filament/spool write and every use is appended to the hash-chained ledger and re-read (row + hash + payload) before the result is claimed; remaining weight is derived (initial minus used, never a stored counter) and remaining length is derived from the filament density and diameter; a use that would take a spool below zero is refused with the numbers (the shortfall guard lives in the UPDATE itself); the ledger chain is verified over the FULL ledger; reads never create the store file — core/filament.py (filament + _FilamentStore.verify_chain) |
+| `deals` | A1-store. Every pipeline/deal/ticket write is appended to the hash-chained ledger and re-read (row + hash + payload) before the result is claimed; the deal probability is auto-set from the stage (won 100, lost 0, else the stage table) unless explicitly given; aging is derived from days in stage against the stage's expected days (yellow at expected, red at 1.5×); the ticket SLA is derived from wall-clock hours plus accumulated paused seconds (no business-hours calendar, stated on the tin); a close that would leave a closed deal without a close date or a won deal without an amount is refused; the ledger chain is verified over the FULL ledger; reads never create the store file — core/deals.py (deals + _DealsStore.verify_chain) |
+| `vehicle_routes` | A1-store. Every plan is appended to the hash-chained ledger and re-read (row + hash + payload) before the result is claimed; the solver is cheapest insertion + 2-opt (a heuristic, stated on the tin — not exact); every returned route is feasible (capacity, time windows, skills, working hours, breaks and pickup-before-delivery all hold — one feasibility function builds and re-checks the routes); the service must start inside its time window (arriving early waits, arriving late is unassigned with the reason); a break delays a service to the break end and blocks departures; jobs that cannot be served are reported as unassigned with the reason, never silently dropped; the ledger chain is verified over the FULL ledger; reads never create the store file — core/vehicle_routes.py (vehicle_routes + _RPStore.verify_chain) |
+| `voice_note` | A4-filestat |
+| `vpn_control` | A5-sysreadback |
+| `wardrobe` | A1-store. Every write (garment add/remove, outfit build/remove, schedule add/remove, wear) is re-read from the wardrobe store before the result is claimed; list/suggest/status/events are reads of the same store; the hash-chained event ledger is verified over the full chain — core/wardrobe.py (wardrobe + _WardrobeDB.verify_chain) |
+| `warehouse_stock` | A1-store. The stock row is re-read after a receive/ship/move and the expected quantity must be found before the movement is claimed; list/find/occupancy are reads of the same store — core/skills_admin_lend_assets.py (warehouse_stock). |
+| `warranty_log` | A1-store |
+| `watch_gestures` | A9-measure. The reported gesture IS the measurement: the session reports a gesture only after 3 consecutive polls agree at confidence ≥ 0.5 (palm ≥ 0.5, presence ≥ 0.5); presence is only claimed from a detection in the current frame; a missing/denied camera is an honest refusal, never a silent fallback — core/desktop/vision_gestures.py (VisionGesturesSession) + core/desktop/control_plus_files.py (_tool_watch_gestures). |
+| `water_break` | A1-store |
+| `watermark_image` | A4-filestat |
+| `well_record_plan` | A2-descriptor |
+| `wifi_dead_spot_map` | A5-sysreadback |
+| `window_control` | A5-sysreadback |
+| `window_pin_toggle_all` | A5-sysreadback |
+| `window_place` | A5-sysreadback |
+| `window_snap` | A5-sysreadback |
+| `winget_install` | A5-sysreadback |
+| `winget_upgrade_all` | A5-sysreadback |
+| `status_strip` | A1-store. The window IS the record: visibility is read back after the sink call returns, and a show that did not make the strip visible is reported as a failure, never claimed — core/status_strip.py (status_strip + _status_strip_sink) + gui/status_strip.py. |
+| `word_game` | A3-atomic |
+| `word_of_the_day` | A1-store |
+| `wormhole_offer` | A1-store. The listener IS the record: the socket is bound (a real bind — the server constructor binds before the code phrase is returned) and a failed bind is disclosed, never silently claimed — core/wormhole.py (wormhole_offer + _OfferServer). |
+| `wormhole_receive` | A9-measure. The tag is verified (HMAC over the received bytes) before the success line names the file; a tag mismatch deletes the partial file and reports failure — core/wormhole.py (wormhole_receive). |
+| `zip_control` | A4-filestat |
+| `sync_updates` | A1-store. Watermark save re-read verified (tmp + os.replace, then the file on disk is read back and must hold exactly the value written); page completeness checked before any count is claimed — a partial sync says so and never advances the watermark — `core/connector_sync.py` (`SyncState.put`, `paginate`); `core/google_services_sync.py` |
+
+### Wired before this batch (19)
+
+| Tool | Verification |
+|---|---|
+| `clear_clipboard` | CountClipboardFormats verify-after-act — R1a |
+| `copy_file_to_clipboard` | clipboard_files_equal file-list read-back — R1a |
+| `create_art` | Re-read file on disk — Fix 7 |
+| `display_control` | registry_dword_equals on both theme DWORDs; set_wallpaper REG_SZ read-back — R1a |
+| `file_control` | file_copied / hash compare + file_absent / is_dir — R1a |
+| `fractal_art` | file_written — R1a |
+| `generate_beat` | Re-read file on disk — Fix 7 |
+| `generate_melody` | Re-read file on disk — Fix 7 |
+| `gradient_css` | file_written on the preview — R1a |
+| `make_wallpaper` | Crop re-read + dimension check, set read-back — R1a |
+| `palette_image` | file_written — R1a |
+| `print_file` | win32print EnumJobs probe — Fix 7 |
+| `replace_in_file` | file_written on the rewritten bytes — R1a |
+| `set_focus_assist` | registry_dword_equals — R1a |
+| `shred_file` | file_absent after unlink — R1a |
+| `speak_text` | Voice-engine start confirmation — Fix 7 |
+| `sync_folder` | file_copied per item, file_absent per mirror-delete — R1a |
+| `sync_folders_two_way` | file_copied per item, file_absent per mirror-delete (via rescue) — R9-4 |
+| `organise_photos` | file_copied per item, file_absent at source, byte-compare after move — R9-8 |
+| `write_clipboard` | clipboard_equals paste-back — R1a |
+| `write_file` | Re-read + byte compare (file_written) — Fix 7 |
+| `adjust_volume` | pycaw read-back when available — Fix 7 (already-verified) |
+| `close_application` | _termination_outcome (H16) — Fix 7 (already-verified) |
+| `launch_application` | _verify_launch, honest middle verdict — Fix 7 (already-verified) |
+| `lock_screen` | return-code check — Fix 7 (already-verified) |
+| `uninstall_app` | 'launched' wording, never implies removal — Fix 7 (already-verified) |
+| `wallpaper_revert` | Fix 2 result dict — Fix 7 (already-verified) |
+
+### Residuals (honest, not hidden)
+
+- **MemoryStore ignored-False.** `save_fact` returns a bool, but only 2 call
+  sites capture it (`tools_handlers_command_url.py:500`,
+  `skills_fun_daily.py:121`). The ignored-False case (INSERT succeeds but the
+  read-back misses) is near-unreachable in practice but is a real narrow hole,
+  not a live one. `word_of_the_day` is the one caller that captures it and
+  reports 'saved it to memory' only when the save landed.
+- **Descriptor cluster: no re-read.** The ~40 JSON-descriptor tools write
+  synchronously and raise on failure, but no site re-reads the written JSON.
+  Wiring a re-read would mean touching 17 duplicated sites — a refactor, not
+  a triage fix. Same narrow hole as the `os.rename` / `write_bytes` families
+  (`batch_rename`, `download_file` — byte count, not re-stat —
+  `pdf_extract_images`, `creative_subtitle_export`, `set_startup_program`
+  enable leg, `teach_record_sequence`).
+- **`winget_upgrade_all` trusts winget's summary.** No per-app re-read after
+  the upgrade; the winget exit code and summary are reported verbatim and a
+  timeout is disclosed. `winget_install` does re-read the installed list.
+- **`app_settings` live_voice / local_voice legs.** `_current` reads the
+  in-memory config attribute just assigned, so the re-read confirms the live
+  value; the `.env` persistence itself is the atomic `_save_env` (raises on
+  failure), not re-read.
+- **`ambient_scene` audibility.** The soundscape generation is verified by the
+  audio pipeline and the playing state is the in-memory `_AMBIENT` record,
+  readable by the status leg — but whether sound is actually audible on the
+  machine is not re-read.
+- **`play_music` marker.** The R1b wrap is a marker on the rung evidence, not
+  new verification — the rungs already verify ('(audio confirmed)' only when
+  `_playback_evidence()` is true).
+- **Study leaves.** The `study_*` handlers return `_ok(leaf result)` / `_err` on
+  any leaf exception; the leaf write paths were not individually re-read — the
+  handler-level guarantee (failures surface, never claimed) is what is pinned.
+- **Field leg still owed.** Every R1b read-back (wifi, eject, window, wallpaper,
+  file re-reads) and every U-marked behaviour is lab-proved through fakes only;
+  the real-Windows leg on his machine is still owed, as for Fix 7 / R1a.
+
+## 3. Re-checks (premises from the brief, verified from the tree)
+
+- **Live-loop verifier: P1–P4 WIRED, not "nothing wired".**
+  `_exec_live_staleness` runs in `ToolRegistry.execute()`
+  (`core/funnel/tools_registry_exec_gates.py:329`, called from
+  `core/funnel/tools_registry.py:264`), keyed on the `live_origin`
+  contextvar set in `_execute_tool_sync`
+  (`core/voice/live_client_receive.py:363-388`). The envelope
+  origin drop (`tool_envelope.py:197`) is bypassed by the
+  contextvar, exactly as the design recommended. **P5 field legs
+  still owed** (threshold tuning on real captures, grab-cost
+  confirmation vs the 500 ms budget, end-to-end live leg). Live
+  BINDING verification remains impossible with today's records
+  (the model holds many frames; the ledger is single-slot
+  latest-delivered) — the stage checks staleness, never binding,
+  and never claims otherwise.
+- **Fail-open audit re-check (2026-11-05):** 26 FAIL-CLOSED stand;
+  A1 is CLOSED (all four sites read fail-closed:
+  `rule_of_two.py:147,174`, `money_guard.py:520`,
+  `confirm_gate.py:378`); D1/D2/D3/D5 remain justified by design
+  (cost gate / defaults / quality filter / platform limit);
+  **D4 and D6 are now CLOSED by this batch** (above). No new
+  fail-open found in the sampled families.
+- **C4 enumeration stands: zero wireable paths.**
+  `tests/test_c4_enumeration.py` — no live ask-path has BOTH a
+  typed control-existence target AND a fresh observation at dialog
+  time. The staleness stage is NOT a C4 site (it checks view
+  freshness, not target existence). Unblocking condition unchanged:
+  a funnel/GUI observation supplier.
+- **C-14 / D4 (confirm rules) NOT weakened.** No confirm-gate,
+  PF-18, or classification change in this batch. Registry stays
+  **655**; no pin updates needed.
+- **By-design walls NOT moved:** UAC secure desktop, browser
+  password fields, CAPTCHAs.
+
+## 4. Dead-rung dispositions (wired, removed, or honestly marked)
+
+| Item | Disposition | Reason |
+|---|---|---|
+| `core/webengine_proxy.py` | KEEP, honestly marked | Docstring records the decision (world-view removal 2026-11-05): globe was its only consumer and is gone; "The proxy and its tests stay as the seam for any future WebEngine page." No product importer; its two test files stand. |
+| `_web_rung` | REVIVED (R3) | The v5.70 session probe (`_spotify_web_session`, always False) is DELETED; the rung now drives Spotify web through his attached Chrome (Fix 3 explicit enable — never auto-enabled). The login wall is observed at the click by the browser layer's password-field probe, never assumed from a cookie store — no cookie-store reading anywhere, so the "owner's ruling" the audit awaited (for a cookie-store session check) is not needed. The track click must land (mirroring the YTM rung), closing a latent false-claim hole. Full tracks need his Spotify login in Chrome; without it the rung can at most play previews. |
+| `open_url` | ROUTED (B2) | Routes through browser_control's goto when the Fix 3 opt-in is on (verified attach + page-load probe, seam Outcome); opt-in off, non-page scheme, named browser, or empty URL keep the webbrowser.open fallback with the boundary stated. No auto-enable; attach/page failure reports failure, no silent fallback. |
+
+## 5. What this batch does NOT claim
+
+- All 655 tools now have a disposition (§2c): 37 wired through the seam
+  (6 Fix 7 + 13 R1a + 17 R1b + 1 B2), 243 already verified in-handler, 29 honestly
+  unverifiable with reasons. The pool is closed (0 remaining). What is NOT
+  claimed: the field leg — every R1b read-back and every U-marked behaviour
+  is lab-proved through fakes only, and the residuals above (§2c) are real
+  narrow holes, not live ones.
+- No real-Windows field leg: print-job probe, voice-engine start,
+  hotkey release behaviour, clipboard paste-back, file
+  copy/move/delete verification, Focus Assist / dark-mode registry
+  read-backs, and launch-process evidence on his machine are
+  lab-proved through fakes only.
+- The owner's top-2–3 tool examples are still owed — if his
+  examples name tools this audit sampled as fine, the audit is
+  wrong in those places and the next pass starts from his list.

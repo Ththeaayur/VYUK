@@ -1,0 +1,144 @@
+# requirements.lock — exact pins for VYUK's DIRECT dependencies.
+#
+# v5.50, programme item 44 (packaging truth): this file pins, with
+# exact == versions, every ACTIVE direct dependency declared in
+# requirements.txt, so a build resolves the same versions every
+# time instead of whatever ">= floor" floats to on build day.
+# requirements.txt stays the human-edited declaration (floors +
+# rationale); this lock is the build's reproducibility record.
+# Regenerate deliberately: re-resolve each floor against the
+# project venvs below and update the pin + its source note.
+#
+# SOURCES — every pin traces to a real installed version; no
+# version below was invented or copied from a changelog:
+#   1. Packaging kit manifest (packaging/assets_manifest.json /
+#      gen_manifest.py): consulted first — it pins model/asset
+#      files only and carries NO Python package pins, so it
+#      contributes nothing here.
+#   2. requirements.txt: the set of direct dependencies (the
+#      ACTIVE, non-comment lines) and their floors.
+#   3. Versions actually installed in the project's venvs
+#      (pip freeze / importlib.metadata, read 2026-10-23):
+#      ~/workspace/code-lab/.venv-qt, .venv-brain, .venv-gx3 and
+#      .venv-kokoro (the four venvs named for this item), plus the
+#      packaging build venv .venv-build — the venv
+#      build_installer.ps1 stage 1 creates from requirements.txt,
+#      hence the most complete resolution of these exact floors —
+#      and .venv-pw (Playwright). Per-pin source venvs are noted
+#      in the trailing comments.
+#
+# CONFLICT NOTE: websockets is 16.1.1 in .venv-gx3 and .venv-build
+# but 17.3 in .venv-kokoro (where it rides along as a transitive
+# install, not a direct one). The pin follows the two agreeing
+# sources, including the build venv: 16.1.1.
+#
+# UNRESOLVED — declared in requirements.txt but NOT pinned here,
+# because no project venv has them installed and inventing a
+# version would be worse than admitting the gap:
+#   pywinauto   (win32-only hard dep, v5.48 item 25 — a Linux venv
+#               cannot hold it; pin from the Windows build machine)
+#   pycaw       (win32-only hard dep, v5.48 item 25 — same reason)
+#   pytesseract (the Python wrapper is absent from every project
+#               venv; the Tesseract BINARY itself is staged by the
+#               installer, see packaging/build_installer.ps1)
+#   comtypes    (win32-only, v5.54 — rides transitively with
+#               pywinauto/pycaw; 1.4.17 is the current release)
+#   dxcam       (win32-only, B-D5 — sdist-only, no wheel; pin
+#               dxcam==0.3.0 from the Windows build machine)
+#   aiortc      (B-D6 — not installed in any project venv; pin
+#               aiortc==1.16.0 from the Windows build machine)
+# The six are named in the commented lines at the bottom so the
+# gap is visible in the file, not just in the phase notes.
+#
+# Optional/commented declarations in requirements.txt (pypdf,
+# piper-tts) are NOT direct dependencies and are not pinned here.
+
+google-genai==2.32.0            # .venv-gx3, .venv-build
+sounddevice==0.5.6              # .venv-qt, .venv-build
+soundcard==0.4.6                # .venv-qt (v5.54: installed 2026-10-24 to resolve the EA-7 floor; wheel METADATA reads BSD 3-clause)
+numpy==2.5.4                    # .venv-qt, .venv-brain, .venv-gx3, .venv-kokoro, .venv-build
+PySide6==6.12.0                 # .venv-build (corroborated by PySide6_Essentials==6.12.0 in .venv-qt)
+pillow==13.0.0                  # .venv-qt, .venv-build
+opencv-python-headless==5.0.0.93  # .venv-build
+websockets==16.1.1              # .venv-gx3, .venv-build (see CONFLICT NOTE above)
+psutil==7.2.2                   # .venv-qt, .venv-build
+pyperclip==1.11.0               # .venv-build
+llama-cpp-python==0.3.36        # .venv-brain (dist name llama_cpp_python)
+kokoro-onnx==0.6.1              # .venv-kokoro, .venv-build
+faster-whisper==1.2.1           # .venv-brain, .venv-build
+vosk==0.3.45                    # .venv-kokoro
+pyttsx3==2.99                   # .venv-build
+pypresence==4.6.2               # .venv-qt only (R8-9, 2026-11-10: installed 4.6.2 in .venv-qt only; wheel METADATA License-Expression MIT; ZERO runtime dependencies)
+google-api-python-client==2.201.0  # .venv-build
+google-auth-oauthlib==1.5.0     # .venv-build
+google-auth-httplib2==0.4.4     # .venv-build
+mcp==2.3.0                      # .venv-mcp (v5.55: installed 2026-10-24 to resolve the HE-1 floor; wheel LICENSE reads MIT, (c) 2024 Anthropic, PBC)
+fastmcp==4.1.3                  # .venv-mcp (v5.55: metapackage — wheel holds dist-info only; Apache-2.0; real code is fastmcp-slim==4.1.3 below)
+fastmcp-slim==4.1.3             # .venv-mcp (v5.55: METADATA License-Expression Apache-2.0; no LICENSE file in the wheel — recorded exactly that way)
+certifi==2026.10.23             # .venv-mcp (v5.55: satisfies the >=2026.10.19 plan pin; METADATA License MPL-2.0)
+guidance==0.3.1                 # .venv-mcp (v5.55: wheel LICENSE.md reads MIT, (c) The Guidance Contributors)
+huggingface_hub==2.2.0          # .venv-build, .venv-brain (v5.56 CC-1: declared direct import, core/local_assets.py; METADATA License Apache-2.0)
+cryptography==50.0.2           # .venv-build, .venv-v556-cc (v5.71 Life Admin: declared direct import, core/docvault.py; METADATA License-Expression Apache-2.0 OR BSD-3-Clause)
+onnxruntime==1.31.0             # .venv-build, .venv-brain, .venv-kokoro (v5.56 CC-1: declared direct import, core/toolbox.py; METADATA License MIT)
+opentelemetry-api==1.45.1      # .venv-v556-ob (v5.56 integration: OB-1 direct import, core/telemetry.py; METADATA License-Expression Apache-2.0)
+opentelemetry-sdk==1.45.1      # .venv-v556-ob (v5.56 integration: OB-1 direct import, core/telemetry.py; METADATA License-Expression Apache-2.0)
+opentelemetry-semantic-conventions==0.66b1  # .venv-v556-ob (v5.56 integration: OB-1 direct import, core/telemetry.py; METADATA License-Expression Apache-2.0)
+opentelemetry-instrumentation==0.66b1       # .venv-v556-ob (v5.56 integration: OB-1 namespace dep of the GenAI instrumentor, core/telemetry.py; METADATA License-Expression Apache-2.0)
+opentelemetry-instrumentation-google-genai==1.3b0  # .venv-v556-ob (v5.56 integration: OB-1 direct import, core/telemetry.py; METADATA License-Expression Apache-2.0)
+anyio==4.15.1                  # .venv-mcp (v5.56 integration: MCP bus direct import, core/mcp_client.py; METADATA License-Expression MIT)
+httpx2==2.16.0                 # .venv-mcp (v5.56 integration: MCP bus direct import, core/mcp_client.py; METADATA License-Expression BSD-3-Clause)
+sympy==1.12                     # system python3 + .venv-qt (U10 tutor, 2026-11-08: installed 1.12 in .venv-qt to resolve the new floor; wheel LICENSE reads BSD-3-Clause, (c) 2006-2023 SymPy Development Team)
+mpmath==1.4.1                   # .venv-qt (U10 tutor, 2026-11-08: sympy's runtime dependency, installed with sympy 1.12)
+pywinctl==0.4.1                 # .venv-qt only (B-D1, 2026-11-09: installed 0.4.1 in .venv-qt only — system python3 has neither pywinctl nor pymonctl, verified by parent via pip show + import failure; the wrapper degrades there to engine_unavailable; wheel LICENSE reads BSD-3-Clause, (c) 2021 Kalmat)
+pymonctl==0.92                  # .venv-qt only (B-D1, 2026-11-09: pywinctl's monitor dependency, installed 0.92 in .venv-qt only; wheel LICENSE reads BSD-3-Clause, (c) 2021 Kalmat (aka alef))
+watchdog==7.1.0                 # .venv-qt only (B-D2, 2026-11-09: installed 7.1.0 in .venv-qt only — system python3 has no watchdog, PEP 668 blocks pip there and --break-system-packages was NOT used; the wrapper degrades there to engine_unavailable; wheel LICENSE reads Apache-2.0, Copyright 2018-2026 Mickaël Schoentgen & contributors)
+mammoth==1.13.0                 # .venv-qt only (B-D3b, 2026-11-09: direct docx dep — mammoth renders docx to HTML; installed 1.13.0; wheel METADATA BSD-2-Clause, LICENSE file (c) 2013 Michael Williamson)
+markdownify==1.2.3              # .venv-qt only (B-D3b: direct docx dep — mammoth HTML -> Markdown (ATX); installed 1.2.3; LICENSE file MIT, (c) 2012-2018 Matthew Tretter)
+python-pptx==1.0.2              # .venv-qt only (B-D3b: direct pptx dep — the slide walker is in-tree over python-pptx; installed 1.0.2; wheel METADATA MIT)
+openpyxl==3.1.5                 # .venv-qt only (B-D3b: direct xlsx dep — sheets read through openpyxl, NO pandas; installed 3.1.5; wheel METADATA MIT — note system python3 already has openpyxl 3.1.2, so xlsx converts there too)
+lxml==6.1.3                     # .venv-qt only (B-D3b: mammoth/python-pptx XML dep; installed 6.1.3; wheel METADATA BSD-3-Clause — note system python3 already has lxml 5.2.1)
+playwright==1.64.0              # .venv-pw (Playwright) (GAPS-1, 2026-11-12: restored as the browser engine — the patched engine removed; licence Apache-2.0, METADATA License-Expression + License-File, read from the installed 1.64.0 METADATA 2026-11-12; transitives pyee 14.0.0 MIT + greenlet 3.5.6 MIT AND PSF-2.0, both installed in .venv-pw; unpacks to 140 MB)
+# TRANSITIVE (not direct pins — ride with the B-D3b direct libraries; recorded for the build, not resolved here): cobble 0.1.4 (BSD), beautifulsoup4 4.15.0 (MIT), six 1.17.0 (MIT), XlsxWriter 3.3.1 (BSD-2), et-xmlfile 2.0.0 (MIT); Pillow 13.0.0 + typing-extensions already in the tree. REMOVED in B-D3b (parent rejected markitdown on weight, 2026-11-09): markitdown 0.1.9, pandas 3.1.1, magika 1.0.3, onnxruntime 1.31.1 — the tree no longer declares them (the Qt venv still has them installed; dev env only, not shipped).
+# TRANSITIVE (not direct pins — ride with pywinctl; recorded for the build, not resolved here): pywinbox 0.7 + pywin32 (win32 only) + typing-extensions (4.16.0 in .venv-qt, 4.10.0 in system python3); python-xlib 0.33 + ewmhlib 0.2 + six 1.17.0 are Linux-only and do NOT ship on Windows.
+# UNRESOLVED (see header): pywinauto — not installed in any project venv
+# UNRESOLVED (see header): pycaw — not installed in any project venv
+# UNRESOLVED (see header): pytesseract — not installed in any project venv
+# UNRESOLVED (see header): comtypes — win32-only (v5.54); rides
+#   transitively with pywinauto/pycaw. 1.4.17 is the current
+#   release (PyPI wheel resolved 2026-10-24) — pin from the
+#   Windows build machine like pywinauto.
+# UNRESOLVED (see header): dxcam — not installed in any project venv
+#   (Windows-only, Desktop Duplication; B-D5 new runtime
+#   dependency — APPROVED by the parent, 2026-11-09. Pin dxcam==0.3.0 from the Windows
+#   build machine: NO wheel exists for 0.3.0 (sdist-only, 48,742 B,
+#   unpacked ~214 KB) — the build resolves from the sdist.
+#   Licence MIT (c) 2022 Rain, read from the sdist 2026-11-09.
+# UNRESOLVED (see header): aiortc — not installed in any project venv
+#   (B-D6 new runtime dependency — APPROVED by the parent, 2026-11-09; weight ruled on, see requirements.txt). Pin
+#   aiortc==1.16.0 from the Windows build machine. Weight,
+#   measured 2026-11-09 from the PyPI wheels: full set unpacks
+#   to 147.0 MB, dominated by av 19.0.2 at 125.4 MB unpacked
+#   (35.0 MB wheel, bundles FFmpeg); excluding cryptography
+#   (already in the tree) the NEW weight is ~132.7 MB unpacked.
+#   av is required for audio (aiortc imports it at module
+#   level) — no light path. Transitives: aioice 0.13.0
+#   BSD-3-Clause; av 19.0.2 BSD-3-Clause; google-crc32c 1.9.0
+#   Apache-2.0; pyee 16.0.1 MIT; pylibsrtp 1.0.0 BSD-3-Clause;
+#   pyOpenSSL 26.4.0 Apache-2.0; cryptography 50.0.2 already
+#   declared. Licence BSD-3-Clause (c) Jeremy Lainé, read from
+#   the 1.16.0 wheel 2026-11-09.
+# SYSTEM TOOL (see header): winget — not a pip package, no pin.
+#   (B-D8 system-tool dependency — APPROVED by the parent, 2026-11-09; licence read from the LICENSE file itself).
+#   winget.exe ships with Windows 10/11 as App Installer; the
+#   wrapper (core/desktop/app_management.py) shells out to it.
+#   Weight: 0 new bytes shipped. Licence MIT, read from the
+#   GitHub API repo metadata for microsoft/winget-cli 2026-11-09
+#   (license: MIT, SPDX MIT); round-6 record: "MIT (GitHub
+#   licence field + LICENSE file)". The APPS winget installs
+#   carry their own licences — never presented as cleared here.
+apscheduler==3.11.3             # .venv-qt only (B-D9, 2026-11-09: installed 3.11.3 in .venv-qt only — system python3 has no apscheduler, PEP 668 blocks pip there and --break-system-packages was NOT used; the wrapper degrades there to engine_unavailable; wheel LICENSE reads MIT, (c) Alex Grönholm)
+# TRANSITIVE (not direct pins — ride with apscheduler; recorded for the build, not resolved here): tzlocal 5.4.5 (MIT, (c) 2011-2017 Lennart Regebro); six 1.17.0 (MIT, already in the tree). NOT declared (B-D9, 2026-11-09): SQLAlchemy 2.1.8 (MIT) — APScheduler's shipped SQLAlchemyJobStore needs it, but it measures 28 MB installed for a three-column store; the store here is an in-tree BaseJobStore subclass over stdlib sqlite3 (same table/columns/pickle format). Pin apscheduler==3.11.3 from the Windows build machine.
+keyring==25.7.0                 # .venv-qt only (B-D10, 2026-11-09: installed 25.7.0 in .venv-qt only — system python3 has no keyring, PEP 668 blocks pip there and --break-system-packages was NOT used; the wrapper degrades there to engine_unavailable; wheel LICENSE reads MIT, (c) 2025 <copyright holders>)
+# TRANSITIVE (not direct pins — ride with keyring; recorded for the build, not resolved here): jaraco.classes 3.4.0 (MIT), jaraco.functools 4.6.0 (MIT), jaraco.context 6.1.2 (MIT), more-itertools 11.2.1 (MIT); Linux-only: SecretStorage 3.5.0 (BSD-3-Clause), jeepney 0.9.0 (MIT); Windows-only: pywin32-ctypes 0.2.3 (BSD-3-Clause). Pin keyring==25.7.0 from the Windows build machine.
+# NOT declared (B-R1-1, 2026-11-09): the `silero_vad` PyPI package 6.2.3 (MIT) — it hard-requires torch>=1.12.0 (top-level requires_dist, not an extra); the torch wheel alone is ~539 MB for a ~2 MB model. The VAD here is the tree's direct ONNX implementation (core/voice/vad.py) over the already-declared onnxruntime 1.31.0 — no new dependency, no new weight. No silero_vad.onnx weights file ships in this batch (operator-supplied only, via VYUK_SILERO_VAD_ONNX / the bundled assets dir / an explicit path); without weights the wrapper runs the honest energy fallback, labelled as such.
+# NOT declared (B-R1-2, 2026-11-09): there is no smart-turn package on PyPI (`smart-turn` and `pipecat-ai-smart-turn` both 404, checked 2026-11-09); the upstream training stack (torch 2.9.0, torchaudio, transformers, datasets, scikit-learn, librosa, soundfile, wandb, torchcodec, onnx, onnxruntime-gpu, onnxscript) is NOT needed to run the model. Turn-taking here is the tree's direct ONNX slot (core/voice/smartturn.py) over the already-declared onnxruntime 1.31.0 — no new dependency, no new weight. No smart-turn.onnx weights file ships in this batch (operator-supplied only, via VYUK_SMART_TURN_ONNX / the bundled assets dir / an explicit path); without weights the wrapper runs the honest heuristic fallback, labelled as such. Licence re-read 2026-11-09 from the repo LICENSE file: BSD-2-Clause, Copyright (c) 2024–2025, Daily.

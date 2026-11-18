@@ -1,0 +1,698 @@
+# Commercial-grade dependencies. Licences are NOT all permissive —
+# see THIRD_PARTY_LICENSES.md (LGPL: PySide6; MPL-2.0:
+# pyttsx3; GPL-3.0 via espeak-ng under kokoro-onnx). Header
+# corrected v5.50, programme item 44.
+google-genai>=2.0.0
+sounddevice>=0.5.0
+# v5.54 (Wave 0, EA-7): SoundCard (BSD 3-Clause — licence read
+# from its PyPI wheel, 2026-10-24) is the mic doctor's
+# independent default-microphone cross-check (core/voice/mic_doctor).
+# Lazy-imported; absence degrades that one rung, nothing else.
+soundcard>=0.4.6
+# v5.55 (Wave 1, HE-1/SC-1): MCP toolbox bus + grammar shortlist.
+# mcp (MIT — licence read from its wheel, 2026-10-24) is the
+# official SDK; fastmcp (Apache-2.0) is the client framework on
+# top of it. CVE-2026-115563 pin: mcp >=1.30.0 or >=2.2.0 AND
+# issuer= passed for M2M OAuth providers — enforced in code in
+# core/mcp_client.py (the version floor alone is NOT the fix);
+# this build takes the 2.x line, matching fastmcp-slim's own
+# mcp<3.0.0,>=2.2.0 bound. certifi (MPL-2.0) is the plan-pinned
+# CA bundle floor. guidance (MIT) compiles the per-turn routed
+# shortlist to a grammar (core/grammar_shortlist); lazy-imported,
+# absence degrades to today's path. Telemetry OFF: no MCP
+# component configures an exporter (verified by source read of
+# mcp 2.3.0 + fastmcp-slim 4.1.3, 2026-10-24). Reference servers
+# (Fetch/Git/Time, MIT) are console scripts the user installs,
+# not product dependencies — they are NOT listed here.
+mcp>=2.2.0,<3.0.0
+fastmcp>=4.1.3
+certifi>=2026.10.19
+guidance>=0.3.1
+numpy>=1.26.0
+PySide6>=6.6.0
+pillow>=10.0.0
+opencv-python-headless>=4.9.0
+websockets>=13.0
+
+# Extended commercial utilities (licences vary — see
+# THIRD_PARTY_LICENSES.md) (v5.50, item 44)
+psutil>=5.9.0
+pyperclip>=1.8.2
+# HARD dependencies (v5.48, programme item 25): pywinauto, pycaw and
+# pytesseract used to sit in an "Optional" comment below, so a build
+# could silently ship without them — and without pywinauto the
+# password guard (core/input_guard) has no UI Automation to check
+# the focused field with. They are load-bearing now: pywinauto
+# (UI Automation: password guard + click-by-name) and pycaw (exact
+# volume level) are Windows-only, hence the win32 markers;
+# pytesseract (OCR + click-by-text; the Tesseract BINARY still
+# arrives with the installer) is platform-neutral.
+pywinauto>=0.6.8; sys_platform == 'win32'
+pycaw>=20230407; sys_platform == 'win32'
+# v5.54 (Wave 0, EA-10/EA-11): comtypes carries her own MMDevice
+# layer (core/mmdevice.py — mic-doctor probes + the
+# default-device watcher). It already rides in transitively
+# with pywinauto/pycaw on Windows; declared directly now that
+# first-party code imports it. Windows-only in practice.
+comtypes>=1.4.0; sys_platform == 'win32'
+# B-D5 (2026-11-09) — DXcam screen capture behind
+# core/desktop/screen_capture.py (Desktop Duplication frames at
+# 240 Hz+, per-monitor + region, for the B5 vision path and the
+# see-my-working roadmap step). APPROVED new runtime dependency
+# — parent, 2026-11-09 (licence read from the sdist). Licence read
+# from the 0.3.0 sdist 2026-11-09: MIT, Copyright (c) 2022 Rain
+# (LICENSE file + PKG-INFO License-Expression: MIT) — matching
+# the pilot record (core/pilot_licences_senses.py "dxcam",
+# CLEAR-SEAT). Transitives comtypes + numpy, both already in
+# the tree; processor_backend="numpy" so opencv-python is never
+# required. Weight, measured 2026-11-09 from the PyPI sdist
+# (there is NO wheel for 0.3.0 — sdist-only, it builds from
+# source on install): sdist 48,742 B, unpacked 219,345 B
+# (~214 KB). $0, commercial use permitted. Lazy-imported;
+# degrades honestly to engine_unavailable off Windows.
+dxcam>=0.3.0; sys_platform == 'win32'
+# B-D6 (2026-11-09) — aiortc WebRTC voice/video calls behind
+# core/desktop/call_control.py (peer-to-peer calls, DTLS-SRTP
+# media, caller-supplied signalling — aiortc provides none).
+# APPROVED new runtime dependency — parent, 2026-11-09
+# (licence read from the wheels; weight ruled on, see below).
+# Licence read from the
+# 1.16.0 PyPI wheel 2026-11-09: BSD-3-Clause
+# (METADATA License-Expression + LICENSE file, Copyright (c)
+# Jeremy Lainé). Transitives, all read from their PyPI
+# wheels' METADATA 2026-11-09 — no GPL anywhere: aioice
+# 0.13.0 BSD-3-Clause; av 19.0.2 BSD-3-Clause; cryptography
+# 50.0.2 Apache-2.0 OR BSD-3-Clause (ALREADY declared +
+# installed in the Qt venv); google-crc32c 1.9.0 Apache-2.0;
+# pyee 16.0.1 MIT; pylibsrtp 1.0.0 BSD-3-Clause; pyOpenSSL
+# 26.4.0 Apache-2.0. WEIGHT, measured 2026-11-09 from the
+# PyPI wheels (aiortc is importable in NEITHER Linux
+# interpreter): the full set unpacks to 147.0 MB, dominated
+# by av 19.0.2 at 125.4 MB unpacked (35.0 MB wheel — it
+# bundles FFmpeg). Excluding cryptography (already in the
+# tree), the NEW weight is ~132.7 MB unpacked (~37.6 MB of
+# wheels). av is REQUIRED for audio: aiortc imports it at
+# module level (mediastreams.py:8, rtcrtpreceiver.py:12) —
+# there is no light path. The parent rules on the weight.
+# Requires-Python >=3.11; the tree is 3.12. $0, commercial
+# use permitted. Lazy-imported; degrades honestly to
+# engine_unavailable when aiortc is missing.
+aiortc>=1.16.0
+# GAPS-1 (2026-11-12) — stock Playwright RESTORED as the browser
+# automation engine behind core/desktop/browser_automation.py
+# (the dict-returning driver wrapper: launch/navigate/click/fill/
+# read/close with page identity + load-state wait + click/fill
+# read-backs, on the user's installed Chrome via
+# channel="chrome"). The patched engine (B-D7/B-D7r, 2026-11-09)
+# is REMOVED per the 2026-11-11 ruling: the v5.59 seam + A/B
+# harness are deleted, the worker starts stock Playwright
+# directly (browser_session._start_pw), and the wrapper drives
+# it via _PlaywrightBackend. Licence read from the .venv-pw
+# installed 1.64.0 METADATA 2026-11-12 by this batch:
+# Apache-2.0 (METADATA License-Expression + License-File
+# LICENSE; author Microsoft Corporation; source
+# github.com/Microsoft/playwright-python). Transitives, from
+# the installed METADATA Requires-Dist: pyee>=13,<15 (MIT) and
+# greenlet>=3.1.1,<4.0.0 (MIT AND PSF-2.0) — no GPL anywhere.
+# WEIGHT, measured 2026-11-12 from .venv-pw: playwright 1.64.0
+# unpacks to 140 MB (145,725,011 B — the Node driver binary
+# dominates). Net ~0 vs the removed engine (a patched copy of
+# the same engine, same order). Two engines (278 MB) do not
+# ship. Requires-Python >=3.10; the tree is 3.12. $0,
+# commercial use permitted. Lazy-imported; degrades honestly to
+# engine_unavailable when playwright or Chrome is missing.
+playwright>=1.64.0
+# B-D8 (2026-11-09) — winget app management behind
+# core/desktop/app_management.py (the dict-returning driver
+# wrapper: search/resolve/install/update/remove/list with
+# package-id identity, confirm=True enforcement, a deny-list
+# for system runtimes, and verification against winget's own
+# lists). APPROVED system-tool dependency — parent, 2026-11-09
+# (licence read from the LICENSE file itself). There is NO pip
+# package and NO pin line here: winget.exe is a Windows system
+# tool — it ships with Windows 10/11 as App Installer, and
+# this module shells out to it via subprocess. Nothing is
+# downloaded, vendored, or installed by this module. WEIGHT: 0
+# new bytes shipped — the wrapper is pure Python on the
+# standard library plus the tree's own winget parsers;
+# winget.exe itself is part of Windows, not of VYUK. The
+# parent rules on the system-tool dependency, not a pip one.
+# winget.exe is absent from this Linux lab machine (``which
+# winget`` finds nothing; no ``winget`` module in either
+# interpreter). The APPS winget installs carry their own
+# licences — this wrapper never presents an installed app as
+# licence-cleared; every install/update result records the
+# package id AND the source, so the licence question for each
+# app is answerable later. Lazy (subprocess only); degrades
+# honestly to engine_unavailable when winget.exe is missing.
+pytesseract>=0.3.10
+# Optional: pypdf (read_pdf_text in core/skills_plus.py — without it the tool returns an install hint)
+#   pypdf>=4.0
+
+# Optional: pyfive (GOES lightning pins in core/goes_caller.py — Wiring item 4, v6.0.0 post-ship;
+#   without it the GOES layer reports not-connected and no pins are drawn; BSD-3-Clause, wheel read 2026-11-01)
+#   pyfive>=1.1.0
+
+# Built-in LOCAL BRAIN (core/brain/brain.py + core/local_client.py + core/voice/local_assets.py):
+# runs VYUK fully on-device with BRAIN_ENGINE=local and LOCAL_BACKEND=builtin —
+# no Gemini API key, no Ollama install, no manual downloads. Since v4.0 the
+# installer bundles the model/voice pack, so nothing downloads on first
+# connect for installed users; the pack downloads only when running from
+# source (no bundled assets) or to repair a damaged pack.
+# These packages are load-bearing now, so they are ACTIVE requirements; all are
+# pure wheels or prebuilt binaries — faster-whisper runs on CTranslate2, NOT
+# torch, so there is no multi-GB torch payload.
+llama-cpp-python>=0.3
+kokoro-onnx>=0.4
+# B-R1-3 (2026-11-09, PARENT RULING 2026-11-09): kokoro-onnx 0.6.1
+# hard-requires phonemizer>=3.4.0 (GPL-3.0, verified by the parent
+# from the installed METADATA + LICENSE file + PyPI classifier) and
+# espeakng-loader>=0.2.4 (its OWN licence could not be verified;
+# it bundles libespeak-ng, GPL-3.0). kokoro_onnx/tokenizer.py calls
+# phonemizer.phonemize() on EVERY synthesis. B-R1-3r (2026-11-09,
+# PARENT-VERIFIED 2026-11-09 for the wrapper's path): the engine is
+# ISOLATED in a separate process — core/desktop/kokoro_isolate.py +
+# kokoro_child.py (stdlib subprocess; text in, PCM out; the main
+# process holds NO kokoro-onnx import, enforced by
+# tests/test_kokoro_isolate.py). B-R1-3s (2026-11-09, PARENT-VERIFIED
+# 2026-11-09): the session TTS path is rewired through the SAME
+# boundary — core/voice/local_client_voices.py + local_client_speech.py
+# route ALL Kokoro synthesis through KokoroChild.synthesize; the
+# in-process imports are REMOVED, the AST test now allows ONLY
+# kokoro_child.py as a kokoro_onnx importer, a child failure is an
+# honest failure or a NAMED fallback (the rung that spoke is
+# recorded), and the child dies with the session (close in stop()).
+# HARD BLOCK LIFTED (parent ruling 2026-11-09): NO Kokoro synthesis
+# runs in-process anywhere in the product — the only kokoro_onnx
+# importer in the tree is kokoro_child.py (parent grep + AST test +
+# parent runtime probe). The GPL licence texts + source pointer +
+# written offer stay in the installer.
+# No new dependency. A configured voice blend drops to the named
+# base voice honestly (the child protocol carries a voice NAME,
+# not a tensor) — the blend is default-off. See the phonemizer row
+# in THIRD_PARTY_LICENSES.md. Driver wrapper:
+# core/desktop/kokoro_voice.py (dict-returning; missing voice is an
+# honest failure, voice/language mismatch refused, every render
+# verified, the Piper Amy fallback named, never silent).
+# The wrapper adds NO new dependency: kokoro-onnx was already
+# declared and shipped; the wrapper only makes the voice identity,
+# language rule and render verification explicit.
+faster-whisper>=1.0
+vosk>=0.3.45
+pyttsx3>=2.90
+# v5.56 (Wave 2, CC-1): huggingface_hub + onnxruntime declared as direct
+# dependencies (previously undeclared direct imports, v5.55 sweep item 5).
+# huggingface_hub (Apache-2.0 — licence read from its wheel, 2026-10-24)
+# is imported directly by core/voice/local_assets.py (huggingface_hub.constants);
+# it used to ride in transitively under faster-whisper.
+# onnxruntime (MIT — licence read from its wheel, 2026-10-24) is imported
+# directly by core/funnel/toolbox.py (embeddings); its table row pre-existed as
+# kokoro-onnx's runtime.
+huggingface_hub>=2.2.0
+onnxruntime>=1.31.0
+
+# R8-9 (pypresence adoption): pypresence (MIT — licence read from the
+# repo LICENSE file itself, 2026-11-10, and the wheel's own METADATA
+# License-Expression: MIT) is the Discord Rich Presence IPC client
+# (core/discord_presence.py). Wheel 13,734 B, ZERO runtime dependencies
+# (dev extras only). Only `Presence` is used; the full `Client`
+# (OAuth2 authorize) is never imported. The Discord application ID is
+# operator-supplied; no VYUK application ID ships.
+pypresence==4.6.2
+
+# Wave 2 (v5.56, OB-1) — OpenTelemetry tracing, LOCAL FILE exporter
+# only (core/telemetry.py). Licences primary-verified at CC-1
+# (THIRD_PARTY_LICENSES.md rows, 2026-10-24): api/sdk/semconv/
+# instrumentation/instrumentation-google-genai all Apache-2.0.
+# The instrumentation base is required by the GenAI instrumentor
+# (it provides the opentelemetry.instrumentation namespace the
+# instrumentor module hangs under); util-genai + wrapt ride in
+# transitively under the instrumentor/base and are NOT declared
+# here (direct deps only, per the lock header's rule).
+opentelemetry-api>=1.45.1
+opentelemetry-sdk>=1.45.1
+opentelemetry-semantic-conventions>=0.66b1
+opentelemetry-instrumentation>=0.66b1
+opentelemetry-instrumentation-google-genai>=1.3b0
+
+# Wave 2 (v5.56, CC-1 integration) — MCP bus direct deps, declared
+# late: core/mcp_client.py imports both directly (they previously
+# rode undeclared). Licences primary-verified at CC-1
+# (THIRD_PARTY_LICENSES.md rows, 2026-10-24): anyio MIT,
+# httpx2 BSD-3-Clause.
+anyio>=4.15.1
+httpx2>=2.16.0
+# GPU acceleration for llama.cpp on Windows (optional): install the CUDA wheel
+# instead of the CPU wheel with:
+#   pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+
+# Your world (v2.4 — core/google_services.py): Google Calendar + Gmail,
+# read-only, via the user's own OAuth desktop client (Settings → Your world).
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.2
+google-auth-httplib2>=0.2
+
+# Advanced — LOCAL BRAIN, OLLAMA BACKEND (LOCAL_BACKEND=ollama): an external
+# Ollama server does the thinking instead of the built-in engine. Install the
+# Ollama app itself (https://ollama.com) and pull a model:
+#     ollama pull qwen2.5:7b
+# v5.70 (Life Admin track, LA-3.5/3.6) — documents vault
+# (core/docvault.py): Fernet + PBKDF2HMAC encryption at rest,
+# LAZY-imported; absence fails the vault closed, never plaintext.
+# Licence PRIMARY-VERIFIED 2026-10-25 from the PyPI wheel itself
+# (cryptography-50.0.2 wheel METADATA: License-Expression
+# "Apache-2.0 OR BSD-3-Clause", with the full LICENSE.APACHE
+# and LICENSE.BSD texts inside the wheel, both read in full):
+# dual-licensed permissive, commercial use allowed.
+cryptography>=42.0.0
+
+# v5.5x (U10 tutor, check-my-working + solve-then-speak, 2026-11-08) —
+# APPROVED NEW RUNTIME DEPENDENCY (parent-ruled 2026-11-08 ~19:54 IST:
+# BSD-3-Clause read from the 1.12 PyPI wheel's LICENSE file by the parent,
+# $0, commercial use permitted): SymPy is the
+# tutor's exact symbolic maths engine (core/brain/check_working.py):
+# line-by-line working checks (simplify(lhs - rhs) == 0, exact, never
+# float) and step-by-step solving (manualintegrate rule tree) for MA 105
+# forms. BSD-3-Clause — licence read from the 1.12 PyPI wheel's LICENSE
+# file (Copyright (c) 2006-2023 SymPy Development Team), 2026-11-08;
+# commercial use permitted. LAZY-imported; absence degrades the working
+# check + solver to an honest engine_unavailable, nothing else.
+sympy>=1.12,<2.0
+
+# B-D1 (2026-11-09) — PyWinCtl + PyMonCtl: the window-control
+# library behind core/desktop/pywinctl_wrapper.py (list/move/resize/
+# focus/snap a NAMED window by handle, monitor geometry from
+# PyMonCtl). BSD-3-Clause for both — licences read from the 0.4.1 /
+# 0.92 PyPI wheels' LICENSE files (PyWinCtl (c) 2021 Kalmat;
+# PyMonCtl (c) 2021 Kalmat (aka alef)), 2026-11-09; commercial use
+# permitted. LAZY-imported; absence (or no X display on the Linux
+# lab) degrades every window action to an honest
+# engine_unavailable, nothing else. APPROVED new runtime
+# dependency — parent, 2026-11-09 (licences read from the wheels;
+# installed in .venv-qt only — system python3 has neither, and
+# the wrapper degrades there to engine_unavailable).
+# Transitive: pymonctl>=0.92, pywinbox>=0.7, typing-extensions>=4.4.0,
+# plus pywin32>=302 on win32 only (Linux-only ewmhlib/python-xlib
+# do NOT ship on Windows).
+pywinctl>=0.4.1,<0.5
+# GAPS-30 (D-V4): pymonctl is a DIRECT dependency, not just a
+# transitive: core/desktop/pywinctl_wrapper.py loads it directly
+# (importlib.import_module("pymonctl"), line 186) for monitor
+# geometry. It was already pinned in requirements.lock (0.92);
+# declaring it here closes the declared/pinned mismatch.
+pymonctl>=0.92
+
+# B-D2 (2026-11-09) — watchdog: the live-folder sense behind
+# core/desktop/folder_watch.py (register a folder, get settled
+# created/modified/deleted/moved events). Apache-2.0 — licence
+# read from the 7.1.0 PyPI wheel's LICENSE file (Copyright
+# 2018-2026 Mickaël Schoentgen & contributors), 2026-11-09;
+# commercial use permitted. No runtime dependencies (PyYAML is
+# only for the watchmedo extra, which VYUK does not use).
+# LAZY-imported (function-level static imports, the sympy
+# pattern); absence degrades every folder watch to an honest
+# engine_unavailable, nothing else. APPROVED new runtime
+# dependency — parent, 2026-11-09 (licence read from the wheel).
+# Installed in .venv-qt only — system
+# python3 has no watchdog (PEP 668 blocks pip there;
+# --break-system-packages was NOT used).
+watchdog>=7.1,<8
+
+# B-D3b (2026-11-09) — DIRECT libraries for document -> Markdown
+# behind core/desktop/document_convert.py (Word/PowerPoint/Excel
+# to clean Markdown for U11's course grounding). B-D3 built this
+# on markitdown; the parent REJECTED markitdown on weight
+# (2026-11-09 ~07:40 IST) and re-scoped to direct libraries:
+# markitdown measured ~170 MB new installed weight (magika 4 +
+# onnxruntime 67 + pandas 80 + the converters) vs ~25 MB for
+# the direct set — 71 MB of it (magika+onnxruntime) never
+# invoked, but loaded into the process on first conversion via
+# `import markitdown` -> _markitdown -> `import magika` ->
+# `import onnxruntime`. Licences, all read from their installed
+# wheels' METADATA in the Qt venv: mammoth 1.13.0 (BSD-2,
+# docx) + markdownify 1.2.3 (MIT, docx HTML -> Markdown) +
+# cobble 0.1.4 (BSD) + lxml 6.1.3 (BSD-3) + beautifulsoup4
+# 4.15.0 (MIT) + six (MIT, already in the tree); python-pptx
+# 1.0.2 (MIT, pptx — the slide walker is in-tree) + XlsxWriter
+# 3.3.1 (BSD-2) + Pillow (already in the tree) +
+# typing-extensions (already in the tree); openpyxl 3.1.5 (MIT,
+# xlsx — NO pandas: the sheets are read through openpyxl
+# directly) + et-xmlfile 2.0.0 (MIT). No GPL anywhere in the
+# set. The pdf extra is NOT declared (PDFs stay on U11's pypdf
+# path — a flat Markdown conversion has no page boundaries).
+# LAZY-imported per format (function-level static imports, the
+# sympy pattern); a missing library degrades ONLY its format to
+# an honest engine_unavailable, nothing else. APPROVED new
+# runtime dependencies — parent, 2026-11-09 (licences read from
+# the wheels). Installed in
+# .venv-qt only — system python3 has openpyxl 3.1.2 and lxml
+# 5.2.1 but NO mammoth / python-pptx / markdownify /
+# beautifulsoup4 (PEP 668 blocks pip there;
+# --break-system-packages was NOT used), so docx and pptx
+# degrade per-format there while xlsx still converts.
+mammoth>=1.13,<2
+markdownify>=1.2.3,<2
+python-pptx>=1.0.2,<2
+openpyxl>=3.1.5,<4
+lxml>=6.1.3,<7
+
+# Optional — BRING-YOUR-OWN VOICE for either local backend: Piper TTS. Install
+# the package and drop a voice .onnx + its .json into data/voices/ (see
+# core/config.py LOCAL_TTS_VOICE). The built-in backend prefers Kokoro and
+# uses Piper only when a Piper voice file is present:
+#   piper-tts>=1.2.0        — alternative local voice (MIT)
+
+# B-D9 (2026-11-09) — APScheduler: the timed-job engine behind
+# core/desktop/job_scheduler.py (one-shot / interval / cron jobs with
+# job-id identity, per-job timezone, per-job misfire grace, a persistent
+# job store). MIT — licence read from the 3.11.3 PyPI wheel's LICENSE.txt
+# (Copyright (c) Alex Grönholm), 2026-11-09; commercial use permitted.
+# 4.x is still alpha (4.0.0a6) and async-first with a different API;
+# 3.11.3 is the latest stable 3.x line; its sync BackgroundScheduler
+# drops straight into a PySide6 app. LAZY-imported (function-level
+# static imports, the sympy pattern); absence degrades every timed job
+# to an honest engine_unavailable, nothing else. APPROVED new runtime
+# dependency — parent, 2026-11-09 (licence read from the wheel).
+# Transitive: tzlocal 5.4.5 (MIT, Copyright 2011-2017 Lennart Regebro —
+# licence read from the installed wheel's LICENSE.txt, 2026-11-09).
+# SQLAlchemy is NOT declared: APScheduler's shipped persistent store
+# (SQLAlchemyJobStore) needs it, but SQLAlchemy 2.1.8 measures 28 MB
+# installed for a store that persists three columns — the store here
+# is an in-tree BaseJobStore subclass over stdlib sqlite3 (0 new bytes;
+# same table/columns/pickle format as SQLAlchemyJobStore). SQLAlchemy
+# itself is MIT (Copyright 2005-2026 SQLAlchemy authors and
+# contributors — licence read from the installed wheel, 2026-11-09),
+# so the rejection is weight, not licence. Weight, measured 2026-11-09
+# in .venv-qt: apscheduler 620 KB + tzlocal 128 KB = under 1 MB new.
+# Installed in .venv-qt only — system python3 has no apscheduler /
+# tzlocal (PEP 668 blocks pip there; --break-system-packages was NOT
+# used), so timed jobs degrade there to engine_unavailable.
+apscheduler>=3.11,<4
+
+# B-D10 (2026-11-09) — keyring: the named-secret store behind
+# core/desktop/keyring_store.py (set/get/delete/list by (service,
+# username) in the OS credential store — Windows Credential Manager
+# via DPAPI, Secret Service on a Linux desktop that has one).
+# MIT — licence read from the 25.7.0 PyPI wheel's LICENSE file
+# ("MIT License, Copyright (c) 2025 <copyright holders>") +
+# METADATA "License-Expression: MIT", 2026-11-09; commercial use
+# permitted. 25.7.0 is the latest on PyPI; requires Python >= 3.9.
+# NOTE on the round-6 record ("MIT + PSF"): the wheels say MIT +
+# BSD-3, not PSF — the PSF half was a pywin32 / pywin32-ctypes
+# confusion, corrected here. Transitives, all read from their
+# wheels 2026-11-09, no GPL anywhere: jaraco.classes 3.4.0 (MIT),
+# jaraco.functools 4.6.0 (MIT), jaraco.context 6.1.2 (MIT),
+# more-itertools 11.2.1 (MIT); Linux-only: SecretStorage 3.5.0
+# (BSD-3-Clause), jeepney 0.9.0 (MIT); Windows-only:
+# pywin32-ctypes 0.2.3 (BSD-3-Clause, Copyright (c) 2014
+# Enthought, Inc. — the library keyring's Windows backend uses
+# for CredWrite/CredRead/CredDelete; list() uses its
+# CredEnumerate the same way). keyrings.alt is NOT used (no alt
+# backend is needed). LAZY-imported (function-level static
+# imports, the sympy pattern); absence — or a backend that
+# cannot store (the fail backend) — degrades every secret call
+# to an honest engine_unavailable, never a plaintext fallback.
+# APPROVED new runtime dependency — parent, 2026-11-09 (licence read
+# from the wheel). Weight, measured 2026-11-09 in .venv-qt
+# (du -sb): Linux install 1,251,253 B (~1.2 MB) including the
+# Linux-only backends; the Windows shipped set (keyring +
+# jaraco + more-itertools + pywin32-ctypes, unpacked 990,090 B)
+# is ~967 KB of code, under 1 MB. Installed in .venv-qt only —
+# system python3 has no keyring (PEP 668 blocks pip there;
+# --break-system-packages was NOT used), so named secrets
+# degrade there to engine_unavailable.
+keyring>=25,<26
+
+# B-R1-1 (2026-11-09) — Silero VAD: the speech detector behind
+# core/desktop/voice_activity.py (dict-returning state machine
+# over the tree's existing core/voice/vad.py Silero ONNX engine;
+# the live mic path still scores energy — a rewire is a separate
+# parent decision). NO new dependency: the engine is the tree's
+# direct ONNX implementation over onnxruntime 1.31.0 (already
+# declared, MIT, THIRD_PARTY row 26; the VAD adds NO new
+# onnxruntime weight — onnxruntime was already shipped for
+# kokoro-onnx). The `silero_vad` PyPI package 6.2.3 is NOT
+# declared: it hard-requires torch>=1.12.0 (a top-level
+# requires_dist, not an extra) — a ~539 MB wheel for a ~2 MB
+# model — a markitdown-class weight rejection (B-D3). Licence,
+# re-read 2026-11-09: code MIT (repo LICENSE file, "MIT License,
+# Copyright (c) 2020-present Silero Team"; GitHub API repo licence
+# field MIT, SPDX MIT; PyPI classifiers "License :: OSI Approved
+# :: MIT License"). The weights: the README body says "Published
+# under permissive license (MIT) Silero VAD has zero strings
+# attached"; the header badge IMAGE says "License-MIT" and links
+# to the MIT LICENSE; the PyPI package (which ships the weights
+# as package data) is classified MIT. The "CC BY-NC 4.0" text
+# appears ONLY as that badge's ALT TEXT — a stale copy-paste
+# from silero-models (whose STT models are CC BY-NC). This
+# resolves the 2026-10-24 ambiguity flag in core/voice/vad.py's
+# docstring. Parent ruling 2026-11-09: weights NOT cleared for
+# distribution — the evidence leans MIT (LICENSE file + badge
+# image + README body + PyPI classifiers all MIT; only the badge
+# alt text says CC BY-NC) but no weights ship in this batch and
+# the vad.py gate (coordinator licence confirmation before any
+# distribution) stands for future weights-bundling.
+
+# B-R1-2 (2026-11-09) — SmartTurn turn-taking: when the user's turn
+# is over, behind core/desktop/turn_taking.py (dict-returning state
+# machine over the tree's existing core/voice/smartturn.py slot,
+# v5.58 Wave 3 PR-13; the live utterance assembly still ends on the
+# fixed 0.8 s silence timeout — a rewire is a separate parent
+# decision). NO new dependency: the engine is the tree's direct
+# ONNX implementation over onnxruntime 1.31.0 (already declared,
+# MIT, THIRD_PARTY row 26; turn-taking adds NO new onnxruntime
+# weight — onnxruntime was already shipped for kokoro-onnx + the
+# B-R1-1 VAD). There is NO smart-turn package on PyPI to declare
+# (`smart-turn` and `pipecat-ai-smart-turn` both 404, checked
+# 2026-11-09); the upstream distribution is the GitHub repo +
+# Hugging Face weights, and the upstream repo's requirements.txt
+# is the TRAINING stack (torch 2.9.0, torchaudio, transformers,
+# datasets, scikit-learn, librosa, soundfile, wandb, torchcodec,
+# onnx, onnxruntime-gpu, onnxscript) — none of it is needed to RUN
+# the model, which takes only onnxruntime. CORRECTION TO THE BRIEF:
+# SmartTurn v3 is AUDIO-in (Whisper-Tiny encoder + linear
+# classifier over the turn's 16 kHz PCM), NOT text-in; the
+# transcript is heuristic context only. Licence, re-read 2026-11-09
+# from the repo LICENSE file: BSD-2-Clause ("BSD 2-Clause License,
+# Copyright (c) 2024–2025, Daily"; GitHub repo licence field
+# BSD-2-Clause; README "This is a truly open model (BSD 2-clause
+# license)" and "The datasets, training script, and model weights
+# are all open source"; Hugging Face pipecat-ai/smart-turn-v3
+# cardData licence bsd-2-clause). Code AND weights are BSD-2-Clause
+# — the 2026-10-24 record already cleared it, and the fresh read
+# agrees. APPROVED — parent, 2026-11-09 (no weights file ships in this
+# batch and none is downloaded; the operator-supplied pattern is
+# kept exactly). Weights, measured 2026-11-09 from the Hugging Face
+# tree API: smart-turn-v3.2-cpu.onnx 8,679,182 B (~8.3 MB, the CPU
+# int8 file); v3.0 8,757,193 B; v3.1-cpu 8,679,180 B; GPU variants
+# 32,411,198 B each (~31 MB).
+
+# B-R1-4 (2026-11-09, PARENT-VERIFIED 2026-11-09): adewaskar boot
+# sequence (adewaskar/jarvis, MIT — LICENSE file read 2026-11-09:
+# "MIT License, Copyright (c) 2026 Aditya Dewaskar"; GitHub API
+# spdx_id MIT). MIT APPROVED by the parent, read from the repo
+# LICENSE file itself 2026-11-09. Only the PATTERN is taken — the four-beat boot
+# (status bar + boot log → reticle rings → suit schematic →
+# reactor lighting) re-implemented in-tree in Qt/Python in
+# core/desktop/boot_sequence.py; no code, no assets, no Claude
+# bridge. NO new dependency, 0 bytes of dependency weight.
+
+# B-R1-5 (2026-11-09, PARENT-VERIFIED 2026-11-09): LerSent liquid-glass
+# orb (LerSent001/orb, MIT — LICENSE file read 2026-11-09:
+# "MIT License, Copyright (c) 2026 LerSent001"; README: "Project
+# code is licensed under the MIT License"). Only the PATTERN is
+# taken — the liquid-glass optics (glass shell, contour deform,
+# chromatic fringe, specular, edge softness/glow, audio driving
+# contour/distortion/highlights/speed after state transitions)
+# re-implemented in-tree in Qt/Python in gui/visualizer_glass.py
+# and wired into the two Aura paint sites (gui/visualizer_paint.py
+# _paint_aura + gui/mini_orb.py _paint_aura); no code, no assets,
+# no WebGPU. NO new dependency, 0 bytes of dependency weight.
+
+# B-R1-6 (2026-11-09, PARENT-VERIFIED 2026-11-09): Phosphor Duotone
+# icons (phosphor-icons/core, MIT — LICENSE file read 2026-11-09
+# from the repo at pinned commit 2b75f3ad12b420c9504ef05df8d2564a28f8500e:
+# "MIT License, Copyright (c) 2023 Phosphor Icons"). 19 Duotone SVGs
+# bundled in-tree in gui/assets/icons/phosphor/ (manifest.json +
+# BUNDLE_RECORD.md + LICENSE beside them), replacing the Lucide bundle
+# (removed — one primary system only); resolved through
+# gui/icon_manifest.py + core/w9_wiring.py and rendered by the existing
+# Qt loader in gui/icons.py (currentColor substitution carries the
+# theme accent into both tones). "senses" has no Phosphor stem and
+# honestly keeps its inline template fallback. NO new pip dependency,
+# ~9.4 KB of new SVG bytes.
+
+# B-R1-7 (2026-11-09, PARENT-VERIFIED 2026-11-09): Google Fonts OFL
+# stack — Orbitron (display/headings/HUD), Rajdhani (body),
+# SUPERSEDED in part by B-R1-7r (2026-11-09): the body face is Sora
+# now, Rajdhani removed — see the B-R1-7r block below; the rest of
+# this block (Orbitron, Share Tech Mono, pin, weights) still stands.
+# Share Tech Mono (code/numbers), all SIL OFL 1.1, read 2026-11-09
+# from each family's OFL.txt in the google/fonts repo at pinned
+# commit 5bb28733cec313b63fbd415b574b5ae35c8aa8b8 (HEAD, 2026-11-08):
+# Orbitron "Copyright 2018 The Orbitron Project Authors …, with
+# Reserved Font Name: \"Orbitron\""; Rajdhani "Copyright (c) 2014,
+# Indian Type Foundry"; Share Tech Mono "Copyright (c) 2012, Carrois
+# Type Design, Ralph du Carrois …, with Reserved Font Name 'Share'".
+# 6 TTFs + 3 OFL.txt + BUNDLE_RECORD.md bundled in-tree in
+# gui/assets/fonts/ (1,648,304 B), replacing the Inter / Space
+# Grotesk / Chakra Petch / JetBrains Mono stack (2,596,647 B,
+# removed — one stack only, net -948,343 B shipped); loaded by the
+# existing Qt loader in gui/style.py (load_bundled_fonts) and wired
+# through gui/style_tokens.py stacks + gui/style_sheet.py + the
+# three hardcoded mono spots (window_widgets_helpers inline code,
+# window_widgets_bubble code width, skills_galaxy raw name). NO new
+# pip dependency.
+
+# B-R1-8 (2026-11-09, PARENT-VERIFIED 2026-11-09): MediaPipe hand tracking
+# + face detection — the vision input channel behind
+# core/desktop/vision_gestures.py + the watch_gestures tool (B-R1-8).
+# The mediapipe PyPI package 1.2.2 is NOT declared: (a) its own PyPI
+# privacy notice (last modified June 5, 2026) states MediaPipe Tasks
+# APIs send performance/utilisation metrics to Google and puts the
+# informed-consent burden on the app — no opt-out was found, so the
+# package route is blocked on the tree's telemetry-OFF rule (INV-19,
+# Health D6); (b) weight ~150–200 MB installed (mediapipe wheel 25.3 MB
+# win_amd64 / 42.9 MB manylinux + opencv-contrib-python ~90 MB +
+# matplotlib ~30 MB), a markitdown-class rejection. Instead the three
+# MediaPipe .tflite models (hand palm detector, hand landmarks, BlazeFace
+# short-range) are converted to .onnx with tflite2onnx (dev-only,
+# build-time, never shipped) and verified numerically against the
+# MediaPipe 1.2.2 Tasks reference; the runtime is the already-declared
+# onnxruntime>=1.31.0 (MIT, THIRD_PARTY row 26) — NO new pip
+# dependency, NO new onnxruntime weight. Weights are OPERATOR-SUPPLIED
+# only (copy the three .onnx into <install>/data/models/ as
+# mediapipe_palm.onnx / mediapipe_hand_landmarks.onnx /
+# mediapipe_face.onnx; 15,999,412 B total, ~15.9 MB); nothing is
+# downloaded at runtime and no frame leaves the machine. Licence,
+# re-read 2026-11-09: MediaPipe CODE is Apache-2.0 (repo LICENSE file,
+# "Apache License, Version 2.0, January 2004"; PyPI license "Apache
+# 2.0"). MODEL licence PARENT-RULED 2026-11-09: the repo LICENSE is
+# Apache-2.0 but the hand-landmarker / face-detector model pages carry
+# no separate model-licence statement, so the models are OPERATOR-
+# SUPPLIED ONLY and are NOT cleared for bundling/distribution inside
+# the product until a separate model-licence statement is found or
+# counsel confirms — the gate stands for shipping, not for this lab
+# batch (nothing ships here).
+# tflite2onnx 0.4.1 is Apache-2.0 (dev-only converter, not shipped).
+
+# B-R1-7r (2026-11-09, PARENT-VERIFIED 2026-11-09): Sora replaces Rajdhani
+# as the body face. The owner challenged the Rajdhani pick ("why are
+# you so hindi focused. I fckin hate") and picked Sora himself
+# ("whatever brings us close to scifi") — Sora is the geometric /
+# futuristic pairing with Orbitron; Inter (the safe neutral) was NOT
+# picked. Sora is a variable font (wght 100–800, single file
+# Sora-Variable.ttf, 111,400 B, sha256 84ff7096ae3ec6c8be47d906d1a0ba4d
+# e7f2ce78c615275c77301964a316e16c) from the google/fonts repo at the
+# same pinned commit 5bb28733cec313b63fbd415b574b5ae35c8aa8b8, fetched
+# file-by-file from raw.githubusercontent.com; OFL-Sora.txt (4,385 B)
+# beside it. Licence, read 2026-11-09 from the fetched OFL.txt
+# itself: SIL OFL 1.1, "Copyright 2019 The Sora Project Authors
+# (https://github.com/sora-xor/sora-font)" — no Reserved Font Name.
+# Rajdhani Regular/Medium/SemiBold/Bold (1,553,228 B) + OFL-Rajdhani
+# .txt (4,373 B) REMOVED in the same batch — net -1,441,816 B shipped;
+# the bundle is now 206,488 B (Orbitron + Sora + Share Tech Mono).
+# Orbitron (display) + Share Tech Mono (code) are untouched. NO new
+# pip dependency; no new tool (registry stays 657, schema-lint 1494).
+
+# B-R1-9 (2026-11-09, PARENT-VERIFIED 2026-11-09): Kenney CC0 audition
+# sounds — six candidates as AUDITION MATERIAL ONLY (never product
+# audio). The shipped earcon identity is the synthesised v3 family
+# (gui/sounds.py, 15 cues, both families complete) — there is NO
+# missing cue for these files to fill. The owner's v5.51 earcon veto
+# is STILL PENDING (core/sound_pools_v564.py EARCON_VETO_PENDING):
+# attempt_layer() refuses fail-closed for EVERY asset, including
+# CC0-cleared ones. The six files (gui/assets/audition/kenney/,
+# 321,134 B of WAVs) are played only on explicit demand from the
+# Settings > Sounds audition row (gui/audition.py KenneyAudition),
+# never by Earcons, never by any live path, never layered under a
+# shipped earcon. Fetched as single OGGs through the
+# Mcamento8/open-game-sfx-index (index.json v0.1.1) at pinned commit
+# 34bbe8b525b5ceff3804915ea745532af11f6055 (main HEAD, via git
+# ls-remote — the GitHub API was rate-limited); OGG sha256s verified
+# against index.json, then decoded to PCM WAV with system ffmpeg
+# (dev-only conversion, native rate/channels kept, no gain applied
+# to the files). Picks (2 per moment): Kenney Sci-Fi Sounds
+# forceField_000/001 (boot swell), Kenney Digital Audio
+# twoTone1/2 (notification), Kenney Interface Sounds click_001 +
+# Kenney UI Audio click1 (orb tap). Loudness caveat, recorded
+# honestly: the files are NOT matched to the shipped -20 dBFS RMS
+# standard (forceField ~-11.5, twoTone ~-14.5/-15.0, clicks
+# -24.0/-26.4 — parent-measured, all samples incl. both channels of
+# the stereo click1; the worker's -22.5 was a per-channel/OGG-source
+# figure); the audition player applies a playback-only gain
+# so the A/B is fair, and every licence-log entry carries
+# loudness_matched: false. Licence, read 2026-11-09 from the index
+# repo README at the pinned commit: "Can I use these commercially?
+# Yes. CC0 = public domain: commercial use, modification and
+# redistribution allowed, no permission or attribution required
+# (credit appreciated)." and "Audio (audio/): CC0 1.0 Universal —
+# public domain, by Kenney." (Code/metadata/docs are MIT — NOT
+# bundled here; only the CC0 audio files are.) Per-asset licence
+# log gui/assets/audition/kenney/licence_log.json, generated with
+# the tree's own sound_pools_v564.write_licence_log: all six
+# 'cleared' (audition only), 0 rejected, veto pending recorded,
+# every entry names its pack. No purchase ($0 rule — the bundle
+# page lists $9.95, only freely available assets used). NO new pip
+# dependency; playback is QSoundEffect, already the Earcons path.
+
+# DOCUMENTED-OPTIONAL (GAPS-30, D-V3): third-party packages
+# imported by first-party code (all lazy / function-level — zero
+# top-level imports among them) that are NOT declared above,
+# because they are optional enhancements probed at runtime and
+# never bundled: absence degrades only their own path, honestly,
+# to engine_unavailable / a fallback / an install hint. The
+# superqt + pyqtgraph precedent (omission documented as policy
+# in gui/superqt_widgets.py:15 and gui/overview_panel.py:31)
+# is now written down for all of them instead of two GUI
+# modules. tests/test_dependencies_declared.py enforces that
+# every third-party import is either declared above or listed
+# here. Entries give the import name, the dist where it
+# differs, and the call site.
+#   apprise — core/reach.py:184, notification dispatch (BSD-2-Clause; pin >=1.0,<2.0 recorded in reach.py); absence reports the channel not-configured.
+#   av (dist av) — TRANSITIVE with aiortc: core/desktop/call_control.py:347,396 function-level from av import AudioFrame/VideoFrame; aiortc requires av for audio, no separate declaration.
+#   curl_cffi (dist curl-cffi) — core/curl_cffi_lane.py:89, TLS-fingerprint HTTP lane; absence reports the lane engine_unavailable.
+#   darkdetect — core/theme_sync.py:18, OS dark-mode detection; absence keeps the configured theme default.
+#   easy_uiauto (dist easy-uiauto) — core/desktop/desktop_pilots.py, UIA pilot helpers; absence refuses the pilots honestly.
+#   google.auth (dist google-auth) — TRANSITIVE with google-api-python-client: core/google_services_token.py:273 from google.auth.transport.requests import Request; the Google client libraries pull google-auth in, no separate declaration.
+#   markdown_it (dist markdown-it) — core/chat_render.py, Markdown parsing for chat rendering; absence falls back to plain text.
+#   num_to_words — core/voice/mouth_lexicon_numbers.py, number-to-words for speech; absence speaks numbers as digits.
+#   piper (dist piper-tts) — core/desktop/kokoro_voice.py + core/voice/local_client_voices.py, bring-your-own Piper voice; absence keeps Kokoro as the voice (see the commented optional line above).
+#   presidio_analyzer (dist presidio-analyzer) — core/bz6_presidio_v572.py:30, PII analyser, lazy inside _load_analyzer(); omission documented as policy there; absence falls back to the in-tree patterns.
+#   pyaudiowpatch — core/loopback_worker.py, WASAPI loopback capture; absence reports loopback capture engine_unavailable.
+#   pydantic_settings (dist pydantic-settings) — core/settings_schema.py, settings model; absence degrades validation to the plain-dict path.
+#   pydirectinput — core/desktop/uia_send.py, direct-input key sending; absence refuses the send path honestly.
+#   pygments — core/chat_render.py, code highlighting; absence renders plain text.
+#   pyloudnorm — core/voice/mouth_prosody_render.py, loudness normalisation; absence leaves levels unnormalised.
+#   pypdf — core/brain/course_grounding.py et al., PDF reading; absence returns an install hint (see the commented optional line above).
+#   pyqtgraph — gui/overview_panel.py:31, optional chart widget; omission documented as policy there; absence falls back to the plain widget.
+#   pyvda — core/desktop/desktop_pilots.py, virtual-desktop helpers; absence refuses the pilots honestly.
+#   serial (dist pyserial) — core/dv_serial_v577.py:283,301, serial-port transport (lazy adapter); absence reports the transport unavailable.
+#   speech_recognition (dist SpeechRecognition) — core/voice/wake_word.py, speech recognition; absence leaves that recogniser path unavailable.
+#   superqt — gui/superqt_widgets.py:15, optional Qt widgets; omission documented as policy there; absence uses the plain Qt widgets.
+#   transformers — core/vision_backend.py:428, HF model config/processor; absence reports the vision-model path engine_unavailable.
+#   wasmtime — core/skill_runtime.py:306, Wasm skill runtime; absence refuses Wasm skills honestly.
+#   win32cred (dist pywin32) — core/desktop/keyring_store.py:386, Windows Credential Manager; absence falls back to the next keyring backend.
+#   win32ctypes (dist pywin32-ctypes) — TRANSITIVE with keyring: core/desktop/keyring_store.py:383 from win32ctypes.pywin32 import win32cred; keyring's Windows backend rides on it, no separate declaration.
+#   win32print (dist pywin32) — core/tool_outcome.py:582, print-job probe; absence reads print outcomes as unknown.
+#   winrt — core/power_policy.py + core/vision_models.py, Windows Runtime APIs (network cost, etc.); absence reports those probes unavailable.
+#   yt_dlp (dist yt-dlp) — core/music_player_rungs.py, media download; absence refuses the download rung honestly.
+#   diskcache — DYNAMIC optional load via _load_optional (resilience_swaps); absence falls back to the in-memory cache.
+#   whenever — DYNAMIC optional load via _load_optional (resilience_swaps); absence falls back to stdlib datetime handling.
+#   aiohappyeyeballs — DYNAMIC optional load via _load_optional (resilience_swaps); absence falls back to the stdlib resolver.
+
+# D-V4 — declared but never statically imported (GAPS-30): each
+# dist below is declared above (and pinned in the lock) but no
+# file in core/ + gui/ imports it with a static import
+# statement. The reason is TRANSITIVE (a declared package's
+# Requires-Dist pulls it in) or DYNAMIC (first-party code loads
+# it through importlib.import_module) — never "dead". The one
+# genuinely dead declaration was REMOVED outright (zero import
+# hits anywhere; core/config_env.py has its own simple
+# environment-file loader), not documented here.
+#   certifi — TRANSITIVE: httpx Requires-Dist certifi (METADATA verified in .venv-build/.venv-qt/.venv-gx3); the CA bundle floor is declared so the build pins it, but no first-party code imports certifi directly.
+#   google-auth-httplib2 — TRANSITIVE: google-api-python-client Requires-Dist google-auth-httplib2<1.0.0,>=0.2.0 (METADATA verified in .venv-build); no first-party code imports it directly.
+#   opentelemetry-instrumentation — TRANSITIVE (namespace): no file imports it directly, but opentelemetry.instrumentation.google_genai (imported in core/telemetry.py:559) cannot import without the opentelemetry.instrumentation namespace package installed.
+#   pywinctl — DYNAMIC: importlib.import_module("pywinctl") in core/desktop/pywinctl_wrapper.py:185; the static scan cannot see it; absence degrades every window action to engine_unavailable.
+#   pymonctl — DYNAMIC: importlib.import_module("pymonctl") in core/desktop/pywinctl_wrapper.py:186; same as pywinctl (declared directly now that first-party code loads it; pinned in the lock).
+#   websockets — TRANSITIVE: google-genai Requires-Dist websockets<17.0,>=13.0.0 (METADATA verified in .venv-build/.venv-gx3); no first-party code imports websockets directly.

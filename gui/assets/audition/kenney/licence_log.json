@@ -1,0 +1,90 @@
+{
+  "module_version": "5.64.0",
+  "earcon_veto_pending": true,
+  "entries": [
+    {
+      "record": {
+        "quarry": "kenney",
+        "asset": "kenney_forceField_000.wav",
+        "licence": "CC0 1.0",
+        "source_url": "https://kenney.nl/assets/sci-fi-sounds",
+        "verified_from_primary": true,
+        "owner_decision": false,
+        "pack_licence_file": "",
+        "loudness_matched": false
+      },
+      "verdict": "cleared",
+      "reason": "CC0 asset, verified from a primary source. Audition material only — layering still refused while the earcon veto is pending."
+    },
+    {
+      "record": {
+        "quarry": "kenney",
+        "asset": "kenney_forceField_001.wav",
+        "licence": "CC0 1.0",
+        "source_url": "https://kenney.nl/assets/sci-fi-sounds",
+        "verified_from_primary": true,
+        "owner_decision": false,
+        "pack_licence_file": "",
+        "loudness_matched": false
+      },
+      "verdict": "cleared",
+      "reason": "CC0 asset, verified from a primary source. Audition material only — layering still refused while the earcon veto is pending."
+    },
+    {
+      "record": {
+        "quarry": "kenney",
+        "asset": "kenney_twoTone1.wav",
+        "licence": "CC0 1.0",
+        "source_url": "https://kenney.nl/assets/digital-audio",
+        "verified_from_primary": true,
+        "owner_decision": false,
+        "pack_licence_file": "",
+        "loudness_matched": false
+      },
+      "verdict": "cleared",
+      "reason": "CC0 asset, verified from a primary source. Audition material only — layering still refused while the earcon veto is pending."
+    },
+    {
+      "record": {
+        "quarry": "kenney",
+        "asset": "kenney_twoTone2.wav",
+        "licence": "CC0 1.0",
+        "source_url": "https://kenney.nl/assets/digital-audio",
+        "verified_from_primary": true,
+        "owner_decision": false,
+        "pack_licence_file": "",
+        "loudness_matched": false
+      },
+      "verdict": "cleared",
+      "reason": "CC0 asset, verified from a primary source. Audition material only — layering still refused while the earcon veto is pending."
+    },
+    {
+      "record": {
+        "quarry": "kenney",
+        "asset": "kenney_click_001.wav",
+        "licence": "CC0 1.0",
+        "source_url": "https://kenney.nl/assets/interface-sounds",
+        "verified_from_primary": true,
+        "owner_decision": false,
+        "pack_licence_file": "",
+        "loudness_matched": false
+      },
+      "verdict": "cleared",
+      "reason": "CC0 asset, verified from a primary source. Audition material only — layering still refused while the earcon veto is pending."
+    },
+    {
+      "record": {
+        "quarry": "kenney",
+        "asset": "kenney_click1.wav",
+        "licence": "CC0 1.0",
+        "source_url": "https://kenney.nl/assets/ui-audio",
+        "verified_from_primary": true,
+        "owner_decision": false,
+        "pack_licence_file": "",
+        "loudness_matched": false
+      },
+      "verdict": "cleared",
+      "reason": "CC0 asset, verified from a primary source. Audition material only — layering still refused while the earcon veto is pending."
+    }
+  ]
+}
