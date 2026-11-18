@@ -1,0 +1,18 @@
+FIXTURE — not real course material. A tiny sample course file for the
+U11 course-grounding tests only. Pages are separated by form feed.
+MA 105 Lecture 13 — Surfaces and flux (sample).
+The flux of a vector field F through an oriented surface S is the
+surface integral of F dot n over S.
+For a closed surface the flux equals the triple integral of div F.
+
+MA 105 Lecture 13 — Surfaces and flux (sample), page 2.
+Green's theorem relates a line integral around a closed curve to a
+double integral over the region it encloses.
+The region must be positively oriented: the boundary is traversed
+counterclockwise.
+
+MA 105 Lecture 13 — Surfaces and flux (sample), page 3.
+Stokes' theorem relates the line integral around a closed curve to
+the surface integral of the curl over any surface it bounds.
+A vector field with zero curl on a simply connected region is
+conservative.

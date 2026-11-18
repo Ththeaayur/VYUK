@@ -1,0 +1,5597 @@
+{
+  "modules_run": [
+    "test_gaps30"
+  ],
+  "files": {
+    "core/__init__.py": {
+      "executable": 3,
+      "covered": 2,
+      "percent": 66.67
+    },
+    "core/accessibility.py": {
+      "executable": 145,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/accessibility_capture_guard.py": {
+      "executable": 82,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/accessibility_conformance.py": {
+      "executable": 219,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/accessibility_conformance_tools.py": {
+      "executable": 117,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/accessibility_dignity_bar.py": {
+      "executable": 70,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/accessibility_forgiving_selection.py": {
+      "executable": 107,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/accessibility_tools.py": {
+      "executable": 114,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/activity_feed.py": {
+      "executable": 184,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/aec.py": {
+      "executable": 182,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/agent_call.py": {
+      "executable": 609,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/agent_coordination.py": {
+      "executable": 260,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation.py": {
+      "executable": 14,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_capture.py": {
+      "executable": 100,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_dev.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_gates.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_grant_path.py": {
+      "executable": 146,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_grant_tools.py": {
+      "executable": 115,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_mining.py": {
+      "executable": 55,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_predictor.py": {
+      "executable": 94,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/anticipation_routines.py": {
+      "executable": 120,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/app_settings.py": {
+      "executable": 324,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/article_extract.py": {
+      "executable": 271,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/async_executor.py": {
+      "executable": 11,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/audio_breadth.py": {
+      "executable": 55,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/audio_localise.py": {
+      "executable": 1012,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/audit.py": {
+      "executable": 258,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/audit_chain.py": {
+      "executable": 256,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/backup.py": {
+      "executable": 413,
+      "covered": 73,
+      "percent": 17.68
+    },
+    "core/basic_pitch.py": {
+      "executable": 525,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/billing.py": {
+      "executable": 556,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/bookings.py": {
+      "executable": 670,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/__init__.py": {
+      "executable": 2,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/ambient.py": {
+      "executable": 293,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/brain.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/brain_helpers.py": {
+      "executable": 13,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/brain_session_core.py": {
+      "executable": 272,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/brain_session_status.py": {
+      "executable": 177,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/check_loop.py": {
+      "executable": 337,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/check_working.py": {
+      "executable": 842,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/checkpoint.py": {
+      "executable": 311,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/companion_sessions.py": {
+      "executable": 198,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/context.py": {
+      "executable": 155,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/course_grounding.py": {
+      "executable": 275,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/domain_routers.py": {
+      "executable": 216,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/engine_health.py": {
+      "executable": 81,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/engine_session.py": {
+      "executable": 40,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/error_diagnosis.py": {
+      "executable": 343,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/goal_client_supply.py": {
+      "executable": 51,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/goal_search.py": {
+      "executable": 361,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/lesson_planner.py": {
+      "executable": 319,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/picker_history.py": {
+      "executable": 110,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/plan_verify.py": {
+      "executable": 120,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/planner.py": {
+      "executable": 18,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/planner_checkpoint.py": {
+      "executable": 300,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/planner_goalhelpers.py": {
+      "executable": 215,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/planner_plans.py": {
+      "executable": 384,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/planner_routines.py": {
+      "executable": 500,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/planner_rungoal.py": {
+      "executable": 933,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/planner_storage.py": {
+      "executable": 139,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/progress_report.py": {
+      "executable": 313,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/reflection.py": {
+      "executable": 90,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/routine_scheduler.py": {
+      "executable": 116,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/socratic.py": {
+      "executable": 540,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/spaced_repetition.py": {
+      "executable": 248,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/spoken_maths.py": {
+      "executable": 711,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/student_model.py": {
+      "executable": 247,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/suggestions.py": {
+      "executable": 400,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_budget.py": {
+      "executable": 254,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_cancel.py": {
+      "executable": 72,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator.py": {
+      "executable": 18,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_classify.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_execution.py": {
+      "executable": 1615,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_lifecycle.py": {
+      "executable": 450,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_opinion.py": {
+      "executable": 37,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_refusal.py": {
+      "executable": 189,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_steps.py": {
+      "executable": 368,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_tail.py": {
+      "executable": 145,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_coordinator_task.py": {
+      "executable": 141,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_decompose.py": {
+      "executable": 135,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_learning.py": {
+      "executable": 91,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/task_ledger.py": {
+      "executable": 1028,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/teach.py": {
+      "executable": 213,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/turn_context.py": {
+      "executable": 25,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/turn_machine.py": {
+      "executable": 14,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/turn_machine_dictation.py": {
+      "executable": 76,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/turn_machine_input.py": {
+      "executable": 90,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/turn_machine_state.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/turn_machine_verifier.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/turn_machine_voice.py": {
+      "executable": 84,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/visual_channel.py": {
+      "executable": 213,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain/voice_goal.py": {
+      "executable": 115,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/brain_capabilities.py": {
+      "executable": 117,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser/__init__.py": {
+      "executable": 27,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser/bridge_host.py": {
+      "executable": 334,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser/browser.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser/browser_host_channel.py": {
+      "executable": 270,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser/denylist.py": {
+      "executable": 94,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser/install_register.py": {
+      "executable": 67,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser/viewport_convert.py": {
+      "executable": 607,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser_dispatch.py": {
+      "executable": 185,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/browser_scope.py": {
+      "executable": 258,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/business_deployment.py": {
+      "executable": 80,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/business_fleet_entitlement.py": {
+      "executable": 209,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/business_funnel_wiring.py": {
+      "executable": 98,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/business_identity.py": {
+      "executable": 60,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/business_trust_pack.py": {
+      "executable": 63,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/business_vendor_counters.py": {
+      "executable": 33,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/bz6_presidio_v572.py": {
+      "executable": 35,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/capture.py": {
+      "executable": 108,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/capture_guard.py": {
+      "executable": 337,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/catalogue_groups_data.py": {
+      "executable": 35,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/catalogue_snapshot.py": {
+      "executable": 13,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/changelog.py": {
+      "executable": 60,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/chat_render.py": {
+      "executable": 141,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/click_anywhere_tool.py": {
+      "executable": 1037,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/command_palette.py": {
+      "executable": 147,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/comms.py": {
+      "executable": 120,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/comms_tools.py": {
+      "executable": 121,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/companion.py": {
+      "executable": 840,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/config.py": {
+      "executable": 108,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/config_env.py": {
+      "executable": 170,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/config_spec.py": {
+      "executable": 514,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/confirm_gate.py": {
+      "executable": 300,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/confirm_gate_allowlist.py": {
+      "executable": 96,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/confirm_gate_helpers.py": {
+      "executable": 31,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/confirm_gate_scrub.py": {
+      "executable": 76,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/connector_sync.py": {
+      "executable": 153,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/context_refit.py": {
+      "executable": 131,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/continuity.py": {
+      "executable": 43,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/conversation.py": {
+      "executable": 116,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/cost_ledger.py": {
+      "executable": 372,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/creative_dev_social_t2.py": {
+      "executable": 410,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/creative_exif_marking.py": {
+      "executable": 158,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/creative_midi_core.py": {
+      "executable": 151,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/creative_openverse_lane.py": {
+      "executable": 87,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/creative_rights_ledger.py": {
+      "executable": 141,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/creative_subtitle_edit.py": {
+      "executable": 140,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/curl_cffi_lane.py": {
+      "executable": 69,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/dagflow.py": {
+      "executable": 900,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_alarms.py": {
+      "executable": 127,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_breach.py": {
+      "executable": 22,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_helpers.py": {
+      "executable": 25,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_meeting.py": {
+      "executable": 108,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_money.py": {
+      "executable": 185,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_presence.py": {
+      "executable": 88,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_quiet.py": {
+      "executable": 67,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/daily_sos.py": {
+      "executable": 62,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/deals.py": {
+      "executable": 1094,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/decision_leaves_t4.py": {
+      "executable": 437,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/deliberation.py": {
+      "executable": 35,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/__init__.py": {
+      "executable": 2,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/action_journal.py": {
+      "executable": 191,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/app_adapters.py": {
+      "executable": 357,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/app_management.py": {
+      "executable": 639,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/boot_sequence.py": {
+      "executable": 370,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_adblock.py": {
+      "executable": 291,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_agent_pilots.py": {
+      "executable": 296,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_automation.py": {
+      "executable": 535,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_camoufox_lane.py": {
+      "executable": 57,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_cdp.py": {
+      "executable": 247,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_cdp_inspect.py": {
+      "executable": 569,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_click.py": {
+      "executable": 337,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_elements.py": {
+      "executable": 290,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_enable.py": {
+      "executable": 299,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_engine.py": {
+      "executable": 70,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_gates.py": {
+      "executable": 182,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_history.py": {
+      "executable": 238,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_interact.py": {
+      "executable": 264,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_nav.py": {
+      "executable": 198,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_pilot_licences.py": {
+      "executable": 74,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_playback.py": {
+      "executable": 101,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_read.py": {
+      "executable": 196,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/browser_session.py": {
+      "executable": 321,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/call_control.py": {
+      "executable": 582,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/chrome_adapter.py": {
+      "executable": 66,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/clipboard_monitor.py": {
+      "executable": 88,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/context_menus.py": {
+      "executable": 166,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/context_menus_default.py": {
+      "executable": 93,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/context_menus_helpers.py": {
+      "executable": 178,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/context_menus_tree.py": {
+      "executable": 28,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control.py": {
+      "executable": 21,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_base.py": {
+      "executable": 27,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_breadth.py": {
+      "executable": 46,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_existence.py": {
+      "executable": 351,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_files.py": {
+      "executable": 534,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_gesture.py": {
+      "executable": 237,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_hardening.py": {
+      "executable": 34,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_input.py": {
+      "executable": 373,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_plus.py": {
+      "executable": 276,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_plus_click.py": {
+      "executable": 109,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_plus_desktop.py": {
+      "executable": 261,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_plus_files.py": {
+      "executable": 315,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_plus_helpers.py": {
+      "executable": 48,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_plus_volume_network.py": {
+      "executable": 187,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_shell.py": {
+      "executable": 490,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_snapshot_p2.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_system.py": {
+      "executable": 510,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/control_window.py": {
+      "executable": 167,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/cursor.py": {
+      "executable": 13,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/cursor_control.py": {
+      "executable": 189,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/cursor_geometry.py": {
+      "executable": 244,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/cursor_glide.py": {
+      "executable": 116,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/cursor_input.py": {
+      "executable": 289,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/cursor_monitor.py": {
+      "executable": 99,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/cursor_ops.py": {
+      "executable": 421,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/desktop.py": {
+      "executable": 7,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/desktop_clipboard.py": {
+      "executable": 215,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/desktop_glide.py": {
+      "executable": 74,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/desktop_pilots.py": {
+      "executable": 280,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/document_convert.py": {
+      "executable": 518,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/drag_drop.py": {
+      "executable": 398,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/editor_truth.py": {
+      "executable": 79,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/explorer_adapter.py": {
+      "executable": 76,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/file_dialogs.py": {
+      "executable": 508,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/folder_watch.py": {
+      "executable": 354,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/hotkeys.py": {
+      "executable": 213,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/job_scheduler.py": {
+      "executable": 761,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/keyring_store.py": {
+      "executable": 270,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/kokoro_child.py": {
+      "executable": 84,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/kokoro_isolate.py": {
+      "executable": 315,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/kokoro_voice.py": {
+      "executable": 478,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/live_staleness.py": {
+      "executable": 197,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/menu_paths.py": {
+      "executable": 490,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/monitors.py": {
+      "executable": 449,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/perception_adapter.py": {
+      "executable": 223,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/point_crop.py": {
+      "executable": 141,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/pywinctl_wrapper.py": {
+      "executable": 440,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/s7_menu_consequence.py": {
+      "executable": 203,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/s7_threading.py": {
+      "executable": 135,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/screen_capture.py": {
+      "executable": 628,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/screen_watch.py": {
+      "executable": 166,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/system_surfaces.py": {
+      "executable": 467,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/system_surfaces_shell.py": {
+      "executable": 216,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/target_handles.py": {
+      "executable": 337,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/turn_taking.py": {
+      "executable": 345,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia.py": {
+      "executable": 157,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_base.py": {
+      "executable": 164,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_click.py": {
+      "executable": 137,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_discover.py": {
+      "executable": 138,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_engine.py": {
+      "executable": 362,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_marks.py": {
+      "executable": 196,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_probe.py": {
+      "executable": 179,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_send.py": {
+      "executable": 257,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_type.py": {
+      "executable": 328,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/uia_verify.py": {
+      "executable": 144,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/vision.py": {
+      "executable": 8,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/vision_capture.py": {
+      "executable": 196,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/vision_gestures.py": {
+      "executable": 558,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/vision_manager.py": {
+      "executable": 371,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/voice_activity.py": {
+      "executable": 357,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/volume_control.py": {
+      "executable": 341,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/desktop/vscode_adapter.py": {
+      "executable": 84,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/dev_breadth.py": {
+      "executable": 41,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/developer_codebase_qa.py": {
+      "executable": 146,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/developer_diagnostics.py": {
+      "executable": 130,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/developer_flake_programme.py": {
+      "executable": 80,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/developer_telemetry_doctor.py": {
+      "executable": 76,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/device_watch.py": {
+      "executable": 135,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/discord_presence.py": {
+      "executable": 229,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/disk_index.py": {
+      "executable": 313,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/distribution_hardening.py": {
+      "executable": 177,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/docvault.py": {
+      "executable": 158,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/dv_serial_v577.py": {
+      "executable": 196,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/ebook_library.py": {
+      "executable": 1030,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/echo_guard.py": {
+      "executable": 63,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/erp.py": {
+      "executable": 1456,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/event_planning.py": {
+      "executable": 724,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/event_ticketing.py": {
+      "executable": 702,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/extension_safety_harness.py": {
+      "executable": 341,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/extraction.py": {
+      "executable": 80,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/eye_rest.py": {
+      "executable": 177,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/eyes.py": {
+      "executable": 108,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/failsafe.py": {
+      "executable": 316,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/feel.py": {
+      "executable": 315,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/feel_tools.py": {
+      "executable": 91,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/filament.py": {
+      "executable": 751,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/file_bytes.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/firstopen_optin.py": {
+      "executable": 209,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/firstopen_surface.py": {
+      "executable": 67,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/firstopen_tools.py": {
+      "executable": 135,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/firstrun.py": {
+      "executable": 238,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/firstrun_tools.py": {
+      "executable": 122,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/fleet_consent.py": {
+      "executable": 46,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/fleet_redaction.py": {
+      "executable": 40,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/fleet_smalln_maths.py": {
+      "executable": 69,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/__init__.py": {
+      "executable": 2,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/failure_script.py": {
+      "executable": 193,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/guard_state.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/kill_chain.py": {
+      "executable": 211,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/live_origin.py": {
+      "executable": 12,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/money_guard.py": {
+      "executable": 332,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/pack_registration.py": {
+      "executable": 13,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/rule_of_two.py": {
+      "executable": 58,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tool_cancel.py": {
+      "executable": 167,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tool_classification.py": {
+      "executable": 582,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tool_delimiters.py": {
+      "executable": 31,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tool_envelope.py": {
+      "executable": 108,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tool_operations.py": {
+      "executable": 159,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tool_profiles.py": {
+      "executable": 99,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tool_result.py": {
+      "executable": 47,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/toolbox.py": {
+      "executable": 14,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/toolbox_declarations.py": {
+      "executable": 284,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/toolbox_embeddings.py": {
+      "executable": 249,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/toolbox_findcall.py": {
+      "executable": 172,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/toolbox_tokens.py": {
+      "executable": 307,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate.py": {
+      "executable": 197,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_confirm.py": {
+      "executable": 3,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_egress.py": {
+      "executable": 12,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_free.py": {
+      "executable": 3,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_netlane.py": {
+      "executable": 28,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_paths.py": {
+      "executable": 466,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_readclass.py": {
+      "executable": 9,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_readonly.py": {
+      "executable": 3,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_replay.py": {
+      "executable": 42,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_shell.py": {
+      "executable": 81,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_taint.py": {
+      "executable": 74,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_tier.py": {
+      "executable": 89,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_gate_trial.py": {
+      "executable": 11,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers.py": {
+      "executable": 52,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_capture_launch.py": {
+      "executable": 386,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_command_url.py": {
+      "executable": 564,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_data_services.py": {
+      "executable": 498,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_frame_launch.py": {
+      "executable": 252,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_limits.py": {
+      "executable": 183,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_core1.py": {
+      "executable": 341,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_core2.py": {
+      "executable": 239,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_libwire.py": {
+      "executable": 335,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_s7consumers.py": {
+      "executable": 445,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_s7consumers2.py": {
+      "executable": 475,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_s7consumers3.py": {
+      "executable": 110,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_wave10.py": {
+      "executable": 219,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_wave78.py": {
+      "executable": 74,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_handlers_pack_wave9.py": {
+      "executable": 81,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_registry.py": {
+      "executable": 87,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_registry_core.py": {
+      "executable": 261,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_registry_exec_dispatch.py": {
+      "executable": 387,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_registry_exec_gates.py": {
+      "executable": 356,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_registry_exec_setup.py": {
+      "executable": 321,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_registry_helpers.py": {
+      "executable": 92,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/funnel/tools_registry_validators.py": {
+      "executable": 438,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/game_server.py": {
+      "executable": 629,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/gaming.py": {
+      "executable": 224,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/gaming_detect_drive.py": {
+      "executable": 65,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/gaming_tools.py": {
+      "executable": 137,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/gaming_wall.py": {
+      "executable": 74,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/ghost_cursor.py": {
+      "executable": 44,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/google_services.py": {
+      "executable": 17,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/google_services_calendar.py": {
+      "executable": 281,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/google_services_gmail.py": {
+      "executable": 453,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/google_services_helpers.py": {
+      "executable": 11,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/google_services_services.py": {
+      "executable": 99,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/google_services_sync.py": {
+      "executable": 161,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/google_services_token.py": {
+      "executable": 174,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/governance.py": {
+      "executable": 32,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/grad.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/grad_tools.py": {
+      "executable": 146,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/groq_action_journal.py": {
+      "executable": 155,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/grounding.py": {
+      "executable": 49,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/gui_facade.py": {
+      "executable": 172,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/hardware.py": {
+      "executable": 158,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/hardware_tools.py": {
+      "executable": 113,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/headline_acceptance.py": {
+      "executable": 101,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/__init__.py": {
+      "executable": 2,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/asset_repair.py": {
+      "executable": 164,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/capability_probes.py": {
+      "executable": 199,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/health.py": {
+      "executable": 301,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/health_tool_wiring.py": {
+      "executable": 62,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/integrity.py": {
+      "executable": 173,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater.py": {
+      "executable": 26,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_apply.py": {
+      "executable": 331,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_check.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_manifest.py": {
+      "executable": 30,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_paths.py": {
+      "executable": 51,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_pending.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_policy.py": {
+      "executable": 22,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_protect.py": {
+      "executable": 14,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_stage.py": {
+      "executable": 166,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_transport.py": {
+      "executable": 35,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health/updater_verify.py": {
+      "executable": 112,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/health_rules.py": {
+      "executable": 205,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/homeassistant.py": {
+      "executable": 376,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/icon_manifest.py": {
+      "executable": 88,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/improvement_proposals.py": {
+      "executable": 216,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/injection.py": {
+      "executable": 12,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/injection_envelope.py": {
+      "executable": 22,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/injection_scan.py": {
+      "executable": 45,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/injection_secondpass.py": {
+      "executable": 125,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/injection_taint.py": {
+      "executable": 131,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/input_guard.py": {
+      "executable": 237,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/integration_harness_tools.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/integration_harness_tools_extensions.py": {
+      "executable": 91,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/integration_harness_tools_handlers.py": {
+      "executable": 58,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/integration_harness_tools_helpers.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/integration_harness_tools_register.py": {
+      "executable": 155,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/integration_harness_tools_workflow.py": {
+      "executable": 210,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/interruption_budget.py": {
+      "executable": 63,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/invoice.py": {
+      "executable": 900,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/iotl.py": {
+      "executable": 127,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/iotl_tools.py": {
+      "executable": 125,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/ip_camera.py": {
+      "executable": 918,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/itinerary_parse.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/k1_measurement_rig.py": {
+      "executable": 96,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/languages.py": {
+      "executable": 201,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/learning_feed.py": {
+      "executable": 170,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/learning_last.py": {
+      "executable": 118,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/learning_last_tools.py": {
+      "executable": 105,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/licence.py": {
+      "executable": 272,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/lifeadmin_tool_wiring.py": {
+      "executable": 77,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/lifecycle.py": {
+      "executable": 173,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/lodging.py": {
+      "executable": 984,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/loopback.py": {
+      "executable": 515,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/loopback_worker.py": {
+      "executable": 217,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/loudness.py": {
+      "executable": 148,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/machine_doctor.py": {
+      "executable": 154,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_client.py": {
+      "executable": 17,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_client_bus.py": {
+      "executable": 446,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_client_config.py": {
+      "executable": 213,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_client_session.py": {
+      "executable": 57,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_client_tools.py": {
+      "executable": 71,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_policy.py": {
+      "executable": 101,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_registry.py": {
+      "executable": 475,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mcp_trials.py": {
+      "executable": 118,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/media_chat.py": {
+      "executable": 604,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/meeting.py": {
+      "executable": 661,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/__init__.py": {
+      "executable": 4,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/deep_research.py": {
+      "executable": 59,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/episodes.py": {
+      "executable": 217,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/knowledge.py": {
+      "executable": 343,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/learning.py": {
+      "executable": 302,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/memory.py": {
+      "executable": 245,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/memory_files.py": {
+      "executable": 289,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/on_this_day.py": {
+      "executable": 96,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/people.py": {
+      "executable": 84,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/playbook_store.py": {
+      "executable": 389,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/privacy.py": {
+      "executable": 95,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/read_memory.py": {
+      "executable": 75,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_edition_deltas.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_edition_deltas_feeds.py": {
+      "executable": 159,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_edition_deltas_guards.py": {
+      "executable": 216,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_edition_deltas_helpers.py": {
+      "executable": 4,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_edition_deltas_loop.py": {
+      "executable": 37,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_edition_deltas_retraction.py": {
+      "executable": 91,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_ride.py": {
+      "executable": 26,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/research_stack.py": {
+      "executable": 289,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/retention.py": {
+      "executable": 48,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/memory/session_summary.py": {
+      "executable": 147,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/milestones.py": {
+      "executable": 72,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/misrouting.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/miss_extensions_learning.py": {
+      "executable": 300,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mission_contracts.py": {
+      "executable": 59,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mission_control.py": {
+      "executable": 388,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mission_jobs.py": {
+      "executable": 37,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mmdevice.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/model_manager.py": {
+      "executable": 136,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/model_tiers.py": {
+      "executable": 23,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/multiverse_planner.py": {
+      "executable": 315,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/multiverse_tools.py": {
+      "executable": 132,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/music_player.py": {
+      "executable": 17,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/music_player_evidence.py": {
+      "executable": 60,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/music_player_rungs.py": {
+      "executable": 271,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/music_player_spotify.py": {
+      "executable": 128,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/music_player_verdicts.py": {
+      "executable": 96,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/mutual_fund.py": {
+      "executable": 145,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/net.py": {
+      "executable": 186,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/net_tools.py": {
+      "executable": 134,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/never_automate_guard.py": {
+      "executable": 34,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/nongraph_memory.py": {
+      "executable": 51,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/ollama_models.py": {
+      "executable": 246,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/optimise.py": {
+      "executable": 1250,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/paperwork.py": {
+      "executable": 77,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/perf.py": {
+      "executable": 133,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/permission_grants.py": {
+      "executable": 406,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/personal_skills.py": {
+      "executable": 495,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/phase5_picks.py": {
+      "executable": 306,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/phase5_tools.py": {
+      "executable": 170,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/photo_organise.py": {
+      "executable": 281,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/pilot.py": {
+      "executable": 319,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/pilot_licences_seats.py": {
+      "executable": 31,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/pilot_licences_senses.py": {
+      "executable": 106,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/pilot_licences_sound_translation.py": {
+      "executable": 61,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/pilot_licences_wave7.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/pilot_tools.py": {
+      "executable": 179,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/plan_approval.py": {
+      "executable": 552,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/plan_breadth.py": {
+      "executable": 55,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/__init__.py": {
+      "executable": 38,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/_common.py": {
+      "executable": 57,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/_seamed.py": {
+      "executable": 16,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/_seamed_dispatch_input_cursor.py": {
+      "executable": 286,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/_seamed_helpers.py": {
+      "executable": 6,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/_seamed_window_uia_capture.py": {
+      "executable": 432,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/base.py": {
+      "executable": 98,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/fake.py": {
+      "executable": 13,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/fake_helpers.py": {
+      "executable": 61,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/fake_input_cursor.py": {
+      "executable": 346,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/fake_window_uia_capture.py": {
+      "executable": 395,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/linux.py": {
+      "executable": 73,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/macos.py": {
+      "executable": 50,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform/windows.py": {
+      "executable": 162,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/platform_permission_probe.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/playback_licences.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/plugin_isolation.py": {
+      "executable": 24,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/plugin_loader.py": {
+      "executable": 333,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/portability.py": {
+      "executable": 220,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/power_policy.py": {
+      "executable": 189,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/presence.py": {
+      "executable": 66,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/proactivity.py": {
+      "executable": 804,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/prompt_tune.py": {
+      "executable": 870,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/proposal_tools.py": {
+      "executable": 63,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/provider_identity.py": {
+      "executable": 37,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/pulse_w5.py": {
+      "executable": 54,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/qr_encode.py": {
+      "executable": 244,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/query_routing.py": {
+      "executable": 233,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/reach.py": {
+      "executable": 392,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/record_family.py": {
+      "executable": 103,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/release_checklist.py": {
+      "executable": 174,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/release_checklist_tools.py": {
+      "executable": 95,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/release_spine.py": {
+      "executable": 199,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/release_spine_tools.py": {
+      "executable": 115,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/replay.py": {
+      "executable": 56,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/__init__.py": {
+      "executable": 2,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_clock.py": {
+      "executable": 76,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_connectivity.py": {
+      "executable": 222,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_durability.py": {
+      "executable": 138,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_gate.py": {
+      "executable": 278,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_offline.py": {
+      "executable": 156,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_outbox.py": {
+      "executable": 158,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_power.py": {
+      "executable": 292,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_state.py": {
+      "executable": 100,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_swaps.py": {
+      "executable": 180,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/resilience/resilience_wiring.py": {
+      "executable": 169,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/restic_pilot.py": {
+      "executable": 65,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/room_calibration.py": {
+      "executable": 199,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/rustic_backup.py": {
+      "executable": 496,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/safemode.py": {
+      "executable": 133,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sandbox_filesystem.py": {
+      "executable": 222,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sandbox_light.py": {
+      "executable": 42,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sandbox_tools.py": {
+      "executable": 83,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/scam_guard.py": {
+      "executable": 186,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/scheduled_agents.py": {
+      "executable": 832,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/scheduler.py": {
+      "executable": 417,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/second_opinion.py": {
+      "executable": 117,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/secrets_store.py": {
+      "executable": 284,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/security_scan.py": {
+      "executable": 313,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/senses.py": {
+      "executable": 26,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/senses_file.py": {
+      "executable": 139,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/senses_link.py": {
+      "executable": 154,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/senses_log.py": {
+      "executable": 115,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/senses_quality.py": {
+      "executable": 93,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/senses_text.py": {
+      "executable": 61,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/senses_wifi.py": {
+      "executable": 167,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/service_host.py": {
+      "executable": 114,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/session_epoch.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/settings_schema.py": {
+      "executable": 152,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sherpa_code_path.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sim_predict.py": {
+      "executable": 169,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sim_tools.py": {
+      "executable": 101,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_format.py": {
+      "executable": 420,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_gallery.py": {
+      "executable": 204,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_gate.py": {
+      "executable": 14,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_gate_admit.py": {
+      "executable": 151,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_gate_grants.py": {
+      "executable": 77,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_gate_helpers.py": {
+      "executable": 72,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_gate_scan.py": {
+      "executable": 225,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_runtime.py": {
+      "executable": 218,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skill_signing.py": {
+      "executable": 227,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_admin.py": {
+      "executable": 498,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_admin_helpers.py": {
+      "executable": 84,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_admin_lend_assets.py": {
+      "executable": 741,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_admin_schedules.py": {
+      "executable": 253,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_admin_vault_logs.py": {
+      "executable": 260,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative2_art_music.py": {
+      "executable": 537,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative2_words_haiku.py": {
+      "executable": 45,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative2_words_names.py": {
+      "executable": 77,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative2_words_story.py": {
+      "executable": 61,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative_generate.py": {
+      "executable": 79,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative_play.py": {
+      "executable": 457,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative_sound_words.py": {
+      "executable": 181,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_creative_visual.py": {
+      "executable": 365,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_desktop_layouts.py": {
+      "executable": 385,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_desktop_prefs.py": {
+      "executable": 504,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_desktop_tiling.py": {
+      "executable": 458,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_dev.py": {
+      "executable": 111,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_dev_convert.py": {
+      "executable": 289,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_dev_explain.py": {
+      "executable": 319,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_dev_helpers.py": {
+      "executable": 7,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_display_settings.py": {
+      "executable": 234,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files2_helpers.py": {
+      "executable": 42,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files2_pdf_files.py": {
+      "executable": 538,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files3_helpers.py": {
+      "executable": 61,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files3_inspect.py": {
+      "executable": 466,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files4_audio_size.py": {
+      "executable": 274,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files4_helpers.py": {
+      "executable": 73,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files4_image.py": {
+      "executable": 269,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files5_audio_dup_age.py": {
+      "executable": 407,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files5_helpers.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files5_pdf.py": {
+      "executable": 260,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files5_watch_blur_notes.py": {
+      "executable": 296,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files6_csv.py": {
+      "executable": 234,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files6_files.py": {
+      "executable": 286,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files6_helpers.py": {
+      "executable": 31,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files_data.py": {
+      "executable": 77,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files_inspect.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files_media_ops.py": {
+      "executable": 87,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files_ops.py": {
+      "executable": 106,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_files_recipes.py": {
+      "executable": 116,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_fun.py": {
+      "executable": 100,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_fun_chance_calm.py": {
+      "executable": 337,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_fun_daily.py": {
+      "executable": 122,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_fun_helpers.py": {
+      "executable": 44,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_fun_party.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_fun_play.py": {
+      "executable": 244,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_games.py": {
+      "executable": 69,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_games_classic.py": {
+      "executable": 205,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_games_helpers.py": {
+      "executable": 50,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_games_quiz.py": {
+      "executable": 259,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_games_word.py": {
+      "executable": 224,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_habits.py": {
+      "executable": 100,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_habits_helpers.py": {
+      "executable": 57,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_habits_mind.py": {
+      "executable": 208,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_habits_review.py": {
+      "executable": 119,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_habits_tracking.py": {
+      "executable": 273,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_hands3_capture_scroll.py": {
+      "executable": 476,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_hands3_window_focus.py": {
+      "executable": 192,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_hands3_window_manip.py": {
+      "executable": 524,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_kitchen.py": {
+      "executable": 115,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_kitchen_helpers.py": {
+      "executable": 32,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_kitchen_plan.py": {
+      "executable": 254,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_kitchen_scale.py": {
+      "executable": 148,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_media.py": {
+      "executable": 160,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_media_audio.py": {
+      "executable": 213,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_media_capture.py": {
+      "executable": 88,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_media_convert.py": {
+      "executable": 350,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_media_files.py": {
+      "executable": 214,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_media_helpers.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_media_image.py": {
+      "executable": 161,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_money.py": {
+      "executable": 155,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_money_budget.py": {
+      "executable": 199,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_money_growth.py": {
+      "executable": 316,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_money_helpers.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_music.py": {
+      "executable": 502,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_network.py": {
+      "executable": 146,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_network_diag.py": {
+      "executable": 325,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_network_display_input.py": {
+      "executable": 339,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_network_helpers.py": {
+      "executable": 11,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_network_wake_shares.py": {
+      "executable": 159,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_network_web_diag.py": {
+      "executable": 437,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_network_wifi_net.py": {
+      "executable": 396,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_nose.py": {
+      "executable": 196,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_outdoors.py": {
+      "executable": 112,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_outdoors_helpers.py": {
+      "executable": 32,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_outdoors_home.py": {
+      "executable": 314,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_outdoors_sky.py": {
+      "executable": 149,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_photo.py": {
+      "executable": 103,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_photo2_effects.py": {
+      "executable": 339,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_photo2_helpers.py": {
+      "executable": 127,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_photo_edit.py": {
+      "executable": 231,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_photo_effects.py": {
+      "executable": 54,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_photo_finish.py": {
+      "executable": 213,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_photo_helpers.py": {
+      "executable": 125,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_plus.py": {
+      "executable": 107,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_plus_apps_files.py": {
+      "executable": 474,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_plus_devices.py": {
+      "executable": 164,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_plus_helpers.py": {
+      "executable": 12,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_plus_voice_focus.py": {
+      "executable": 83,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity.py": {
+      "executable": 232,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity2_convert_query.py": {
+      "executable": 393,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity2_helpers.py": {
+      "executable": 34,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity2_timers.py": {
+      "executable": 207,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity3_focus_day.py": {
+      "executable": 541,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity3_helpers.py": {
+      "executable": 8,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity3_life_admin.py": {
+      "executable": 490,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity5_logs.py": {
+      "executable": 511,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity_day.py": {
+      "executable": 129,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity_logs.py": {
+      "executable": 63,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_productivity_tools.py": {
+      "executable": 89,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_screen_capture.py": {
+      "executable": 349,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_senses_checks.py": {
+      "executable": 473,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_senses_reports.py": {
+      "executable": 346,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_smart.py": {
+      "executable": 542,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_smart_chance.py": {
+      "executable": 247,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_smart_convert.py": {
+      "executable": 314,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_smart_encode.py": {
+      "executable": 172,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_studio.py": {
+      "executable": 187,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_study.py": {
+      "executable": 89,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_study_drills.py": {
+      "executable": 223,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_study_flashcards.py": {
+      "executable": 140,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_study_helpers.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system.py": {
+      "executable": 152,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system2_devices.py": {
+      "executable": 314,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system2_helpers.py": {
+      "executable": 58,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system2_processes.py": {
+      "executable": 223,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system3_hardware.py": {
+      "executable": 274,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system3_helpers.py": {
+      "executable": 69,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system3_power.py": {
+      "executable": 133,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system3_security.py": {
+      "executable": 100,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system6_boot.py": {
+      "executable": 116,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system6_devices.py": {
+      "executable": 195,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system6_diag.py": {
+      "executable": 252,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system6_helpers.py": {
+      "executable": 52,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system6_safety.py": {
+      "executable": 106,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_apps_startup.py": {
+      "executable": 369,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_bench.py": {
+      "executable": 377,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_env_disk.py": {
+      "executable": 472,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_health.py": {
+      "executable": 84,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_helpers.py": {
+      "executable": 43,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_inventory.py": {
+      "executable": 100,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_monitor.py": {
+      "executable": 148,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_net_admin.py": {
+      "executable": 175,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_services_power.py": {
+      "executable": 290,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_system_tuning.py": {
+      "executable": 328,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_text.py": {
+      "executable": 373,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_tool_wiring.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_travel.py": {
+      "executable": 495,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_web6_helpers.py": {
+      "executable": 93,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_web6_local.py": {
+      "executable": 207,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_web6_watch.py": {
+      "executable": 330,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_web_lookup.py": {
+      "executable": 284,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_web_research.py": {
+      "executable": 438,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_web_watch.py": {
+      "executable": 101,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_window_control.py": {
+      "executable": 114,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_words.py": {
+      "executable": 120,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_words_helpers.py": {
+      "executable": 56,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_words_make.py": {
+      "executable": 106,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/skills_words_measure.py": {
+      "executable": 302,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sleeptime.py": {
+      "executable": 177,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_crisis_protocol.py": {
+      "executable": 24,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_honesty_guards.py": {
+      "executable": 54,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_occasion_dates.py": {
+      "executable": 92,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_occasions_ledger.py": {
+      "executable": 311,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_people_graph.py": {
+      "executable": 104,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_relational_memory.py": {
+      "executable": 123,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_send.py": {
+      "executable": 582,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/social_vcard.py": {
+      "executable": 132,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/solar_yield.py": {
+      "executable": 372,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sonic_canon.py": {
+      "executable": 60,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sound_event_sidecar.py": {
+      "executable": 279,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sound_event_watchers.py": {
+      "executable": 48,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/sound_pools_v564.py": {
+      "executable": 201,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/soundscape_v564.py": {
+      "executable": 73,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/speculative.py": {
+      "executable": 157,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/st_cite.py": {
+      "executable": 55,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/st_deck.py": {
+      "executable": 328,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/st_practice.py": {
+      "executable": 131,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/st_schedule.py": {
+      "executable": 391,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/st_workspace.py": {
+      "executable": 151,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/stage_lighting.py": {
+      "executable": 866,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/standby_loads.py": {
+      "executable": 74,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/state_bus.py": {
+      "executable": 201,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/state_bus_producers.py": {
+      "executable": 112,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/state_mirrors.py": {
+      "executable": 97,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/status_strip.py": {
+      "executable": 58,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/step_sequence.py": {
+      "executable": 183,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/store_base.py": {
+      "executable": 155,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/study_flow_t1.py": {
+      "executable": 374,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/summary.py": {
+      "executable": 145,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/taskwake.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tax_vault.py": {
+      "executable": 263,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tc1_design_specs.py": {
+      "executable": 94,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/technical_analysis.py": {
+      "executable": 982,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/telemetry.py": {
+      "executable": 331,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/terms.py": {
+      "executable": 45,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/theme_packs.py": {
+      "executable": 181,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/theme_sync.py": {
+      "executable": 92,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/think.py": {
+      "executable": 272,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/think_bakeoff.py": {
+      "executable": 288,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/this_resolution.py": {
+      "executable": 51,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/time_tracker.py": {
+      "executable": 787,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tokens.py": {
+      "executable": 14,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tokens_gate.py": {
+      "executable": 28,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tokens_oklch.py": {
+      "executable": 73,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tokens_outputs.py": {
+      "executable": 158,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tokens_radix.py": {
+      "executable": 36,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tokens_theme.py": {
+      "executable": 215,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tool_labels.py": {
+      "executable": 696,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tool_outcome.py": {
+      "executable": 741,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tool_placement.py": {
+      "executable": 56,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tool_receipts.py": {
+      "executable": 182,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tool_receipts_normalize.py": {
+      "executable": 152,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tool_receipts_store.py": {
+      "executable": 253,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tools_handlers_pack_hands.py": {
+      "executable": 164,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tools_handlers_pack_waves.py": {
+      "executable": 150,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/trace_mining.py": {
+      "executable": 213,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/translations.py": {
+      "executable": 997,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/travel.py": {
+      "executable": 7,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/travel_assist.py": {
+      "executable": 268,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/travel_builders.py": {
+      "executable": 264,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/travel_checks.py": {
+      "executable": 75,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/travel_tools.py": {
+      "executable": 231,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/travel_validate.py": {
+      "executable": 52,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/triage3_identity_redact_select.py": {
+      "executable": 308,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/trust_slices.py": {
+      "executable": 121,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/trust_spine.py": {
+      "executable": 227,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/trust_spine_tools.py": {
+      "executable": 119,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/tts_pilot_seats.py": {
+      "executable": 73,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/two_way_sync.py": {
+      "executable": 410,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/undo_breadth.py": {
+      "executable": 58,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/undo_completion.py": {
+      "executable": 327,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/undo_producers_p1.py": {
+      "executable": 273,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/undo_store.py": {
+      "executable": 99,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/undo_tools.py": {
+      "executable": 34,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/vehicle_routes.py": {
+      "executable": 686,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/version.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/vision_backend.py": {
+      "executable": 388,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/vision_exclusions.py": {
+      "executable": 72,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/vision_models.py": {
+      "executable": 175,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/visual_breadth.py": {
+      "executable": 50,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/__init__.py": {
+      "executable": 2,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/asr.py": {
+      "executable": 127,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/audio.py": {
+      "executable": 70,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/audio_devices_mic.py": {
+      "executable": 466,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/audio_helpers.py": {
+      "executable": 189,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/audio_streams_playback.py": {
+      "executable": 159,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/cloud_diag.py": {
+      "executable": 138,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/cloud_text_client.py": {
+      "executable": 37,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/cloud_text_goal.py": {
+      "executable": 287,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/cloud_text_helpers.py": {
+      "executable": 411,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/cloud_text_lifecycle.py": {
+      "executable": 239,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/cloud_text_turn.py": {
+      "executable": 400,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/grammar_shortlist.py": {
+      "executable": 122,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/lite_client.py": {
+      "executable": 16,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/lite_client_helpers.py": {
+      "executable": 98,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/lite_client_session.py": {
+      "executable": 429,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client.py": {
+      "executable": 45,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_error_cost.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_helpers.py": {
+      "executable": 72,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_interaction.py": {
+      "executable": 29,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_lifecycle.py": {
+      "executable": 350,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_proxy.py": {
+      "executable": 41,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_realtime.py": {
+      "executable": 51,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_receive.py": {
+      "executable": 379,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_resume.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/live_client_send.py": {
+      "executable": 203,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets.py": {
+      "executable": 25,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_diagnose_pack.py": {
+      "executable": 276,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_ensure.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_kokoro.py": {
+      "executable": 31,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_model.py": {
+      "executable": 155,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_piperwake.py": {
+      "executable": 78,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_progress.py": {
+      "executable": 114,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_proxy.py": {
+      "executable": 353,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_tesseract.py": {
+      "executable": 113,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_vlm.py": {
+      "executable": 126,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_assets_whisper.py": {
+      "executable": 281,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client.py": {
+      "executable": 67,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_budgets.py": {
+      "executable": 111,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_builtin.py": {
+      "executable": 439,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_chunking.py": {
+      "executable": 227,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_classifier.py": {
+      "executable": 82,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_cost.py": {
+      "executable": 23,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_frames.py": {
+      "executable": 79,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_guards.py": {
+      "executable": 211,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_lifecycle.py": {
+      "executable": 364,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_mic.py": {
+      "executable": 286,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_ollama.py": {
+      "executable": 257,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_pcm.py": {
+      "executable": 198,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_plangoal.py": {
+      "executable": 160,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_render.py": {
+      "executable": 206,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_speech.py": {
+      "executable": 329,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_toolparse.py": {
+      "executable": 314,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_vad.py": {
+      "executable": 126,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_verbal.py": {
+      "executable": 285,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_vlm.py": {
+      "executable": 187,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/local_client_voices.py": {
+      "executable": 193,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/mic_doctor.py": {
+      "executable": 119,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/mic_loop.py": {
+      "executable": 103,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/mouth.py": {
+      "executable": 12,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/mouth_lexicon_numbers.py": {
+      "executable": 235,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/mouth_prosody_render.py": {
+      "executable": 194,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/mouth_script_hotwords.py": {
+      "executable": 191,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/mouth_transcript_wer.py": {
+      "executable": 133,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/noise_suppress.py": {
+      "executable": 221,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/smartturn.py": {
+      "executable": 275,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/spoken_errors.py": {
+      "executable": 30,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/vad.py": {
+      "executable": 179,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/voice_text_bridge.py": {
+      "executable": 103,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/wake_features.py": {
+      "executable": 122,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/wake_model.py": {
+      "executable": 306,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/wake_synth.py": {
+      "executable": 166,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/wake_training.py": {
+      "executable": 273,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice/wake_word.py": {
+      "executable": 399,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice_agent.py": {
+      "executable": 1595,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice_foundations.py": {
+      "executable": 50,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice_lock.py": {
+      "executable": 47,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/voice_text_bridge.py": {
+      "executable": 4,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w10_wiring.py": {
+      "executable": 244,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w2_redteam.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w2_rigs.py": {
+      "executable": 81,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w2_trust.py": {
+      "executable": 113,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w4_wiring.py": {
+      "executable": 10,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w4_wiring_curl_mcp.py": {
+      "executable": 68,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w4_wiring_declarations.py": {
+      "executable": 68,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w4_wiring_pilots.py": {
+      "executable": 106,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w4_wiring_replay.py": {
+      "executable": 52,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w4_wiring_trials.py": {
+      "executable": 41,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w5_wiring.py": {
+      "executable": 268,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w6_wiring.py": {
+      "executable": 329,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w7_wiring.py": {
+      "executable": 17,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w7_wiring_anticipation.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w7_wiring_constants.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w7_wiring_daily.py": {
+      "executable": 95,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w7_wiring_misc.py": {
+      "executable": 43,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w7_wiring_notify.py": {
+      "executable": 55,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w7_wiring_presence.py": {
+      "executable": 69,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring.py": {
+      "executable": 24,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_funnel.py": {
+      "executable": 28,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_gates.py": {
+      "executable": 17,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_mining.py": {
+      "executable": 31,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_opinion.py": {
+      "executable": 57,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_prompt.py": {
+      "executable": 79,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_registry.py": {
+      "executable": 30,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_sleeptime.py": {
+      "executable": 22,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_speculative.py": {
+      "executable": 19,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_steps.py": {
+      "executable": 128,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w8_wiring_taught.py": {
+      "executable": 50,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w9_wiring.py": {
+      "executable": 90,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w9_wiring_canon.py": {
+      "executable": 86,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w9_wiring_chat.py": {
+      "executable": 126,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w9_wiring_lan.py": {
+      "executable": 63,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/w9_wiring_wallpaper.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wake_bakeoff.py": {
+      "executable": 118,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wake_enrolment.py": {
+      "executable": 85,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wake_licences.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wake_trainer.py": {
+      "executable": 65,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wake_verifier.py": {
+      "executable": 41,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wallpaper.py": {
+      "executable": 471,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wallpaper_monitors.py": {
+      "executable": 316,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wardrobe.py": {
+      "executable": 578,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/watchers.py": {
+      "executable": 19,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/watchers_engine_lifecycle.py": {
+      "executable": 263,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/watchers_engine_watchers.py": {
+      "executable": 504,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/watchers_file_privacy.py": {
+      "executable": 235,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/watchers_foreground_mic_camera.py": {
+      "executable": 228,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/watchers_health_digest.py": {
+      "executable": 199,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/watchers_network_system.py": {
+      "executable": 293,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/webengine_proxy.py": {
+      "executable": 290,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/well.py": {
+      "executable": 189,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/well_tools.py": {
+      "executable": 141,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/workflow_learning.py": {
+      "executable": 266,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/wormhole.py": {
+      "executable": 472,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "core/write_proof.py": {
+      "executable": 120,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/__init__.py": {
+      "executable": 2,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/agent_overlay.py": {
+      "executable": 414,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/ambience.py": {
+      "executable": 232,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/audition.py": {
+      "executable": 147,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/boot_lines.py": {
+      "executable": 40,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/boot_screen.py": {
+      "executable": 96,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/breakpoints.py": {
+      "executable": 30,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/changelog_widget.py": {
+      "executable": 44,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/crop_grid.py": {
+      "executable": 20,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/__init__.py": {
+      "executable": 31,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/backdrop.py": {
+      "executable": 68,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/dialogs.py": {
+      "executable": 145,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/drawer.py": {
+      "executable": 35,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/empty.py": {
+      "executable": 34,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/flowlayout.py": {
+      "executable": 123,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/mission.py": {
+      "executable": 110,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/motion.py": {
+      "executable": 25,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/orbthumb.py": {
+      "executable": 43,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/palette.py": {
+      "executable": 37,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/panels.py": {
+      "executable": 74,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/pills.py": {
+      "executable": 43,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/profiles.py": {
+      "executable": 48,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/progress.py": {
+      "executable": 57,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/radar.py": {
+      "executable": 87,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/session_states.py": {
+      "executable": 33,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/statusstrip.py": {
+      "executable": 80,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/switches.py": {
+      "executable": 32,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/tabs.py": {
+      "executable": 11,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/telemetry.py": {
+      "executable": 40,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/design_system/toasts.py": {
+      "executable": 49,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/docking.py": {
+      "executable": 26,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/doctor_page.py": {
+      "executable": 566,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/doctor_worker.py": {
+      "executable": 111,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/drop_cause.py": {
+      "executable": 58,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/dwm_backdrops.py": {
+      "executable": 220,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/empty_art.py": {
+      "executable": 80,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/firstopen_prompt.py": {
+      "executable": 57,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/firstrun_g.py": {
+      "executable": 404,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/icon_manifest.py": {
+      "executable": 21,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/icons.py": {
+      "executable": 72,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/journal_surface.py": {
+      "executable": 370,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/lesson_panel.py": {
+      "executable": 199,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/main_window.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_view.py": {
+      "executable": 39,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web.py": {
+      "executable": 11,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web_3d_core.py": {
+      "executable": 461,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web_3d_render.py": {
+      "executable": 439,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web_canvas2d.py": {
+      "executable": 614,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web_gl.py": {
+      "executable": 28,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web_glconsts.py": {
+      "executable": 16,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web_graph.py": {
+      "executable": 501,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/memory_web_widget.py": {
+      "executable": 327,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/mini_orb.py": {
+      "executable": 371,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/motion.py": {
+      "executable": 127,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/onboarding.py": {
+      "executable": 217,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/onboarding_flow.py": {
+      "executable": 254,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/onboarding_pages.py": {
+      "executable": 655,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/onboarding_widgets.py": {
+      "executable": 113,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/orb_sphere.py": {
+      "executable": 104,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/overview_panel.py": {
+      "executable": 149,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pending_approval.py": {
+      "executable": 222,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pending_question.py": {
+      "executable": 194,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pending_reconcile.py": {
+      "executable": 179,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pending_recovery.py": {
+      "executable": 376,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pf_citizenship.py": {
+      "executable": 146,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pf_permissions.py": {
+      "executable": 531,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pf_privacy.py": {
+      "executable": 237,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pf_proof.py": {
+      "executable": 93,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pf_settings_help.py": {
+      "executable": 304,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pf_surfaces.py": {
+      "executable": 9,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pf_surfaces_helpers.py": {
+      "executable": 41,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/plan_approval_dialog.py": {
+      "executable": 154,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/progress_report_panel.py": {
+      "executable": 126,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/pulse_page.py": {
+      "executable": 421,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/resilience_status.py": {
+      "executable": 32,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/selftest_checks.py": {
+      "executable": 64,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/selftest_page.py": {
+      "executable": 100,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/senses_page.py": {
+      "executable": 553,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_catalog.py": {
+      "executable": 5,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_catalog_data.py": {
+      "executable": 19,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_catalog_widget.py": {
+      "executable": 225,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_galaxy.py": {
+      "executable": 7,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_galaxy_canvas2d.py": {
+      "executable": 361,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_galaxy_canvas3d.py": {
+      "executable": 616,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_galaxy_data.py": {
+      "executable": 302,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_galaxy_gl.py": {
+      "executable": 16,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/skills_galaxy_widget.py": {
+      "executable": 307,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/sounds.py": {
+      "executable": 106,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/state_bus.py": {
+      "executable": 27,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/status_glyphs.py": {
+      "executable": 65,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/status_strip.py": {
+      "executable": 143,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/style.py": {
+      "executable": 30,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/style_sheet.py": {
+      "executable": 11,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/style_theme.py": {
+      "executable": 198,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/style_tokens.py": {
+      "executable": 76,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/summon_window.py": {
+      "executable": 143,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/superqt_widgets.py": {
+      "executable": 110,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/task_state.py": {
+      "executable": 366,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/terms_widget.py": {
+      "executable": 39,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/visualizer.py": {
+      "executable": 8,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/visualizer_glass.py": {
+      "executable": 266,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/visualizer_paint.py": {
+      "executable": 314,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/visualizer_state.py": {
+      "executable": 335,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/w9_wiring_proof.py": {
+      "executable": 88,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/w9_wiring_summon.py": {
+      "executable": 40,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/w9_wiring_theme.py": {
+      "executable": 125,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_activity.py": {
+      "executable": 324,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_brain.py": {
+      "executable": 14,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_brain_cloud.py": {
+      "executable": 273,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_brain_engine.py": {
+      "executable": 87,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_brain_local.py": {
+      "executable": 256,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_brain_services.py": {
+      "executable": 449,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_brain_voice.py": {
+      "executable": 174,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_chat.py": {
+      "executable": 10,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_chat_bubbles.py": {
+      "executable": 429,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_chat_history.py": {
+      "executable": 138,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_chat_nav.py": {
+      "executable": 241,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_cost.py": {
+      "executable": 108,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory.py": {
+      "executable": 16,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory_activity.py": {
+      "executable": 541,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory_learned.py": {
+      "executable": 281,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory_panel.py": {
+      "executable": 151,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory_presence.py": {
+      "executable": 318,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory_routines.py": {
+      "executable": 215,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory_watchers.py": {
+      "executable": 303,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_memory_web.py": {
+      "executable": 358,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_pages.py": {
+      "executable": 10,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_pages_activity.py": {
+      "executable": 322,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_pages_memory.py": {
+      "executable": 318,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_pages_system.py": {
+      "executable": 266,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_services.py": {
+      "executable": 12,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_services_audio.py": {
+      "executable": 263,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_services_confirm.py": {
+      "executable": 438,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_services_speech.py": {
+      "executable": 373,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_services_trust.py": {
+      "executable": 261,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_session.py": {
+      "executable": 16,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_session_connection.py": {
+      "executable": 244,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_session_learning.py": {
+      "executable": 197,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_session_status.py": {
+      "executable": 494,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_session_suggestions.py": {
+      "executable": 233,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_session_typed.py": {
+      "executable": 188,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_session_watch.py": {
+      "executable": 191,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings.py": {
+      "executable": 260,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings_advbrain.py": {
+      "executable": 315,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings_advcards.py": {
+      "executable": 354,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings_appearance.py": {
+      "executable": 263,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings_groups.py": {
+      "executable": 259,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings_privacy.py": {
+      "executable": 210,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings_think.py": {
+      "executable": 240,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_settings_voice.py": {
+      "executable": 585,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell.py": {
+      "executable": 41,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_activity.py": {
+      "executable": 92,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_assistant.py": {
+      "executable": 464,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_assistant_widgets.py": {
+      "executable": 53,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_boot.py": {
+      "executable": 161,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_briefing.py": {
+      "executable": 240,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_frame.py": {
+      "executable": 399,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_memoryio.py": {
+      "executable": 131,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_onboarding.py": {
+      "executable": 134,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_settingsio.py": {
+      "executable": 69,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_sidebar.py": {
+      "executable": 195,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_shell_tray.py": {
+      "executable": 110,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_trust.py": {
+      "executable": 305,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_turns.py": {
+      "executable": 97,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets.py": {
+      "executable": 9,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets_bubble.py": {
+      "executable": 306,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets_chatbits.py": {
+      "executable": 245,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets_helpers.py": {
+      "executable": 234,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets_palette.py": {
+      "executable": 441,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets_shell.py": {
+      "executable": 184,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets_splash.py": {
+      "executable": 383,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "gui/window_widgets_toolnames.py": {
+      "executable": 9,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "main.py": {
+      "executable": 185,
+      "covered": 0,
+      "percent": 0.0
+    },
+    "doctor.py": {
+      "executable": 1393,
+      "covered": 0,
+      "percent": 0.0
+    }
+  },
+  "total": {
+    "executable": 229880,
+    "covered": 75,
+    "percent": 0.03
+  }
+}
