@@ -1119,14 +1119,14 @@ cousins on an older build):
 ### 35. The cloud session only loads core tools — everything else rides the toolbox (v5.33)
 
 By design, not a fault: a Gemini Live session now opens with
-the 57 core tools loaded directly (time, volume, media,
+the 59 core tools loaded directly (time, volume, media,
 windows, files, memory, browser basics — the things asked for
 constantly) plus one dispatcher, **use_toolbox**. Every other
 tool is still fully available; she reaches it in three steps —
 find (a few words of intent), describe (the exact arguments),
 call (it runs, with the same confirmation popups a direct
 call would need). The activity log shows the shape at connect:
-`[Live] Router: offering 57 resident tools`.
+`[Live] Router: offering 59 resident tools`.
 
 - **She says a tool "isn't available" or answers from
   general knowledge instead of using a niche tool.** In a

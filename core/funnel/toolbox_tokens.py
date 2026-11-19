@@ -242,6 +242,12 @@ TOOL_SYNONYMS: dict[str, tuple[str, ...]] = {
     "power_control": ("shutdown", "restart the computer", "turn off the pc", "reboot"),
     "wifi_info": ("which wifi", "network details", "internet connection"),
     "get_todays_schedule": ("my day today", "meetings today", "agenda"),
+    # Round-3 fix Q6: the briefing tool owns the morning-briefing
+    # ask ("give me my morning briefing", "what's on today") — the
+    # bare schedule ask ("my day today") stays with
+    # get_todays_schedule, so the two never fight over one phrase.
+    "get_morning_briefing": ("morning briefing", "what's on today",
+                            "my briefing today", "brief me"),
     "get_upcoming_events": ("what's coming up", "future meetings"),
     "get_unread_email": ("new mail", "unread messages", "check my inbox"),
     "search_email": ("find an email", "look through my mail"),
@@ -260,12 +266,39 @@ TOOL_SYNONYMS: dict[str, tuple[str, ...]] = {
     "speak_text": ("say this aloud", "read this out"),
     "create_plan": ("make a plan", "plan my day", "steps to"),
     "run_routine": ("run my routine", "do the routine"),
+    # Round-3 fix #4 (T12): the plan runner — named distinctly
+    # from run_routine so a plain "run my routine" still routes
+    # to the planner's tool, and from create_plan so "make a
+    # plan" still creates one instead of running it.
+    "run_plan": ("run my plan", "run a plan"),
     # Field-check fix #32 (round-2 N5): the anticipation
     # routine runner — named distinctly from run_routine so a
     # plain "run my routine" still routes to the planner's
     # tool.
     "run_anticipation_routine": ("run my anticipation routine",
                                 "run an anticipation routine"),
+    # Fix #32 follow-up (2026-11-19): the three teach tools
+    # had no synonym rows, so when fix #32 added
+    # run_anticipation_routine (24 points for "teach me a
+    # routine") the list/replay tools fell out of the top 8
+    # for teach phrases — teach_list_sequences scored only
+    # on its name (12) and teach_replay_sequence on name +
+    # one description token (14). Same mechanism as the
+    # ROUTE-01 precedent above (ocr_file / set_resolution):
+    # a tool's own capability phrases belong in its synonym
+    # row. "The routine I taught" is the list phrase and
+    # "replay the routine I taught" the replay phrase; both
+    # keep their generic rivals first — "list my routines"
+    # still routes to list_routines (28 > 14) and "replay
+    # my routine" still routes to run_routine. (Singular
+    # "routine", not "routines": this stemmer maps the
+    # plural to "routin" and the singular to "routine",
+    # so the plural form would miss the singular query
+    # token entirely — and would over-match "list my
+    # routines" instead.)
+    "teach_list_sequences": ("the routine I taught",
+                            "show my taught sequences"),
+    "teach_replay_sequence": ("replay the routine I taught",),
     "speed_test": ("how fast is my internet", "check connection speed"),
     "public_ip": ("my ip address", "what is my ip"),
     "open_path": ("open this folder", "open the file"),
@@ -345,11 +378,12 @@ CORE_TOOL_PRIORITY: tuple[str, ...] = (
     "get_active_window", "type_text", "press_hotkey",
     "mouse_control", "get_system_info", "app_settings", "lock_screen",
     "power_control", "network_control", "wifi_info",
-    "get_todays_schedule", "get_upcoming_events", "get_unread_email",
+    "get_todays_schedule", "get_morning_briefing", "get_upcoming_events",
+    "get_unread_email",
     "search_email", "find_files", "file_control", "quick_math",
     "browser_control", "browser_read", "browser_click",
     "browser_type", "speak_text", "create_plan", "list_plans",
-    "run_routine", "run_anticipation_routine", "list_routines", "keep_awake", "set_focus_assist",
+    "run_routine", "run_anticipation_routine", "run_plan", "list_routines", "keep_awake", "set_focus_assist",
     "get_activity_log", "date_calculator", "unit_convert", "speed_test",
     "public_ip", "notify_user", "open_path", "focus_session",
 )

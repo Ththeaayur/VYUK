@@ -205,6 +205,30 @@ def _calendar_trailer(report: dict) -> str:
     return trailer
 
 
+def todays_schedule_data() -> dict:
+    """Today's schedule as structured data — for the deterministic
+    morning-briefing tool (round-3 fix Q6). Returns
+    {"ok": True, "events": [...], "report": {...}} or
+    {"ok": False, "error": "..."}; never raises. ``events`` are the
+    raw Google event dicts for today, in start order; ``report`` is
+    the _fetch_events_paged report (complete / scope_note / partial).
+    The string form above stays the speakable path for
+    get_todays_schedule; this accessor is the same fetch, structured,
+    so the briefing tool can tell a genuinely empty day from a failed
+    read instead of parsing a sentence."""
+    svc, failure = _service_or_failure("calendar", "your calendar")
+    if svc is None:
+        return {"ok": False, "error": failure}
+    now = datetime.datetime.now().astimezone()
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + datetime.timedelta(days=1)
+    try:
+        items, report = _fetch_events_paged(svc, start, end)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"Couldn't read your calendar just now ({_short(e)})."}
+    return {"ok": True, "events": items, "report": report}
+
+
 def todays_schedule() -> str:
     """Everything on the user's calendars today, in start order."""
     svc, failure = _service_or_failure("calendar", "your calendar")

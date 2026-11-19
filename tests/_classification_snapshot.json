@@ -1294,6 +1294,11 @@
   "free": null,
   "read": true
  },
+ "get_morning_briefing": {
+  "confirm": false,
+  "free": null,
+  "read": true
+ },
  "get_unread_email": {
   "confirm": false,
   "free": null,
@@ -2595,11 +2600,16 @@
   "read": true
  },
  "run_anticipation_routine": {
-  "confirm": false,
-  "free": "executor dispatch",
+  "confirm": true,
+  "free": null,
   "read": false
  },
  "run_command": {
+  "confirm": true,
+  "free": null,
+  "read": false
+ },
+ "run_plan": {
   "confirm": true,
   "free": null,
   "read": false

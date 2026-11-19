@@ -655,38 +655,38 @@ class TestCensus(unittest.TestCase):
                           "schedule"})  # INTENTIONAL — RET-2 (2026-11-15): scheduled_agents gains 3 properties (name, steps, schedule) for the save_routine/run_routine actions
         self.assertEqual(mine[0]["parameters"]["required"], ["action"])
 
-    def test_registry_total_is_756(self):  # INTENTIONAL — Click-anywhere (2026-11-14): stale method-name label renamed; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+    def test_registry_total_is_758(self):  # INTENTIONAL — Click-anywhere (2026-11-14): stale method-name label renamed; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         from core.funnel.tools_registry import tools
         decls = tools.get_declarations()
         names = [d["name"] for d in decls]
-        self.assertEqual(len(decls), 756)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
-        self.assertEqual(len(set(names)), 756)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(len(decls), 758)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
+        self.assertEqual(len(set(names)), 758)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         self.assertIn("scheduled_agents", names)
 
-    def test_registry_params_total_is_2078(self):  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): stale method-name label renamed; Click-anywhere (2026-11-14): stale method-name label renamed; field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine
+    def test_registry_params_total_is_2079(self):  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): stale method-name label renamed; Click-anywhere (2026-11-14): stale method-name label renamed; field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
         from core.funnel.tools_registry import tools
         decls = tools.get_declarations()
         total = sum(len(d["parameters"]["properties"]) for d in decls)
-        self.assertEqual(total, 2078)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): 2063 -> 2064 — start_meeting gains system_audio; Click-anywhere (2026-11-14): 2064 -> 2073 — click_anywhere's 9 properties; RET-2 (2026-11-15): 2073 -> 2076 — scheduled_agents gains 3 properties (name, steps, schedule); Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine
+        self.assertEqual(total, 2079)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): 2063 -> 2064 — start_meeting gains system_audio; Click-anywhere (2026-11-14): 2064 -> 2073 — click_anywhere's 9 properties; RET-2 (2026-11-15): 2073 -> 2076 — scheduled_agents gains 3 properties (name, steps, schedule); Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
 
-    def test_catalogue_grouped_is_753(self):  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
+    def test_catalogue_grouped_is_754(self):  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan
         from core.catalogue_snapshot import GROUP_MEMBERS
         grouped = sum(len(m) for m in GROUP_MEMBERS.values())
-        self.assertEqual(grouped, 753)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
+        self.assertEqual(grouped, 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
         self.assertIn("scheduled_agents",
                       GROUP_MEMBERS.get("Your world", ()))
 
-    def test_registry_closed_is_755(self):  # INTENTIONAL — Click-anywhere (2026-11-14): stale method-name label renamed; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine
+    def test_registry_closed_is_757(self):  # INTENTIONAL — Click-anywhere (2026-11-14): stale method-name label renamed; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 755 -> 756 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 756 -> 757 — one new tool get_morning_briefing
         from core.funnel.tools_registry import tools
         decls = tools.get_declarations()
         closed = sum(1 for d in decls
                      if d["parameters"].get("additionalProperties")
                      is False)
-        self.assertEqual(closed, 755)  # INTENTIONAL — Click-anywhere (2026-11-14): 753 -> 754 — click_anywhere's schema is closed; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine
+        self.assertEqual(closed, 757)  # INTENTIONAL — Click-anywhere (2026-11-14): 753 -> 754 — click_anywhere's schema is closed; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 755 -> 756 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 756 -> 757 — one new tool get_morning_briefing
 
     def test_confirm_gated_is_164(self):
         from core.funnel.tools_gate_confirm import _CONFIRM_GATE_TOOLS
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 164)
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
         self.assertIn("scheduled_agents", _CONFIRM_GATE_TOOLS)
         from core.funnel.tools_gate import _needs_confirmation
         self.assertFalse(_needs_confirmation(
@@ -706,15 +706,15 @@ class TestCensus(unittest.TestCase):
         snap = json.loads(open(os.path.join(
             os.path.dirname(__file__), "_classification_snapshot.json"),
             encoding="utf-8").read())
-        self.assertEqual(len(snap), 756)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(len(snap), 758)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         self.assertEqual(snap.get("scheduled_agents"),
                          {"confirm": True, "free": None, "read": False})
         self.assertEqual(sum(1 for v in snap.values() if v.get("read")),
-                         382)
+                         383)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 382 -> 383 — one new read tool get_morning_briefing
         self.assertEqual(sum(1 for v in snap.values()
-                             if not v.get("read")), 374)  # INTENTIONAL — Click-anywhere (2026-11-14): 372 -> 373 — click_anywhere is effectful; field-check fix #32 (2026-11-18): 373 -> 374 — one new tool run_anticipation_routine
+                             if not v.get("read")), 375)  # INTENTIONAL — Click-anywhere (2026-11-14): 372 -> 373 — click_anywhere is effectful; field-check fix #32 (2026-11-18): 373 -> 374 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 374 -> 375 — one new tool run_plan
         self.assertEqual(sum(1 for v in snap.values()
-                             if v.get("confirm")), 164)
+                             if v.get("confirm")), 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
 
 
 if __name__ == "__main__":

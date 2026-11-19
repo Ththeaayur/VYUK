@@ -162,7 +162,7 @@ def _declarations_without_gimmicks(
 #: keyboard/mouse input, UIA + window-control inspection and
 #: clicking, OCR/vision looks, window management, launch/run,
 #: files, browser control, clipboard — plus app_settings
-#: (v5.52, item 8) and play_music (v5.52, item 4). 44 tools;
+#: (v5.52, item 8) and play_music (v5.52, item 4). 48 tools;
 #: every name is a registered tool (the H13 suite pins both
 #: facts).
 DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
@@ -223,6 +223,12 @@ DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
     # never runs — reachable only via use_toolbox, which the
     # model does not route a by-name demand through.
     "get_current_time_date",
+    # Round-3 fix Q6 (B10): get_morning_briefing — the same
+    # shape as get_current_time_date above. The section-B
+    # morning flow asks for a briefing by name; without this
+    # the model improvises the schedule from reminders instead
+    # of calling the tool that reads the calendar.
+    "get_morning_briefing",
 )
 
 #: Backwards-friendly alias (the set, not the ordering claim).

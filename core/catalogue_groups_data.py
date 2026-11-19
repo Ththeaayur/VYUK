@@ -223,7 +223,8 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
     ),
     # core/google_services.py (via _register_world_tools)             = 7
     "Your world": (
-        "get_todays_schedule", "get_upcoming_events",
+        "get_todays_schedule", "get_morning_briefing",  # Round-3 fix Q6: the deterministic briefing tool reads the same calendar
+        "get_upcoming_events",
         "get_unread_email", "search_email",
         "send_email", "create_calendar_event",
         "download_email_attachment",  # v5.5

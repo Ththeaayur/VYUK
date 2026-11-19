@@ -571,19 +571,19 @@ class CensusTests(unittest.TestCase):
     def test_census_unchanged(self):
         decls = TOOLS.get_declarations()
         names = [d["name"] for d in decls]
-        self.assertEqual(len(decls), 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
-        self.assertEqual(len(set(names)), 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(len(decls), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
+        self.assertEqual(len(set(names)), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         params = sum(len(d["parameters"].get("properties", {}))
                    for d in decls)
-        self.assertEqual(params, 2078)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine
+        self.assertEqual(params, 2079)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
         closed = sum(1 for d in decls
                      if d["parameters"].get("additionalProperties")
                      is False)
-        self.assertEqual(closed, 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine
+        self.assertEqual(closed, 757)  # INTENTIONAL — field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 755 -> 756 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 756 -> 757 — one new tool get_morning_briefing
         from core import catalogue_groups_data as cat
         grouped = sum(len(m) for m in cat.GROUP_MEMBERS.values())
-        self.assertEqual(grouped, 753)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 164)
+        self.assertEqual(grouped, 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
 
     def test_reconciliation_tool_still_owed(self):
         # No new tool in this batch: the reconciliation mechanism

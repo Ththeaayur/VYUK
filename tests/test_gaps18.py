@@ -309,7 +309,7 @@ class TestSessionShape(unittest.TestCase):
 class TestCensus(unittest.TestCase):
     def test_registry_total_unchanged(self):
         from core.funnel.tools_registry import tools
-        self.assertEqual(len(tools.get_declarations()), 757)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan
+        self.assertEqual(len(tools.get_declarations()), 758)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
 
 
 if __name__ == "__main__":

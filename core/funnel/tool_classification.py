@@ -73,6 +73,22 @@ _CONFIRM_GATE_TOOLS = frozenset({
                             # to the central trash root — see the
                             # file_control description)
     "run_command",          # arbitrary shell
+    # Round-3 fix #4 (T12): running a saved plan executes its
+    # steps — the tool itself is confirm-gated, every run asks
+    # first. Membership here ALSO bars the always-allow shortcut
+    # structurally: confirm_gate_allowlist._in_allowlistable_base
+    # returns False for every _CONFIRM_GATE_TOOLS member, so no
+    # standing grant can ever cover a plan run. The steps keep
+    # their own gates; this gate is the run itself.
+    "run_plan",
+    # Fix #32 follow-up (parent ruling, 2026-11-19): running a
+    # saved anticipation routine executes its steps, exactly
+    # like run_plan — same gate, same reason. Fix #32 added
+    # the tool with a snapshot entry claiming "executor
+    # dispatch" but never put it in any gate set, so it ran
+    # ungated (freedom by omission) and six suites failed on
+    # the unclassified tool. Confirm-gated, like run_plan.
+    "run_anticipation_routine",
     "clean_temp_files",     # deletes temp files in bulk (v4.4)
     "batch_rename",         # renames many files at once (v4.4)
     "send_email",           # mail leaves the machine (v5.2)
@@ -496,6 +512,7 @@ _READ_ONLY_TOOLS = frozenset({
     "get_current_time_date", "get_plan", "get_stock_quote",
     "get_system_info", "get_todays_schedule", "get_unread_email",
     "get_upcoming_events", "get_weather", "get_window_controls",
+    "get_morning_briefing",  # Round-3 fix Q6: the deterministic briefing tool is a read — it renders the fetched day, never writes
     "largest_files", "meeting_status",  # R7-4 meetily: read-only state report
     "companion_status", "companion_pairing",  # R7-5 kovrel: read-only state/pairing reports
     "list_custom_wake_models", "custom_wake_model_status",  # R7-6 micro-wake-word: read-only model inventory/state reports

@@ -71,6 +71,14 @@ def _route_intent(text: str) -> tuple[str, dict[str, Any]] | None:
     if re.search(r"\b(screenshot|screen\s?shot|capture (?:my|the) screen)\b", low):
         return ("take_screenshot", {})
 
+    # Round-3 fix Q6: the morning-briefing ask routes to the
+    # deterministic briefing tool, not to the bare schedule — the
+    # briefing renders the day's schedule itself. The bare schedule
+    # ask ("my day", "my schedule") stays with get_todays_schedule
+    # below, so the two never fight over one phrase.
+    if re.search(r"\b(morning briefing|briefing|what'?s on today)\b", low):
+        return ("get_morning_briefing", {})
+
     if re.search(r"\b(my day|schedule|calendar|events?|meetings?|appointments?|agenda)\b", low):
         return ("get_todays_schedule", {})
 

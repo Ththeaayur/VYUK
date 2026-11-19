@@ -363,12 +363,19 @@ class MindWorldPacksMixin:
         v5.2. Brain-agnostic — the functions return plain strings
         like every other handler."""
         from .. import google_services  # Phase 3 F3: file now in core/funnel/; import climbs one more level
+        from .. import morning_briefing  # Round-3 fix Q6: the deterministic briefing tool lives beside the calendar fetch it renders
 
         self.register(
             name="get_todays_schedule",
             description="Get the user's Google Calendar schedule for today: every event across all their calendars, with its time, title, and location. Today only — for events beyond today use get_upcoming_events. Requires Google connected (Settings → Your world); if it isn't, the result explains how to connect.",
             parameters={"type": "object", "properties": {}, "required": []},
             handler=google_services.todays_schedule,
+        )
+        self.register(
+            name="get_morning_briefing",
+            description="Give the morning briefing: today's date and time, every event on the user's Google Calendar today with its time, the free blocks between them, and any overlaps — read from the calendar by this tool itself and rendered deterministically. Call this when the user asks for their morning briefing or what's on today — never work the schedule out from reminders or memory, and never say the day is clear unless this tool says so. If the calendar can't be read, this tool says so instead of claiming the day is empty. Requires Google connected (Settings → Your world); if it isn't, the result explains how to connect.",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=morning_briefing.get_morning_briefing,
         )
         self.register(
             name="get_upcoming_events",

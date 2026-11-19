@@ -120,14 +120,14 @@ class RunPlanToolTests(unittest.TestCase):
         self.assertIs(
             decl["parameters"].get("additionalProperties"), False)
 
-    def test_census_moved_to_757_tools(self):
-        self.assertEqual(len(TOOLS.get_declarations()), 757)
+    def test_census_moved_to_758_tools(self):
+        self.assertEqual(len(TOOLS.get_declarations()), 758)
 
     def test_desktop_profile_offers_run_plan(self):
         decls = desktop_declarations(TOOLS)
         names = [d["name"] for d in decls]
         self.assertIn("run_plan", names)
-        self.assertEqual(len(names), 59)
+        self.assertEqual(len(names), 60)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing joins the desktop profile
         self.assertIn("run_plan", DESKTOP_TOOL_PRIORITY)
         self.assertIn("run_plan", CORE_TOOL_PRIORITY)
 

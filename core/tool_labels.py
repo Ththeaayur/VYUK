@@ -156,6 +156,7 @@ TOOL_FRIENDLY_NAMES = {
     "get_crypto_price": "Crypto price",
     "get_stock_quote": "Stock price",
     "get_todays_schedule": "Today's schedule",
+    "get_morning_briefing": "Morning briefing",
     "get_upcoming_events": "Upcoming events",
     "get_unread_email": "Unread email",
     "search_email": "Search email",

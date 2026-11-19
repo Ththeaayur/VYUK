@@ -1007,17 +1007,17 @@ class FrontEndTestCase(unittest.TestCase):
 class CensusTestCase(unittest.TestCase):
     def test_registry_counts(self):
         decls = _registry.get_declarations()
-        self.assertEqual(len(decls), 756, len(decls))  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): total unchanged (no new tool); Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(len(decls), 758, len(decls))  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): total unchanged (no new tool); Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         total_params = sum(
             len(d.get("parameters", {}).get("properties", {}))
             for d in decls)
-        self.assertEqual(total_params, 2078, total_params)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): 2063 -> 2064 — start_meeting gains system_audio; Click-anywhere (2026-11-14): 2064 -> 2073 — click_anywhere's 9 properties; RET-2 (2026-11-15): 2073 -> 2076 — scheduled_agents gains 3 properties (name, steps, schedule); Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine
+        self.assertEqual(total_params, 2079, total_params)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): 2063 -> 2064 — start_meeting gains system_audio; Click-anywhere (2026-11-14): 2064 -> 2073 — click_anywhere's 9 properties; RET-2 (2026-11-15): 2073 -> 2076 — scheduled_agents gains 3 properties (name, steps, schedule); Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
         grouped = sum(len(m) for m in GROUP_MEMBERS.values())
-        self.assertEqual(grouped, 753, grouped)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): grouped unchanged (no new tool); field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
+        self.assertEqual(grouped, 755, grouped)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): grouped unchanged (no new tool); field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
         closed = sum(
             1 for d in decls
             if d.get("parameters", {}).get("additionalProperties") is False)
-        self.assertEqual(closed, 755, closed)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): closed unchanged (no new tool); Click-anywhere (2026-11-14): 753 -> 754 — click_anywhere's schema is closed; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine
+        self.assertEqual(closed, 757, closed)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): closed unchanged (no new tool); Click-anywhere (2026-11-14): 753 -> 754 — click_anywhere's schema is closed; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 755 -> 756 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 756 -> 757 — one new tool get_morning_briefing
 
     def test_audit_totals(self):
         import json as _json
@@ -1025,17 +1025,17 @@ class CensusTestCase(unittest.TestCase):
 
         text = (TREE / "TOOLS_LOOPHOLES_AUDIT.md").read_text(
             encoding="utf-8")
-        for needle in ('"total": 756', '"read": 382',  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
-                       '"effectful": 374', '"confirm_gated": 164',  # INTENTIONAL — Click-anywhere (2026-11-14): 372 -> 373 — click_anywhere is effectful; field-check fix #32 (2026-11-18): 373 -> 374 — one new tool run_anticipation_routine
-                       '"already_verified_in_handler": 308'):  # INTENTIONAL — Click-anywhere (2026-11-14): 306 -> 307 — click_anywhere verified in handler; field-check fix #32 (2026-11-18): 307 -> 308 — one new tool run_anticipation_routine
+        for needle in ('"total": 758', '"read": 383',  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758, 382 -> 383 — one new tool get_morning_briefing
+                       '"effectful": 375', '"confirm_gated": 166',  # INTENTIONAL — Click-anywhere (2026-11-14): 372 -> 373 — click_anywhere is effectful; field-check fix #32 (2026-11-18): 373 -> 374 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 374/164 -> 375/165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+                       '"already_verified_in_handler": 309'):  # INTENTIONAL — Click-anywhere (2026-11-14): 306 -> 307 — click_anywhere verified in handler; field-check fix #32 (2026-11-18): 307 -> 308 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 308 -> 309 — one new tool run_plan
             self.assertIn(needle, text, needle)
         totals = _json.loads(_re.search(
             r"<!-- AUDIT-TOTALS: (\{.*?\}) -->", text).group(1))
-        self.assertEqual(totals["total"], 756)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
-        self.assertEqual(totals["read"], 382)
-        self.assertEqual(totals["effectful"], 374)  # INTENTIONAL — Click-anywhere (2026-11-14): 372 -> 373 — click_anywhere is effectful; field-check fix #32 (2026-11-18): 373 -> 374 — one new tool run_anticipation_routine
-        self.assertEqual(totals["confirm_gated"], 164)
-        self.assertEqual(totals["already_verified_in_handler"], 308)  # INTENTIONAL — Click-anywhere (2026-11-14): 306 -> 307 — click_anywhere verified in handler; field-check fix #32 (2026-11-18): 307 -> 308 — one new tool run_anticipation_routine
+        self.assertEqual(totals["total"], 758)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
+        self.assertEqual(totals["read"], 383)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 382 -> 383 — one new read tool get_morning_briefing
+        self.assertEqual(totals["effectful"], 375)  # INTENTIONAL — Click-anywhere (2026-11-14): 372 -> 373 — click_anywhere is effectful; field-check fix #32 (2026-11-18): 373 -> 374 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 374 -> 375 — one new tool run_plan
+        self.assertEqual(totals["confirm_gated"], 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+        self.assertEqual(totals["already_verified_in_handler"], 309)  # INTENTIONAL — Click-anywhere (2026-11-14): 306 -> 307 — click_anywhere verified in handler; field-check fix #32 (2026-11-18): 307 -> 308 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 308 -> 309 — one new tool run_plan
 
 
 if __name__ == "__main__":

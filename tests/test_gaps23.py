@@ -413,7 +413,7 @@ class Fv7CatalogueTests(unittest.TestCase):
     def test_single_source_group_counts(self):
         from core.catalogue_groups_data import GROUP_MEMBERS, GROUP_ORDER
         self.assertEqual(len(GROUP_ORDER), 11)
-        self.assertEqual(sum(len(v) for v in GROUP_MEMBERS.values()), 753)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
+        self.assertEqual(sum(len(v) for v in GROUP_MEMBERS.values()), 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
         # Import-time invariant: no tool in two groups.
         seen = {}
         for group, names in GROUP_MEMBERS.items():
@@ -531,24 +531,24 @@ class Fv8DeclarativeTests(unittest.TestCase):
 class CensusTests(unittest.TestCase):
     def test_census_unchanged(self):
         decls = tools.get_declarations()
-        self.assertEqual(len(decls), 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
-        self.assertEqual(len({d["name"] for d in decls}), 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(len(decls), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
+        self.assertEqual(len({d["name"] for d in decls}), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         params = sum(len(d["parameters"].get("properties", {}))
                    for d in decls)
-        self.assertEqual(params, 2078)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine
+        self.assertEqual(params, 2079)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
         closed = sum(1 for d in decls
                      if d["parameters"].get("additionalProperties")
                      is False)
-        self.assertEqual(closed, 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine
+        self.assertEqual(closed, 757)  # INTENTIONAL — field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 755 -> 756 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 756 -> 757 — one new tool get_morning_briefing
         from core.catalogue_groups_data import GROUP_MEMBERS
         self.assertEqual(
-            sum(len(v) for v in GROUP_MEMBERS.values()), 753)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
+            sum(len(v) for v in GROUP_MEMBERS.values()), 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
         from core.funnel.tools_gate_confirm import _CONFIRM_GATE_TOOLS
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 164)
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
         snap = json.loads((TREE / "tests"
                            / "_classification_snapshot.json").read_text(
                                encoding="utf-8"))
-        self.assertEqual(len(snap), 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(len(snap), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
 
 
 if __name__ == "__main__":

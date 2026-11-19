@@ -7,7 +7,7 @@ the full registry's declarations run to ~320 KB — past the
 ~256 KB at which the API accepts the connection and then
 kills every turn (RC-7). v5.32's answer was trimming every
 description to fit a 240,000-byte budget. The router is the
-structural answer: the session offers the 57 core tools
+structural answer: the session offers the 60 core tools
 (toolbox.CORE_TOOL_PRIORITY — the same set the local
 brain leads with) plus use_toolbox, together ~29 KB
 (assistant; desktop ~41 KB incl. the router prompt), and

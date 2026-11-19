@@ -1285,7 +1285,7 @@ def check_tool_router():
         return
     if ok:
         # Audit fix Batch 2 (DECL-02): router_declarations returns
-        # the 57 resident core tools PLUS use_toolbox, so the old
+        # the 60 resident core tools PLUS use_toolbox, so the old
         # "{n} resident tools" label overstated the resident
         # count by exactly the dispatcher. Label what the number
         # actually counts: offered declarations, split honestly.

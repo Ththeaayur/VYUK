@@ -413,15 +413,15 @@ class TestToolLabels(unittest.TestCase):
         self.assertIs(shim._tool_icon_name,
                       tool_labels.tool_icon_name)
 
-    def test_table_covers_681_entries(self):  # INTENTIONAL — field-check fix #32 (2026-11-18): 680 -> 681 — one new tool run_anticipation_routine
+    def test_table_covers_683_entries(self):  # INTENTIONAL — field-check fix #32 (2026-11-18): 680 -> 681 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 681 -> 682 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 682 -> 683 — one new tool get_morning_briefing
         from core.tool_labels import TOOL_FRIENDLY_NAMES
-        self.assertEqual(len(TOOL_FRIENDLY_NAMES), 681)  # INTENTIONAL — field-check fix #32 (2026-11-18): 680 -> 681 — one new tool run_anticipation_routine
+        self.assertEqual(len(TOOL_FRIENDLY_NAMES), 683)  # INTENTIONAL — field-check fix #32 (2026-11-18): 680 -> 681 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 681 -> 682 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 682 -> 683 — one new tool get_morning_briefing
 
     def test_every_registry_tool_resolves(self):
         from core.funnel.tools_registry import tools
         from core.tool_labels import tool_friendly_name
         names = list(tools._tools)
-        self.assertEqual(len(names), 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(len(names), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         for name in names:
             label = tool_friendly_name(name)
             self.assertTrue(label, name)
@@ -639,12 +639,12 @@ class TestCensusUnchanged(unittest.TestCase):
         params = sum(
             len((s.get("parameters") or {}).get("properties") or {})
             for s in tools._tools.values())
-        self.assertEqual(len(tools._tools), 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
-        self.assertEqual(params, 2078)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine
+        self.assertEqual(len(tools._tools), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
+        self.assertEqual(params, 2079)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
         self.assertEqual(
             len([n for n in tools._tools if n in _CONFIRM_GATE_TOOLS]),
-            164)
-        self.assertEqual(len(grouped), 753)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
+            166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+        self.assertEqual(len(grouped), 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
         totals = re.search(
             r"AUDIT-TOTALS: (\{[^}]*\})",
             (TREE / "TOOLS_LOOPHOLES_AUDIT.md").read_text(
@@ -654,7 +654,7 @@ class TestCensusUnchanged(unittest.TestCase):
         self.assertEqual(
             (data["total"], data["read"], data["effectful"],
              data["confirm_gated"]),
-            (756, 382, 374, 164))  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756, 373 -> 374 — one new tool run_anticipation_routine
+            (758, 383, 375, 166))  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756, 373 -> 374 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757, 374 -> 375, 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
 
 
 if __name__ == "__main__":

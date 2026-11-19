@@ -562,7 +562,7 @@ class SourcePinTests(unittest.TestCase):
     def test_registry_unchanged_no_new_tool(self):
         from core.funnel.tools_registry import tools
         decls = tools.get_declarations()
-        self.assertEqual(len(decls), 757)  # INTENTIONAL — GAPS-7 connectors pack (2026-11-13): 751 -> 752; SOCIAL Phase 1 (2026-11-13): 752 -> 753; GAPS-8 scheduled-agents pack (2026-11-13): 753 -> 754; Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan
+        self.assertEqual(len(decls), 758)  # INTENTIONAL — GAPS-7 connectors pack (2026-11-13): 751 -> 752; SOCIAL Phase 1 (2026-11-13): 752 -> 753; GAPS-8 scheduled-agents pack (2026-11-13): 753 -> 754; Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
         names = {d.get("name") for d in decls}
         self.assertNotIn("chrome136", names)
         self.assertNotIn("browser_debug_profile", names)

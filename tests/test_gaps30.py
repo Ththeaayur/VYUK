@@ -209,7 +209,7 @@ class Gaps30Tests(unittest.TestCase):
             r"AUDIT-TOTALS:\s*(\{[^}]*\})", text).group(1))
         self.assertEqual(
             (totals["total"], totals["read"], totals["effectful"],
-             totals["confirm_gated"]), (756, 382, 374, 164))  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756, 373 -> 374 — one new tool run_anticipation_routine
+             totals["confirm_gated"]), (758, 383, 375, 166))  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756, 373 -> 374 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757, 374 -> 375, 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
 
     # -- GAPS-30 timer fix: the 25 ms audio timer is single-shot,
     #    re-armed after the tick (never a repeating pile-up) -------
