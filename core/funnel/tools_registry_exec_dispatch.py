@@ -81,7 +81,19 @@ class ToolRegistryExecDispatchMixin:
                         ctx.name, _rot_view, {"arguments", "rule_of_two"},
                         ctx._audited, ctx._audit_gate)
                 else:
-                    _rot_view = _confirmation_args(ctx.name, ctx.args)
+                    # Round-3 Finding 1 (section-B re-verification):
+                    # _confirmation_args returns ctx.args ITSELF for
+                    # every tool except a curated few — so writing
+                    # the rule_of_two key into the view mutated the
+                    # real call arguments, and dispatch then refused
+                    # the approved call for the undeclared argument.
+                    # Copy first: the gate's scope-ask does the same
+                    # before writing screen_scope, and the MCP branch
+                    # above builds a fresh dict. A shallow copy is
+                    # enough — only a top-level key is added, nested
+                    # values are never touched.
+                    _rot_view = dict(
+                        _confirmation_args(ctx.name, ctx.args))
                     _rot_view["rule_of_two"] = (
                         "Rule of Two: this session has already handled "
                         "untrusted content and touched private data, "
