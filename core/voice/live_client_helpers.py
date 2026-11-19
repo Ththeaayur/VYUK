@@ -65,16 +65,49 @@ _ALREADY_CONNECTED_BACKOFF_S = 5.0
 # goAway, not any socket check — is the PRIMARY trip.
 # goAway, when it does arrive, is handled opportunistically
 # in _receive_loop (it ends the session for a resume
-# reconnect); it is never depended on. Known edge, stated
-# not hidden, now sharper than at 45 s: a single
-# uninterrupted monologue over 7 s with zero server activity
-# also trips — announced (LIVE_WATCHDOG) and auto-reconnected
-# with the resumption handle, so the cost is the user
-# repeating the tail, not a lost session. The 7 s value is
-# the plan's; if field data shows the model routinely takes
-# longer than 7 s to first respond after voice, the threshold
-# — not a second watchdog — is what moves.
+# reconnect); it is never depended on. Round-3 fix Q3
+# (section B): the 7 s budget measured the wrong thing — it
+# counted from the server's last response, so a single
+# uninterrupted monologue over 7 s tripped mid-utterance
+# (field: a 7.3 s turn killed twice, a 4.9 s turn works)
+# although the session was alive: the server yields nothing
+# while the user is still speaking, and only answers once the
+# turn ends. The trip now ALSO requires voice quiescence — no
+# voice-level audio sent for _WATCHDOG_VOICE_QUIET_S (5.0 s) —
+# so the silence clock measures server silence AFTER the user
+# finished speaking, not turn length. The 7 s budget itself
+# does NOT move: a dead session still dies (after a short
+# turn ~10 s; after a long monologue, turn end + 5 s), and a
+# genuinely stuck session can never run forever — the bound
+# is turn end + 5 s, finite. What the quiescence costs: a dead
+# session whose user speaks one continuous monologue takes
+# that long to detect (indistinguishable from a live one
+# while the user is still speaking — the server's correct
+# behaviour in both cases is silence). 5.0 s covers the
+# server's turn-end detection (~1 s) + first-response latency
+# (typically 1-3 s) with margin; a false trip now needs model
+# latency after turn end over 5 s. The same guard applies to
+# the audible rule below (same shape, same bug for a quiet
+# monologue over 30 s); the send-failure rule is untouched
+# (not a silence rule). If field data shows the model
+# routinely takes longer than 5 s to first respond AFTER the
+# user stops speaking, the QUIET bound — not a second
+# watchdog — is what moves. Round-3 fix Q8: the same 7 s
+# budget is the typed-turn rule's budget too — a typed message
+# unanswered for 7 s ends the session (LIVE_DEAD); a typed
+# turn is complete at send time, so it carries no quiescence
+# condition, and any yielded response after the text disarms
+# it. Bracketed internal injections never stamp the text clock
+# (see send_text), so a notice the model is told not to answer
+# cannot arm it.
 _WATCHDOG_SILENCE_S = 7.0
+
+
+# Round-3 fix Q3: how long the user must have stopped sending
+# voice-level audio before the silence rules may trip (see
+# above). While voice is still arriving, the server's silence
+# is correct behaviour, not death.
+_WATCHDOG_VOICE_QUIET_S = 5.0
 
 
 _WATCHDOG_TICK_S = 1.0

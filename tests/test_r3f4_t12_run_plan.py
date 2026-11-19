@@ -127,7 +127,7 @@ class RunPlanToolTests(unittest.TestCase):
         decls = desktop_declarations(TOOLS)
         names = [d["name"] for d in decls]
         self.assertIn("run_plan", names)
-        self.assertEqual(len(names), 60)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing joins the desktop profile
+        self.assertEqual(len(names), 65)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing joins the desktop profile; round-3 fix Q5+Q7 (2026-11-19): 60 -> 65 — remember_user_fact, recall_memories, quick_math, run_routine, save_routine join the desktop profile
         self.assertIn("run_plan", DESKTOP_TOOL_PRIORITY)
         self.assertIn("run_plan", CORE_TOOL_PRIORITY)
 

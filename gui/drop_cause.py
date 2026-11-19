@@ -133,6 +133,7 @@ DROP_CAUSES = (
     "fatal",
     "mic_stall",
     "watchdog_silence",
+    "no_reply",
     "worker_died_silent",
     "already_connected",
     "handle_refused",
@@ -149,6 +150,8 @@ DROP_CAPTIONS = {
     "mic_stall": "The microphone stopped responding — reopening it…",
     "watchdog_silence": (
         "The connection went quiet after you spoke — reconnecting…"),
+    "no_reply": (
+        "The live session never answered — reconnecting…"),
     "worker_died_silent": (
         "The voice worker stopped responding — reconnecting…"),
     "already_connected": (
@@ -175,6 +178,9 @@ DROP_GIVE_UP_CAPTIONS = {
     "watchdog_silence": (
         "Couldn't reconnect — the connection kept going quiet "
         "after you spoke; press Connect when you're ready."),
+    "no_reply": (
+        "Couldn't reconnect — the live session kept never "
+        "answering; press Connect when you're ready."),
     "worker_died_silent": (
         "Couldn't reconnect — the voice worker kept not "
         "responding; press Connect when you're ready."),
@@ -216,12 +222,13 @@ _SERVER_END_MARKERS = (
 
 def classify_drop(status: str = "", *, fatal: bool = False,
                   watchdog: bool = False, go_away: bool = False,
-                  mic_stalled: bool = False, silent: bool = False) -> str:
+                  mic_stalled: bool = False, silent: bool = False,
+                  no_reply: bool = False) -> str:
     """One cause for a drop, from the status text plus the
     context only the drop point knows. Precedence is the
     design (see the module docstring): fatal first, then the
     causes no status text can name (mic stall, watchdog,
-    silent worker death), then already-connected before
+    no-reply, silent worker death), then already-connected before
     handle-refused, then server-ended, then network, then
     unknown — never a guess dressed as a diagnosis."""
     if fatal:
@@ -230,6 +237,8 @@ def classify_drop(status: str = "", *, fatal: bool = False,
         return "mic_stall"
     if watchdog:
         return "watchdog_silence"
+    if no_reply:
+        return "no_reply"
     if silent:
         return "worker_died_silent"
     low = (status or "").lower()

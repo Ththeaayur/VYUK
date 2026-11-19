@@ -31,14 +31,36 @@ class MindWorldPacksMixin:
                     "steps": {
                         "type": "array",
                         "description": "Ordered list of steps: strings, or objects {text, tool (optional), args (optional object)}",
+                        # Round-3 fix Q4 (section B): the description
+                        # promises plain string steps and _parse_steps
+                        # accepts them, but items used to say
+                        # {"type": "object"} — so a model that
+                        # followed the description got its call
+                        # refused at the gate ("'steps[0]' must be
+                        # an object"). The schema moves, not the
+                        # description or the parser: items accept
+                        # either form (anyOf — the established
+                        # pattern, cf. base_convert/epoch_convert/
+                        # roman_convert). Validation is not
+                        # weakened: a string item must be a string,
+                        # an object item keeps its declared
+                        # properties, and anything else (number,
+                        # bool, null, array) still fails; the
+                        # parser's own checks (empty step, object
+                        # without text, too many steps) still apply.
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "text": {"type": "string", "description": "What this step does"},
-                                "tool": {"type": "string", "description": "Optional tool name that can perform this step"},
-                                "args": {"type": "object", "description": "Optional arguments for that tool"},
-                            },
-                            "required": [],
+                            "anyOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "text": {"type": "string", "description": "What this step does"},
+                                        "tool": {"type": "string", "description": "Optional tool name that can perform this step"},
+                                        "args": {"type": "object", "description": "Optional arguments for that tool"},
+                                    },
+                                    "required": [],
+                                },
+                            ],
                         },
                     },
                 },

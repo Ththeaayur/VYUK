@@ -216,6 +216,48 @@ class SessionStatusMixin:
             except Exception:  # noqa: BLE001
                 pass
             return
+        # Round-3 fix Q8: a typed turn into a dead-on-arrival
+        # session — connected, never answered at all. Same shape
+        # as the LIVE_WATCHDOG notice above (a notice, not a
+        # state), but its own words: the user typed, so "after
+        # you spoke" would be wrong. The session ends for
+        # auto-reconnect exactly like a watchdog death, and the
+        # drop is recorded with the no_reply cause so the Fix 4
+        # episode budget counts it (a dead episode ends on
+        # LISTENING alone, one strike; SPEAKING/THINKING would
+        # reset it, which a dead session never produces). No
+        # streak coalescing here: a dead episode can only fire
+        # once per episode (the session ends on detection), so
+        # the episode budget itself bounds the lines (3, then
+        # the give-up posts its own line). No mic diagnostic:
+        # the message was sent; the service never answered.
+        if upper.startswith("LIVE_DEAD"):
+            self._add_system(
+                "Your message went through but the live session "
+                "never answered, so I'm starting a fresh one — "
+                "one moment.")
+            # Fix 4: record the drop HERE, with its cause — the
+            # session is about to end, and the DISCONNECTED that
+            # follows must keep no_reply, not overwrite it with
+            # unknown. _record_drop's pending record is exactly
+            # what carries it across.
+            self._record_drop(status, no_reply=True)
+            self.state_label.setText("Live session never answered")
+            self.state_label.setToolTip(status)
+            self._set_caption(reconnect_caption("no_reply"))
+            self._set_pill("Reconnecting")
+            self.visualizer.set_state("CONNECTING")
+            mini = getattr(self, "mini_orb", None)
+            if mini is not None:
+                try:
+                    mini.set_state("CONNECTING")
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                self._update_tray_state("CONNECTING")
+            except Exception:  # noqa: BLE001
+                pass
+            return
         self.visualizer.set_state("CONNECTING" if is_setup else upper)
         # Presence pack: mirror the session state into the mini orb.
         mini = getattr(self, "mini_orb", None)
@@ -580,7 +622,8 @@ class SessionStatusMixin:
             pass
 
     def _record_drop(self, status: str, *, fatal: bool = False,
-                     watchdog: bool = False, silent: bool = False) -> str:
+                     watchdog: bool = False, silent: bool = False,
+                     no_reply: bool = False) -> str:
         """Record this fall's drop cause — once. The first, most
         specific cause wins: a pending record (e.g. the
         LIVE_WATCHDOG record made moments before the
@@ -597,7 +640,7 @@ class SessionStatusMixin:
             self._go_away_seen = False
             cause = classify_drop(
                 status, fatal=fatal, watchdog=watchdog, go_away=go_away,
-                silent=silent)
+                silent=silent, no_reply=no_reply)
             self._last_drop = {
                 "cause": cause, "raw": status or "",
                 "pending": True, "at": time.monotonic(),

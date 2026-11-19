@@ -162,7 +162,7 @@ def _declarations_without_gimmicks(
 #: keyboard/mouse input, UIA + window-control inspection and
 #: clicking, OCR/vision looks, window management, launch/run,
 #: files, browser control, clipboard — plus app_settings
-#: (v5.52, item 8) and play_music (v5.52, item 4). 48 tools;
+#: (v5.52, item 8) and play_music (v5.52, item 4). 53 tools;
 #: every name is a registered tool (the H13 suite pins both
 #: facts).
 DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
@@ -200,6 +200,17 @@ DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
     # morning plan" is answered in words and the tool never
     # runs.
     "run_plan",
+    # Round-3 fix Q5+Q7 (section B): the memory tools and the
+    # routine pair — the same shape as run_anticipation_routine
+    # and run_plan above. The desktop profile is the default
+    # Live profile; without these, a spoken "remember that...",
+    # "what do you remember about...", "what's 2+2" or "run my
+    # morning routine" is answered in words (or routed to the
+    # wrong runner) and the tool never runs — reachable only
+    # via use_toolbox, which the model does not route a
+    # by-name demand through.
+    "remember_user_fact", "recall_memories", "quick_math",
+    "run_routine", "save_routine",
     # files
     "file_control", "find_files", "open_path", "read_file",
     "write_file",

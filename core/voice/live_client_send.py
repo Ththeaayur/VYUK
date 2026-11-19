@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 try:
     from google import genai
@@ -222,6 +223,19 @@ class GeminiLiveSessionSendMixin:
                 await send_content(turns=content, turn_complete=True)
             else:
                 await self._session.send(input=content, end_of_turn=True)
+            # Round-3 fix Q8: a typed turn is a turn — stamp it
+            # for the watchdog. The voice/audible rules never see
+            # a typed turn, so without this a typed turn into a
+            # dead-on-arrival session sat forever with no
+            # detection, no notice, no retry (section B F2:
+            # connected, model never responded, no error status).
+            # Only genuine user text stamps: bracketed
+            # VYUK-internal injections (watcher notices, ambient
+            # context) are told not to be answered, so they must
+            # never arm the clock — the same guard the taint
+            # lift above uses.
+            if not (text or "").lstrip().startswith("["):
+                self._last_text_at = time.monotonic()
             if self.on_transcript:
                 self.on_transcript("user", text)
                 self._diag_typed_echo_ran = True

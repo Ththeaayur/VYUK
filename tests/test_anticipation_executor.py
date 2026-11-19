@@ -14,7 +14,9 @@ What this suite proves:
 * the tool is registered, in both voice profiles (the fix #10
   precedent — the desktop profile is the default Live profile),
   in the Mind catalogue group with a drift-free snapshot, and
-  in the classification snapshot as free "executor dispatch";
+  in the classification snapshot as confirm-gated, like
+  run_plan (the f32 follow-up ruling — it executes stored
+  multi-step work on voice demand);
 * a resolvable step runs end to end through the funnel gates
   (ranked prose, bare tool name, explicit JSON object, and
   `name {json}` forms);
@@ -22,8 +24,9 @@ What this suite proves:
   step that needs arguments refuses naming the tool, the
   missing params, and the explicit form — neither is skipped
   or pretended to have run;
-* a confirm-gated step pauses the routine (no handler in this
-  process, so the gate fails closed with not_confirmed) and
+* a confirm-gated step pauses the routine (the suite installs
+  a handler that approves ONLY run_anticipation_routine, so an
+  inner gated step still fails closed with not_confirmed) and
   nothing runs;
 * a step naming a routine-management tool, the scheduler engine
   (`scheduled_agents` — a run_routine action would smuggle routine
@@ -53,8 +56,51 @@ from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+from core import confirm_gate
 from core import w7_wiring_anticipation as w7
 from core.funnel.tools_registry import tools as TOOLS
+
+# f32-exec follow-up: the f32 follow-up classified
+# run_anticipation_routine confirm-gated (like run_plan), so
+# driving it through the funnel without a handler refuses
+# before any step runs. The suite installs a handler that
+# approves ONLY that one tool — the stand-in for "the user
+# said yes to running this routine". Inner confirm-gated
+# steps (run_command, …) are still denied, so the gate
+# fails closed for them exactly as in production. The
+# handler is registered on the confirm_gate module the
+# registry consults in this process (core.confirm_gate, via
+# the registry's relative import) AND, when importable, on
+# the voice_assistant.core.confirm_gate identity — the
+# live-session harness lesson: under the packaged identity
+# those are two different module objects, and a handler on
+# the wrong one leaves the session's gate handlerless.
+# Registered per test and cleared afterwards, so nothing
+# leaks into other suites.
+
+
+def _approve_routine_only(tool_name, summary):
+    return tool_name == "run_anticipation_routine"
+
+
+def _install_routine_handler():
+    confirm_gate.register_handler(_approve_routine_only)
+    try:
+        import voice_assistant.core.confirm_gate as _va_gate
+    except ImportError:  # noqa: BLE001 — unittest runs top-level core
+        return
+    if _va_gate is not confirm_gate:
+        _va_gate.register_handler(_approve_routine_only)
+
+
+def _clear_routine_handler():
+    confirm_gate.clear_handler()
+    try:
+        import voice_assistant.core.confirm_gate as _va_gate
+    except ImportError:  # noqa: BLE001 — unittest runs top-level core
+        return
+    if _va_gate is not confirm_gate:
+        _va_gate.clear_handler()
 
 _DATA_BACKUP = None
 
@@ -96,6 +142,8 @@ class AnticipationExecutorTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         w7.reset_anticipation()
         self.addCleanup(w7.reset_anticipation)
+        _install_routine_handler()
+        self.addCleanup(_clear_routine_handler)
 
     # -- registration surfaces -------------------------------------
 
@@ -126,14 +174,39 @@ class AnticipationExecutorTests(unittest.TestCase):
         self.assertEqual(catalogue_snapshot.GROUP_MEMBERS,
                          catalogue_groups_data.GROUP_MEMBERS)
 
-    def test_tool_classified_free_executor_dispatch(self):
+    def test_tool_classified_confirm_gated_like_run_plan(self):
+        # f32 follow-up ruling: run_anticipation_routine is
+        # confirm-gated, like run_plan — it executes stored
+        # multi-step work on voice demand. The snapshot entry
+        # must match run_plan's exactly (the old "free executor
+        # dispatch" pin died with the ruling).
         snapshot = json.loads(
             (ROOT / "tests" / "_classification_snapshot.json")
             .read_text(encoding="utf-8"))
         entry = snapshot["run_anticipation_routine"]
-        self.assertIs(entry["confirm"], False)
-        self.assertEqual(entry["free"], "executor dispatch")
+        self.assertEqual(entry, snapshot["run_plan"])
+        self.assertIs(entry["confirm"], True)
+        self.assertIs(entry["free"], None)
         self.assertIs(entry["read"], False)
+
+    def test_routine_refuses_without_handler(self):
+        # The gate is the mechanism that lets the routine run,
+        # not a bypass: with no handler the outer call refuses
+        # before any step runs; re-installing the suite handler
+        # lets the same routine run.
+        _clear_routine_handler()
+        try:
+            w7.plan_routine("morning", "at 7am", ["tell me the time"])
+            out = _run("morning")
+            self.assertIn("run_anticipation_routine", out)
+            self.assertIn("no confirmation handler is active", out)
+            self.assertNotIn("completed", out.lower())
+            self.assertNotIn("✓", out)
+        finally:
+            _install_routine_handler()
+        out = _run("morning")
+        self.assertIn("completed", out.lower())
+        self.assertIn("get_current_time_date", out)
 
     # -- the run itself --------------------------------------------
 
@@ -189,8 +262,9 @@ class AnticipationExecutorTests(unittest.TestCase):
         self.assertNotIn("✓", out)
 
     def test_confirm_gated_step_pauses_and_nothing_runs(self):
-        # No confirm handler is registered in this process, so
-        # the gate fails closed — prove it directly first.
+        # The suite handler approves ONLY run_anticipation_routine,
+        # so a gated step still fails closed — prove it directly
+        # first, then inside a routine.
         direct = TOOLS.execute("run_command", {"command": "echo hi"})
         self.assertEqual(direct.get("kind"), "not_confirmed")
         w7.plan_routine("sheller", "at 7am",

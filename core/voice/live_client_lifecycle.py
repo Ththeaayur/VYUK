@@ -40,6 +40,7 @@ from .live_client_helpers import (
     _WATCHDOG_SEND_FAIL_S,
     _WATCHDOG_SILENCE_S,
     _WATCHDOG_TICK_S,
+    _WATCHDOG_VOICE_QUIET_S,
     CONNECT_BUDGET_S,
 )
 from .live_client_proxy import (
@@ -317,6 +318,11 @@ class GeminiLiveSessionLifecycleMixin:
         # floor) and the send-drop count, both session-scoped
         # like the voice stamp above.
         self._last_audible_at = None
+        # Round-3 fix Q8: the typed-turn stamp — the time a
+        # genuine user text turn was last sent (send_text).
+        # Session-scoped like the voice stamp; bracketed
+        # internal injections never stamp it.
+        self._last_text_at = None
         self._send_drop_count = 0
         self._go_away_received = False
         # Voice-control batch (2026-11-16, B1/B4): the send
@@ -407,20 +413,34 @@ class GeminiLiveSessionLifecycleMixin:
 
         Every tick, while the session claims connected: when
         voice-level audio was sent AFTER the server's last
-        response-plane activity, and that activity is older
-        than _WATCHDOG_SILENCE_S, the session is dead in fact
-        — return, which ends _run_session exactly like any
-        other loop death (DISCONNECTED surfaces, the GUI's
-        auto-reconnect takes over and re-presents the surviving
-        resumption handle). Before returning it logs the death
-        and notifies LIVE_WATCHDOG, which the GUI renders as
-        one plain-language chat line — the user is told the
-        connection went quiet and is reconnecting, never left
-        talking to a corpse that claims to listen. Never
-        raises; a cancelled watchdog is a normal session end,
-        not an error. The handle is NOT cleared here: a
+        response-plane activity, that activity is older than
+        _WATCHDOG_SILENCE_S, AND no voice-level audio has been
+        sent for _WATCHDOG_VOICE_QUIET_S (round-3 fix Q3: the
+        user finished speaking — while voice is still arriving
+        the server's silence is correct, it answers once the
+        turn ends, so a long monologue must not trip), the
+        session is dead in fact — return, which ends _run_session
+        exactly like any other loop death (DISCONNECTED surfaces,
+        the GUI's auto-reconnect takes over and re-presents the
+        surviving resumption handle). Before returning it logs
+        the death and notifies LIVE_WATCHDOG, which the GUI
+        renders as one plain-language chat line — the user is
+        told the connection went quiet and is reconnecting,
+        never left talking to a corpse that claims to listen.
+        Never raises; a cancelled watchdog is a normal session
+        end, not an error. The handle is NOT cleared here: a
         watchdog death is an unexpected drop, and clearing
-        would turn every resume reconnect into a cold start."""
+        would turn every resume reconnect into a cold start.
+        The audible rule below carries the same quiescence
+        guard (same shape, same bug for a quiet monologue);
+        the send-failure rule is untouched (not a silence
+        rule). Round-3 fix Q8 adds a fourth rule, the typed
+        turn: a typed message unanswered for _WATCHDOG_SILENCE_S
+        ends the session with a LIVE_DEAD notice — the
+        voice/audible rules never see a typed turn, so without
+        it a typed turn into a dead session sat forever. A typed
+        turn is complete at send time, so it carries no
+        quiescence condition."""
         try:
             while self._running:
                 await asyncio.sleep(_WATCHDOG_TICK_S)
@@ -431,8 +451,19 @@ class GeminiLiveSessionLifecycleMixin:
                 if last_resp is None:
                     continue
                 if last_voice is not None and last_voice > last_resp:
-                    silence = time.monotonic() - last_resp
-                    if silence > _WATCHDOG_SILENCE_S:
+                    # Round-3 fix Q3: the trip also requires
+                    # voice quiescence — the user has stopped
+                    # speaking for _WATCHDOG_VOICE_QUIET_S. While
+                    # voice is still arriving the server's silence
+                    # is its correct behaviour (it answers once
+                    # the turn ends), so a long monologue must not
+                    # trip; once the user stopped, 7 s of server
+                    # silence means the session is dead.
+                    _now = time.monotonic()
+                    silence = _now - last_resp
+                    quiet = _now - last_voice
+                    if (silence > _WATCHDOG_SILENCE_S
+                            and quiet > _WATCHDOG_VOICE_QUIET_S):
                         print(f"[Live] Watchdog: no server response for "
                               f"{silence:.0f}s after voice was sent — "
                               "ending the session so auto-reconnect can "
@@ -454,8 +485,16 @@ class GeminiLiveSessionLifecycleMixin:
                 # time before the session is ended.
                 last_aud = getattr(self, "_last_audible_at", None)
                 if last_aud is not None and last_aud > last_resp:
-                    silence = time.monotonic() - last_resp
-                    if silence > _WATCHDOG_AUDIBLE_SILENCE_S:
+                    # Round-3 fix Q3, same guard as rule 1: a
+                    # quiet monologue over 30 s is the same bug
+                    # at the audible floor — the trip needs the
+                    # user to have stopped sending audible audio
+                    # for _WATCHDOG_VOICE_QUIET_S.
+                    _now = time.monotonic()
+                    silence = _now - last_resp
+                    quiet = _now - last_aud
+                    if (silence > _WATCHDOG_AUDIBLE_SILENCE_S
+                            and quiet > _WATCHDOG_VOICE_QUIET_S):
                         print(f"[Live] Watchdog: no server response for "
                               f"{silence:.0f}s after audible audio was "
                               "sent — ending the session so "
@@ -465,6 +504,40 @@ class GeminiLiveSessionLifecycleMixin:
                                   "audible audio was sent — session "
                                   "ended for auto-reconnect.")
                         self._notify_status("LIVE_WATCHDOG")
+                        return
+                # Round-3 fix Q8: the typed-turn rule — a typed
+                # turn is a turn too, and the voice/audible rules
+                # above never see one. A typed turn into a
+                # dead-on-arrival session (connected, the server
+                # never yields anything) sat forever with no
+                # detection, no notice, no retry — section B F2.
+                # A typed turn is complete the moment it is sent,
+                # so there is no "still speaking" phase and no
+                # quiescence condition: the trip is simply no
+                # server response at all for _WATCHDOG_SILENCE_S
+                # (the same 7 s budget as rule 1 — the server's
+                # silence budget, not a new number) after the text
+                # was sent. Any yielded response after the text
+                # disarms it (last_text > last_resp fails), so a
+                # healthy session answering at its normal 1–3 s
+                # latency can never trip this. Bracketed internal
+                # injections never stamp _last_text_at (see
+                # send_text), so a notice the model is told not
+                # to answer cannot arm it.
+                last_text = getattr(self, "_last_text_at", None)
+                if last_text is not None and last_text > last_resp:
+                    _now = time.monotonic()
+                    _age = _now - last_text
+                    if _age > _WATCHDOG_SILENCE_S:
+                        print(f"[Live] Watchdog: no server response for "
+                              f"{_age:.0f}s after a typed message was "
+                              "sent — ending the session so "
+                              "auto-reconnect can repair it.")
+                        _log_line(f"Live watchdog fired: {_age:.0f}s "
+                                  "without a server response after a "
+                                  "typed message was sent — session "
+                                  "ended for auto-reconnect.")
+                        self._notify_status("LIVE_DEAD")
                         return
                 # Voice-control batch (2026-11-16, B1), third rule:
                 # the send path itself has failed continuously —

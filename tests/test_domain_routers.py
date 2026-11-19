@@ -216,16 +216,19 @@ class TestDomainRouters(unittest.TestCase):
         The assistant profile already offered it first; the
         desktop set did not, and the model does not route a
         by-name demand through use_toolbox. Pinned by count:
-        60 offered (48 resident + 11 routers + use_toolbox),
+        65 offered (53 resident + 11 routers + use_toolbox),
         one more than the 56 the field check measured. Round-3
         fix #4 (2026-11-19): run_plan joins the desktop profile
         (58 -> 59 offered, 46 -> 47 resident). Round-3 fix Q6
         (2026-11-19): get_morning_briefing joins the desktop
-        profile (59 -> 60 offered, 47 -> 48 resident)."""
+        profile (59 -> 60 offered, 47 -> 48 resident). Round-3
+        fix Q5+Q7 (2026-11-19): the five memory/routine tools
+        join the desktop profile (60 -> 65 offered, 48 -> 53
+        resident)."""
         desktop = profiles.profile_declarations(tools, "desktop")
         names = [d["name"] for d in desktop]
         self.assertIn("get_current_time_date", names)
-        self.assertEqual(len(names), 60)  # INTENTIONAL — field-check fix #32 (2026-11-18): 57 -> 58 — run_anticipation_routine joins the desktop profile; round-3 fix #4 (2026-11-19): 58 -> 59 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing
+        self.assertEqual(len(names), 65)  # INTENTIONAL — field-check fix #32 (2026-11-18): 57 -> 58 — run_anticipation_routine joins the desktop profile; round-3 fix #4 (2026-11-19): 58 -> 59 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing; round-3 fix Q5+Q7 (2026-11-19): 60 -> 65 — remember_user_fact, recall_memories, quick_math, run_routine, save_routine join the desktop profile
         # The Live-connect path itself, router on and off.
         for router_on in (True, False):
             decls, _routed, _label = live_client._offered_declarations(

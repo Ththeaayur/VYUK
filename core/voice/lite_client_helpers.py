@@ -38,12 +38,27 @@ _IMAGE_LINE = (
 # anything unmatched gets the getting-ready line, never a bluff.
 # ---------------------------------------------------------------------- #
 
+_ARITHMETIC_CHARS = set("0123456789+-*/().%^ ")
+_ARITHMETIC_OPERATORS = set("+-*/%^")
+
+
+def _looks_like_arithmetic(text: str) -> bool:
+    """A bare arithmetic expression: digits, spaces and operator
+    characters only, with at least one digit and one operator.
+    (Round-3 fix Q5+Q7, for the lite router's maths ask.)"""
+    s = (text or "").strip()
+    if not s or not set(s) <= _ARITHMETIC_CHARS:
+        return False
+    return (any(c.isdigit() for c in s)
+            and any(c in _ARITHMETIC_OPERATORS for c in s))
+
 def _route_intent(text: str) -> tuple[str, dict[str, Any]] | None:
     """Maps a user utterance to (tool name, args), or None.
 
-    Order matters: the specific claims (remember / open / screenshot /
-    schedule / mail) are tested before the broad ones (time / system),
-    so "what time is my meeting" lands on the schedule, not the clock.
+    Order matters: the specific claims (remember / maths /
+    routine / open / screenshot / schedule / mail) are tested
+    before the broad ones (time / system), so "what time is my
+    meeting" lands on the schedule, not the clock.
     """
     low = " ".join((text or "").lower().split())
     if not low:
@@ -63,6 +78,39 @@ def _route_intent(text: str) -> tuple[str, dict[str, Any]] | None:
     if match:
         return ("set_reminder", {"message": "Reminder",
                                  "minutes": int(match.group(1))})
+
+    # Round-3 fix Q5+Q7: a spoken arithmetic ask routes to
+    # quick_math with the expression verbatim — "what's 2+2",
+    # "calculate 12 * 3". Only an explicit ask prefix plus a
+    # bare arithmetic expression qualifies (digits, spaces and
+    # operators); "what's on today" and "what's my name" are
+    # not arithmetic and fall through to their own tools, and
+    # a bare digit string (a year, a phone number) stays
+    # unrouted — no prefix, no route. Function names (sqrt,
+    # sin, ...) stay with the full brain, which reaches
+    # quick_math through its resident declaration.
+    match = re.match(
+        r"^(?:what(?:'s| is)|calculate|compute|work out|how much is)\s+(.+)$",
+        low)
+    if match and _looks_like_arithmetic(match.group(1)):
+        return ("quick_math", {"expression": match.group(1).strip()})
+
+    # Round-3 fix Q5+Q7: a NAMED routine runs with run_routine —
+    # the planner's tool, not the anticipation runner. The name
+    # is required (run_routine takes one); a bare "run my
+    # routine" stays unrouted rather than inventing a name. A
+    # name containing "anticipation" is never stolen: it belongs
+    # to run_anticipation_routine (the toolbox ranking already
+    # sends that phrase there).
+    match = re.match(r"^run\s+(?:my\s+|the\s+)?(.+?)\s+routine$", low)
+    if match:
+        name = match.group(1).strip()
+        # "my" / "the" alone is not a name ("run my routine"
+        # with the possessive unconsumed) — a bare routine ask
+        # stays unrouted rather than inventing one.
+        if (name and name not in ("my", "the")
+                and "anticipation" not in name.split()):
+            return ("run_routine", {"name": name})
 
     match = re.search(r"\b(?:open|launch|start)\s+(?:the\s+)?([a-z0-9][a-z0-9 .&'\-]{1,40})$", low)
     if match:
@@ -121,6 +169,14 @@ def _route_intent(text: str) -> tuple[str, dict[str, Any]] | None:
 
     if re.search(r"(how(?:'s| is) my (pc|computer|laptop|machine)|system (status|info|health|usage)|pc (status|info|health))", low):
         return ("get_system_info", {})
+
+    # Round-3 fix Q5+Q7: "what do you remember about X" is a
+    # memory search for X — the name-only recall below stays
+    # for "what's my name". A bare "what do you remember"
+    # carries no topic and stays unrouted.
+    match = re.match(r"^what do you remember about (.+)$", low)
+    if match:
+        return ("recall_memories", {"query": match.group(1).strip()})
 
     if re.search(r"\b(what(?:'s| is) my name|who am i|do you know me|my name)\b", low):
         return ("recall_memories", {"query": "name"})
