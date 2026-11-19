@@ -107,6 +107,9 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
         # Field-check fix #32 (round-2 N5): the anticipation
         # routine runner — same Mind group as run_routine.
         "run_anticipation_routine",
+        # Round-3 fix #4 (T12): the plan runner — same Mind
+        # group as run_routine / run_anticipation_routine.
+        "run_plan",
         "delete_routine",
         # v5.64.1 conversion — Wave 6 retrieval/people tools + Wave 4 replay
         "knowledge_search", "research",

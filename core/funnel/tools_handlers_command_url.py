@@ -306,10 +306,17 @@ class ToolHandlersCommandUrlMixin:
                         f"{_BROWSER_LABELS.get(wanted, wanted)}. "
                         f"{reminder}")
             if webbrowser.open(clean_url):
-                return (f"Couldn't find "
+                # INTENTIONAL — round-3 fix Q1 (2026-11-19): the
+                # sentence used to open "Couldn't find ...", which
+                # the funnel now reads as a refusal — but the URL
+                # DID open (webbrowser.open returned True), so the
+                # honest lead is the outcome, with the missing
+                # browser named after it. The information is
+                # unchanged, only the order.
+                return (f"Opened {clean_url} in your default browser "
+                        f"instead — I couldn't find "
                         f"{_BROWSER_LABELS.get(wanted, wanted)} "
-                        f"on this PC, so I opened {clean_url} "
-                        f"in your default browser instead. {reminder}")
+                        f"on this PC. {reminder}")
             return (f"I tried to open {clean_url} in your browser, "
                     "but the browser didn't open it.")
         # B2: the attached route. When the Fix 3 opt-in is on and

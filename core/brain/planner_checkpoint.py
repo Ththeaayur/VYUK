@@ -53,8 +53,12 @@ from .planner_routines import (
 # SUCCEEDED (status success, no refusal marker, the step's own
 # B12 check — when declared — passing), the step is marked done
 # and an announcement line is returned for the transcript /
-# result text. Matching is tool-name + success ONLY — arguments
-# are never guessed at.
+# result text. Matching is tool-name + success + (round-3 fix
+# #9) argument subset: when a step declares non-empty `args`,
+# every declared key must be present with an equal value in the
+# executed call's arguments — a Tokyo step is not completed by
+# a Calcutta call. Steps declaring no args keep the old
+# tool-name-only behaviour (B12 intent, test_routerfinish pins).
 #
 # ---------------------------------------------------------------------------
 # Conversion pass, Wave 8 wiring (v5.63 modules into live paths).
@@ -184,10 +188,31 @@ def run_routine_checkpointed(name, *, store_dir=None, epoch="session",
 
 
 
-def observe_tool_execution(name: str, result) -> list[str]:
+def _args_subset_match(declared, call_args) -> bool:
+    """Round-3 fix #9 (A-RU5): does the executed call's arguments
+    satisfy a step's declared `args`? A step declaring no args
+    (absent, empty, or a non-dict) keeps the old behaviour and
+    always matches; a step declaring args matches only when every
+    declared key is present in the call's args with an equal value.
+    Extra call args are fine (subset, not exact). Non-dict call
+    args count as empty."""
+    if not isinstance(declared, dict) or not declared:
+        return True
+    if not isinstance(call_args, dict):
+        return False
+    return all(call_args.get(key) == value
+               for key, value in declared.items())
+
+
+def observe_tool_execution(name: str, result, args=None) -> list[str]:
     """Auto-complete plan steps after a real execution (B12).
     Returns announcement lines (possibly empty). Never raises:
-    bookkeeping must not break a brain turn."""
+    bookkeeping must not break a brain turn.
+
+    `args` is the executed call's arguments (round-3 fix #9):
+    a step declaring non-empty `args` completes only when every
+    declared key matches the call; callers that cannot supply
+    args pass None and the old tool-name-only rule applies."""
     try:
         if not name or not _execution_succeeded(result):
             return []
@@ -199,6 +224,8 @@ def observe_tool_execution(name: str, result) -> list[str]:
                 if step.get("status") != "pending":
                     continue
                 if step.get("tool") != name:
+                    continue
+                if not _args_subset_match(step.get("args"), args):
                     continue
                 passed, _reason = check_result(step.get("check"), result)
                 if not passed:

@@ -201,12 +201,27 @@ class GroqSessionTurnMixin:
             from ..brain import planner as _planner  # Phase 3 V1b: moved to core/voice/
 
             _observe_name = name
+            _observe_args = args if isinstance(args, dict) else {}
             if name == "use_toolbox" and isinstance(args, dict) \
                     and str(args.get("action", "")).lower() == "call":
                 _observe_name = str(args.get("tool") or name)
                 if "did not run:" in content or "Unknown tool" in content:
                     _observe_name = name  # inner call failed: no completion
-            _anns = _planner.observe_tool_execution(_observe_name, result)
+                if _observe_name != name:
+                    # Round-3 fix #9 (A-RU5): observed under the
+                    # inner tool, so observe with the inner args.
+                    _inner = args.get("args")
+                    if isinstance(_inner, str):
+                        try:
+                            import json as _json
+
+                            _inner = _json.loads(_inner)
+                        except ValueError:
+                            _inner = None
+                    _observe_args = (dict(_inner)
+                                     if isinstance(_inner, dict) else {})
+            _anns = _planner.observe_tool_execution(
+                _observe_name, result, _observe_args)
             for _ann in _anns:
                 if self.on_transcript:
                     self.on_transcript("assistant", _ann)

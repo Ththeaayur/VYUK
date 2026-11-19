@@ -72,6 +72,31 @@ REFUSAL_MARKERS = (
     "needs the user's OK in VYUK's window",
 )
 
+# Refusal openers (round-3 fix Q1) — the first words of the refusal
+# sentences the skills packs actually return ("I can't evaluate
+# that ...", "Can't convert ...", "Could not ...", "I can't read
+# ... as dice."). A result whose WHOLE text starts with one of
+# these is a refusal, matched by prefix, never by substring: a
+# sentence that merely CONTAINS "I can't" mid-text (a quote, a
+# translation, a summary) is data, not a refusal. "I don't know"
+# is deliberately NOT an opener — it is ambiguous (an admission of
+# ignorance, not necessarily a refusal to act). Handlers that need
+# certainty should return a funnel-shaped dict (failure_result /
+# refused_result) instead of a sentence; the opener rule is the
+# backstop for the sentence-shaped refusals the packs already
+# return. Residual risk, stated plainly: a legitimate success
+# string that OPENS with a refusal opener (a quoted sentence, a
+# translation) will be read as refused and halt the plan/routine
+# that called it — a graceful halt with an honest message, never
+# a false success.
+REFUSAL_OPENERS = (
+    "I can't",
+    "I cannot",
+    "Can't",
+    "Could not",
+    "Couldn't",
+)
+
 # Kinds whose "error" maps to a refusal (the call never ran) as
 # opposed to a failure (the call ran and failed, or could not
 # run for a systemic reason). The timeout kind maps to refused
@@ -102,11 +127,52 @@ def is_non_success(result: Any) -> bool:
     return status in NON_SUCCESS_STATUSES or status == LEGACY_ERROR_STATUS
 
 
-def is_refusal_text(text: Any) -> bool:
-    """True when a handler-returned string is a refusal sentence."""
+def is_refusal_marker_text(text: Any) -> bool:
+    """True when a handler-returned string contains a refusal marker.
+
+    Markers only — the pre-Q1 rule. Markers apply to every string
+    the funnel sees, including a message unwrapped from an explicit
+    Outcome verdict (audit fix A5's design: the refusal-sentence
+    rules see exactly the unwrapped string).
+    """
     if not isinstance(text, str):
         return False
     return any(marker in text for marker in REFUSAL_MARKERS)
+
+
+def is_refusal_opener_text(text: Any) -> bool:
+    """True when a handler-returned string OPENS with a refusal opener.
+
+    Openers only — the round-3 fix Q1 rule. A prefix match on the
+    stripped text: a refusal sentence is read as refused, while a
+    success sentence that merely contains an opener mid-text is not
+    misread. Unlike markers, openers do NOT apply to a message
+    unwrapped from an explicit Outcome verdict (see the dispatch):
+    a handler that returned outcome.failed/unverified already said
+    exactly what happened, and the string heuristic must not
+    override that structured verdict.
+    """
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    return any(stripped.startswith(opener) for opener in REFUSAL_OPENERS)
+
+
+def is_refusal_text(text: Any) -> bool:
+    """True when a handler-returned string is a refusal sentence.
+
+    Either it contains one of the REFUSAL_MARKERS, or the whole
+    text starts with one of the REFUSAL_OPENERS. The opener rule
+    is a prefix match on the stripped text, so a refusal sentence
+    is read as refused wherever it appears (funnel dispatch, plan
+    walk, routine loop, flow classifier) while a success sentence
+    that happens to contain a refusal opener mid-text is not
+    misread. Consumers that must respect an explicit Outcome
+    verdict use the marker/opener helpers separately instead.
+    """
+    if not isinstance(text, str):
+        return False
+    return is_refusal_marker_text(text) or is_refusal_opener_text(text)
 
 
 def is_funnel_shaped(value: Any) -> bool:

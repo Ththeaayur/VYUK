@@ -657,7 +657,7 @@ class LiteLiveSession:
         try:
             from ..brain import planner as _planner  # Phase 3 V1b: moved to core/voice/
 
-            _anns = _planner.observe_tool_execution(name, result)
+            _anns = _planner.observe_tool_execution(name, result, args)
             if _anns:
                 reply += " " + " ".join(_anns)
         except Exception:  # noqa: BLE001 — bookkeeping never breaks a turn

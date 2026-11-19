@@ -2,7 +2,6 @@
 
 import json
 import os
-from .. import config_spec
 import subprocess
 import sys
 import urllib.request
@@ -85,9 +84,13 @@ def _cdp_port() -> int:
     """The debug port for the dedicated-profile launch and the
     (opt-in) real-Chrome attach: config browser_debug_port when it
     carries a sane port, else the defined default 9222."""
+    # Round-3 fix #7 (A-UI4): the VYUK_-prefixed debug-port
+    # fallback is gone — it was dead in production (the field
+    # always carries its default, so the `raw is None` leg only
+    # ever fired under a stubbed config; GAPS-11 removed the same
+    # shape for the VYUK_-prefixed real-Chrome-attach var). The
+    # working override is BROWSER_DEBUG_PORT, via the field.
     raw = _config_value(_DEBUG_PORT_CONFIG, None)
-    if raw is None:
-        raw = config_spec.explicit("VYUK_BROWSER_DEBUG_PORT")
     try:
         port = int(raw)
     except (TypeError, ValueError):

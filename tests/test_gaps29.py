@@ -100,7 +100,7 @@ class TestPluginCatalogue(unittest.TestCase):
             self.assertIn(name, names)
         counts = widget.group_counts()
         self.assertEqual(counts.get("More skills"), 3)
-        self.assertEqual(widget.total_count, 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
+        self.assertEqual(widget.total_count, 757)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan
 
     def test_galaxy_includes_plugin_tools(self):
         from gui.skills_galaxy_data import build_galaxy
@@ -329,8 +329,8 @@ class TestToolPlacement(unittest.TestCase):
         plugin_names = {p["name"] for p in discover_plugins()}
         result = check_tool_placement(tools, plugin_names)
         self.assertTrue(result["ok"], result["problems"])
-        self.assertEqual(result["checked"]["registered"], 756)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine
-        self.assertEqual(result["checked"]["grouped"], 753)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine
+        self.assertEqual(result["checked"]["registered"], 757)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan
+        self.assertEqual(result["checked"]["grouped"], 754)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan
         self.assertEqual(result["checked"]["ungrouped"],
                          list(_FALLBACK_TOOLS))
         self.assertTrue(result["checked"]["snapshot_in_sync"])

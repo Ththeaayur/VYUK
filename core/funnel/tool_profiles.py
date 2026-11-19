@@ -194,6 +194,12 @@ DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
     # (field-check fix #10, V2 — the get_current_time_date
     # precedent, same shape).
     "run_anticipation_routine",
+    # Round-3 fix #4 (T12): run_plan — the same shape as
+    # run_anticipation_routine above. The desktop profile is
+    # the default Live profile; without this, a spoken "run my
+    # morning plan" is answered in words and the tool never
+    # runs.
+    "run_plan",
     # files
     "file_control", "find_files", "open_path", "read_file",
     "write_file",

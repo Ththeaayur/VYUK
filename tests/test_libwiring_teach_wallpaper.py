@@ -206,9 +206,16 @@ class TestTeachReplaySemantics(FunnelBase):
                       str(ctx.exception))
         # GAPS-23 (F-V7): through the funnel (gate approved) — the
         # handler's own honest error is what this pins.
-        text = self.call("teach_replay_sequence",
-                         {"name": "libwire-no-such"},
-                         approve=True)["result"]
+        # INTENTIONAL — round-3 fix Q1 (2026-11-19): "Couldn't
+        # replay ..." is a refusal sentence, so the funnel surfaces
+        # it as refused (message carries the sentence), not success
+        # carrying it. Nothing was replayed, so nothing is recorded
+        # done.
+        out = self.call("teach_replay_sequence",
+                        {"name": "libwire-no-such"},
+                        approve=True)
+        self.assertEqual(out.get("status"), "refused", str(out))
+        text = out.get("message", "")
         self.assertIn("Couldn't replay", text)
         self.assertIn("no taught sequence stored as 'libwire-no-such'",
                       text)
@@ -216,11 +223,17 @@ class TestTeachReplaySemantics(FunnelBase):
     def test_malformed_steps_refused_nothing_persisted(self):
         # GAPS-23 (F-V7): through the funnel (gate approved) — the
         # handler's own refusals are what this pins.
-        text = self.call(
+        # INTENTIONAL — round-3 fix Q1 (2026-11-19): "Couldn't
+        # record ..." is a refusal sentence, so the funnel surfaces
+        # it as refused (message carries the sentence). Nothing was
+        # recorded.
+        out = self.call(
             "teach_record_sequence",
             {"name": "libwire-malformed",
              "steps": [{"tool": "", "args": {}}]},
-            approve=True)["result"]
+            approve=True)
+        self.assertEqual(out.get("status"), "refused", str(out))
+        text = out.get("message", "")
         self.assertIn("Couldn't record", text)
         text = self.call("teach_record_sequence",
                          {"name": "", "steps": [dict(READ_STEP)]},

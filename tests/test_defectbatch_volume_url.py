@@ -139,16 +139,22 @@ class TestAdjustVolumeLinux(_Base):
     """adjust_volume on Linux: Windows-only sentence, never a raise."""
 
     def test_up_returns_windows_only_sentence(self):
+        # INTENTIONAL — round-3 fix Q1 (2026-11-19): "I can't change
+        # the volume ..." is a refusal sentence, so the funnel now
+        # surfaces it as refused, not success carrying the sentence.
+        # The sentence itself is unchanged.
         out = self.call("adjust_volume", {"action": "up", "steps": 3})
-        self.assert_success(out)
+        self.assertEqual(out.get("status"), "refused", str(out))
         body = _body(out)
         self.assertIn("Windows", body)
         self.assertIn("media keys", body)
         self.assertNotIn("Increased volume", body)
 
     def test_mute_returns_windows_only_sentence(self):
+        # INTENTIONAL — round-3 fix Q1 (2026-11-19): same as above —
+        # the Windows-only sentence is a refusal, surfaced refused.
         out = self.call("adjust_volume", {"action": "mute"})
-        self.assert_success(out)
+        self.assertEqual(out.get("status"), "refused", str(out))
         body = _body(out)
         self.assertIn("Windows", body)
         self.assertNotIn("Toggled master audio mute", body)

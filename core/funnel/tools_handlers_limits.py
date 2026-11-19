@@ -112,6 +112,12 @@ _TOOL_DEADLINE_CLASS: dict[str, str] = {
     # outlive the sum of its steps, same shape as run_routine /
     # run_workflow above.
     "run_anticipation_routine": "long",
+    # Round-3 fix #4 (T12): run_plan is a dispatcher whose
+    # every inner call re-enters execute() and is deadline'd on
+    # its OWN class — the outer call must outlive the sum of
+    # its steps, same shape as run_routine /
+    # run_anticipation_routine above.
+    "run_plan": "long",
     "use_toolbox": "long",
     # R7-4 meetily: stop_meeting transcribes the whole meeting and
     # transcribe_audio transcribes the recording it is handed — both

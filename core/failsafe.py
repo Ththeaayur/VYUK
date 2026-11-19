@@ -170,11 +170,19 @@ def add_trip_listener(fn) -> None:
 
 
 def start(timeout_s: float | None = None, poll_s: float | None = None) -> None:
-    """Start the watchdog thread (idempotent) and arm the heartbeat clock."""
+    """Start the watchdog thread (idempotent). The heartbeat clock is
+    deliberately NOT armed here: start() runs during window
+    construction (service host, MainWindow.__init__), when the event
+    loop isn't pumping and the 2 s beat timer cannot fire yet — arming
+    the clock there trips a healthy but slow build ("no heartbeat ...
+    the app may be hung"), posts the trip line into the chat, and (in
+    the test suite) lands a system node on the live thread mid-test.
+    The clock arms on the first beat() instead (<=2 s after the window
+    is up); a hang after that trips exactly as before. R3F3."""
     global _thread, _last_beat, _gen
     configure(timeout_s=timeout_s, poll_s=poll_s)
     with _lock:
-        _last_beat = _now()
+        _last_beat = None
         if _thread is not None and _thread.is_alive():
             return
         _gen += 1

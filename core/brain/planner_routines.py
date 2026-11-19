@@ -32,7 +32,7 @@ from .planner_plans import (
     _verify_sync,
     check_result,
 )
-from ..funnel.tool_result import REFUSAL_MARKERS as _REFUSAL_MARKERS
+from ..funnel.tool_result import is_refusal_text as _is_refusal_text
 
 
 
@@ -801,7 +801,7 @@ def run_routine(name: str, verify_expect=None, cancel_token=None,
                 lines.append(f"Routine stopped at step {i + 1} of {len(actions)}. Steps after it did not run.")
                 return "\n".join(lines)
             result_text = str(result.get("result", ""))
-            if any(marker in result_text for marker in _REFUSAL_MARKERS):
+            if _is_refusal_text(result_text):
                 # A handler REFUSAL returned as a success string (the
                 # skills packs' confirm sentence, a trust-layer block):
                 # the step did NOT run. Say exactly that — never let it

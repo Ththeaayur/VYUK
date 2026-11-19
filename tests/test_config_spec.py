@@ -40,11 +40,14 @@ class SpecShapeTests(unittest.TestCase):
 
     def test_field_counts(self):
         fields = dataclasses.fields(cs.ConfigSpec)
-        # Round-3 fix #2 (#55): 106 -> 107 fields, 101 -> 102
-        # env-backed — the new field is live_tool_rounds.
-        self.assertEqual(len(fields), 107)
+        # Round-3 fix #7 (A-UI4): 107 -> 106 fields, 102 -> 101
+        # env-backed — the dead VYUK_-prefixed debug-port field
+        # is gone (its env var could never take effect; the
+        # working override is BROWSER_DEBUG_PORT via
+        # browser_debug_port).
+        self.assertEqual(len(fields), 106)
         env_backed = [f for f in fields if "env" in f.metadata]
-        self.assertEqual(len(env_backed), 102)
+        self.assertEqual(len(env_backed), 101)
         names = {f.name for f in fields}
         self.assertIn("version", names)
         self.assertIn("browser_allow_history_read", names)

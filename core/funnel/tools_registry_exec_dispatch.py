@@ -606,9 +606,25 @@ class ToolRegistryExecDispatchMixin:
                     f"error: surfaced inner "
                     f"{result.get('status')}")
                 return ctx._audited(dict(result))
+            # Round-3 fix Q1: the refusal-sentence rule splits in two.
+            # Markers keep the pre-Q1 behaviour — they apply to every
+            # string, including one unwrapped from an explicit Outcome
+            # verdict. The opener rule applies ONLY when no explicit
+            # Outcome verdict exists (_outcome_verified is None):
+            # a handler that returned outcome.failed/unverified
+            # already said exactly what happened (verdict + evidence
+            # + kind ride in the success return below), and the string
+            # heuristic must not override that structured verdict —
+            # e.g. outcome.failed("Could not create a folder ...")
+            # stays success + outcome_verified=False + kind "failed"
+            # instead of collapsing to a bare refused with the
+            # evidence lost. Bare refusal strings (no verdict) are
+            # still refused by the opener rule.
             if (_tr is not None
                     and ctx.name not in _UNTRUSTED_PRODUCERS
-                    and _tr.is_refusal_text(result)):
+                    and (_tr.is_refusal_marker_text(result)
+                         or (_outcome_verified is None
+                             and _tr.is_refusal_opener_text(result)))):
                 self._log_activity(ctx.name, "refused: handler refusal")
                 _refused_text = str(result)
                 if len(_refused_text) > 4000:

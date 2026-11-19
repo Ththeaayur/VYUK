@@ -342,9 +342,6 @@ class ConfigSpec:
     # --- secrets
     # Restic backup password. SECRET: never logged, never in a repr.
     rustic_password: str = field(default="", metadata={"env": "RUSTIC_PASSWORD", "secret": True}, repr=False)
-    # Debug port for the browser CDP attach (GAPS-3). The consumer
-    # falls back to 9222 on an unreadable value.
-    vyuk_browser_debug_port: int = field(default=9222, metadata={"env": "VYUK_BROWSER_DEBUG_PORT"})
     # Browser-history opt-in (browser_history): the config name the
     # reader expected, ``browser_allow_history_read``, never existed
     # as a field — the env var was always the live control. The

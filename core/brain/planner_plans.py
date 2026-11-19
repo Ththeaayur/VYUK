@@ -23,7 +23,7 @@ from .planner_storage import (
 )
 from ..funnel.tool_result import (
     LEGACY_ERROR_STATUS as _LEGACY_ERROR_STATUS,
-    REFUSAL_MARKERS as _REFUSAL_MARKERS,
+    is_refusal_text as _is_refusal_text,
     normalized_error_status as _normalized_error_status,
 )
 
@@ -701,6 +701,120 @@ def delete_plan(plan_id: str) -> str:
 
 
 
+# ---------------------------------------------------------------------------
+# Round-3 fix #4 (T12): the funnel-tool handler for running a saved plan.
+#
+# The ruling (parent, 2026-11-17): `run_plan` becomes a real voice
+# tool, confirm-gated; it runs only plans the owner created, and
+# each step inside the plan keeps its own confirm/allowlist gate —
+# the voice call approves starting the plan, never its steps.
+# `run_goal` stays unreachable.
+#
+# Owner-created ONLY, enforced by the tool's shape, not by trust:
+# the tool takes exactly one argument, the plan id, and runs the
+# plan ALREADY saved under that id in data/plans.json. It never
+# takes a goal or steps as arguments, so a model-invented plan
+# (no stored plan under that id) is an honest refusal, never a
+# run. A plan reaches the store through create_plan — the owner
+# asking for the plan, in words or by tap — and running it is
+# confirm-gated on top (see _CONFIRM_GATE_TOOLS), so no plan
+# runs without the owner's yes in the moment.
+#
+# Steps: a step that declares its tool runs it directly through
+# the funnel (planner.run_plan's own walk); a plain-language step
+# is resolved at RUN time by the fix #32 production executor
+# (the same deterministic resolver as run_anticipation_routine —
+# explicit form first, ranked only when find_is_confident holds,
+# never invented arguments, routine-management tools refused).
+# The pick returns (tool, args); the walk itself executes, so
+# every step still passes the funnel's own gates. A step that
+# cannot be resolved halts the plan naming the step, never
+# guessed. Nested run_routine/run_plan steps are refused by the
+# walk itself, and the executor refuses them too.
+#
+# No coordinator-task wrapper in v1 (the run_anticipation_routine
+# precedent): a failed step halts and names itself; re-running
+# retries from the persisted cursor. The walk's own resume
+# (v5.49 item 32) still applies — verified-done steps are
+# skipped, interrupted steps re-run.
+#
+# The walk is async (core/brain/planner_checkpoint.run_plan) and
+# this handler is sync: _drive_plan_sync below bridges the two.
+# The live tool worker already runs handlers in an executor
+# thread, so asyncio.run() works there; the fresh-thread
+# fallback covers a caller that already has a loop running in
+# this thread (a text-brain turn calling the funnel directly).
+# ---------------------------------------------------------------------------
+
+def _drive_plan_sync(plan_id, pick, emit, verify_expect) -> str:
+    """Drive the async planner.run_plan from this sync handler.
+
+    asyncio.run() when no loop is running in this thread; a fresh
+    thread with its own loop when one is (asyncio.run() cannot be
+    called from a running loop). The thread is joined, so the
+    tool result is the walk's full report, never a bare \"done\"."""
+    import asyncio
+    import threading
+
+    async def _main():
+        from .planner_checkpoint import run_plan
+        return await run_plan(plan_id, pick_tool=pick, emit=emit,
+                              verify_expect=verify_expect)
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_main())
+    box: dict = {}
+
+    def _target():
+        box["result"] = asyncio.run(_main())
+
+    worker = threading.Thread(target=_target, daemon=True)
+    worker.start()
+    worker.join()
+    return box["result"]
+
+
+def run_plan_tool(plan_id: str) -> str:
+    """Funnel-tool handler: run a saved plan by id, step by step.
+
+    Unknown id: an honest refusal, nothing runs. A saved plan
+    runs through planner.run_plan — declared-tool steps directly,
+    plain-language steps resolved at run time by the production
+    executor — with every step's own confirm/allowlist gate
+    intact. The call approves starting the plan, never its
+    steps: a step that needs a confirmation pauses the plan
+    there (it is never auto-confirmed)."""
+    plans, damaged = _load_plans()
+    plan = _find_plan(plans, plan_id)
+    if plan is None:
+        msg = (f"No plan found with id '{plan_id}'. Use list_plans "
+               "to see existing plans — a plan must already be "
+               "saved before it can be run; this tool never "
+               "invents or creates one.")
+        return f"{msg}\n{_damaged_note(damaged)}" if damaged else msg
+
+    async def _pick(step, plan_dict):
+        # Resolve-only: the walk executes. The executor raises
+        # AnticipationStepError when a step cannot be resolved
+        # honestly; the walk halts naming it.
+        from ..w7_wiring_anticipation import _resolve_step
+        return _resolve_step(step.get("text") or "", step_kind="plan")
+
+    # v5.49 (programme item 31): declared steps get expect
+    # verdicts too — the live brain's verifier, same passthrough
+    # as core/voice/live_client_send.run_plan. Unavailable here
+    # (no desktop seam) means no verdicts, never a crash.
+    try:
+        from ..desktop import uia as _uia
+        _verify = _uia.verify_expectation
+    except Exception:  # noqa: BLE001
+        _verify = None
+    return _drive_plan_sync(plan_id, _pick, None, _verify)
+
+
+
 # run_plan() is the driver B15 asks for. DESIGN CALL (documented
 # per the item): a registry tool for it would take the registry
 # past its pinned 477 count, so the driver is a planner-level
@@ -722,10 +836,12 @@ def delete_plan(plan_id: str) -> str:
 def _execution_succeeded(result) -> bool:
     """Did this tools.execute outcome actually DO the thing?
     Status must be success, and a refusal sentence returned as a
-    success string (the skills packs' shape) does NOT count."""
+    success string (the skills packs' shape) does NOT count — the
+    check is the shared is_refusal_text (markers + refusal
+    openers), the same definition the funnel dispatch uses."""
     if not isinstance(result, dict):
         return bool(str(result or "").strip())
     if result.get("status") != "success":
         return False
     text = str(result.get("result") or "")
-    return not any(marker in text for marker in _REFUSAL_MARKERS)
+    return not _is_refusal_text(text)

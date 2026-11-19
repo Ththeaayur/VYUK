@@ -411,16 +411,20 @@ def _parse_explicit_step(step: str):
     return first, args, None
 
 
-def _resolve_step(step: str):
+def _resolve_step(step: str, step_kind: str = "routine"):
     """Resolve one plain-language step to (tool, args).
 
     Raises AnticipationStepError with a plain-words reason
-    when the step cannot be resolved honestly.
+    when the step cannot be resolved honestly. `step_kind`
+    names the step's owner in the refusal text ("routine" for
+    anticipation routines, "plan" for planner plans — the
+    resolver is shared by both runners; the default keeps the
+    routine wording exactly).
     """
     text = (step or "").strip()
     if not text:
         raise AnticipationStepError(
-            "the step is empty — a routine step must name "
+            f"the step is empty — a {step_kind} step must name "
             "something to do")
     tool, args, error = _parse_explicit_step(text)
     if error is not None:
@@ -428,9 +432,9 @@ def _resolve_step(step: str):
     if tool is not None:
         if tool in _FORBIDDEN_STEP_TOOLS or tool.startswith("mcp__"):
             raise AnticipationStepError(
-                f"a routine step may never run {tool!r} — "
-                "routines cannot run other routines, create or "
-                "delete routines, or call the toolbox")
+                f"a {step_kind} step may never run {tool!r} — "
+                f"{step_kind}s cannot run other routines, create "
+                "or delete routines, or call the toolbox")
         if tool not in _native_declarations():
             raise AnticipationStepError(
                 f"I couldn't find a tool named {tool!r} — check "
@@ -452,9 +456,9 @@ def _resolve_step(step: str):
                  key=lambda n: (-scores[n], order.get(n, 0)))[0]
     if top in _FORBIDDEN_STEP_TOOLS or top.startswith("mcp__"):
         raise AnticipationStepError(
-            f"a routine step may never run {top!r} — routines "
-            "cannot run other routines, create or delete "
-            "routines, or call the toolbox")
+            f"a {step_kind} step may never run {top!r} — "
+            f"{step_kind}s cannot run other routines, create "
+            "or delete routines, or call the toolbox")
     if not find_is_confident(text, scores):
         raise AnticipationStepError(
             f"I couldn't tell which tool {text!r} means — the "

@@ -109,6 +109,9 @@ from .planner_plans import (
     skip_step,
     update_plan_step,
     delete_plan,
+    # Round-3 fix #4 (T12): the funnel-tool handler for running a
+    # saved plan (core/brain/planner_plans.run_plan_tool).
+    run_plan_tool,
     _execution_succeeded,
 )
 

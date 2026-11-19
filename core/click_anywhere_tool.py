@@ -1449,6 +1449,29 @@ def _cdp_result_text(result):
         return ""
 
 
+def _strip_bootstrap_note(text: str) -> str:
+    """Drop the first-attach note before judging a browser result.
+
+    _with_bootstrap (browser_session) prefixes "Attached to your
+    Chrome to do this. " when THIS call attached — so a landed
+    navigation reads "Attached to your Chrome to do this. Opened
+    '...'". The note says the attach happened, not what the act
+    did; the outcome translators judge the act, so they classify
+    on the body after the note (the _classify_attached_open
+    precedent in tools_handlers_command_url.py keeps the note in
+    the message and skips it for classification). The full text,
+    note included, is what the translators report. The import is
+    lazy, as in _classify_attached_open — browser_session is
+    heavy and this module must not import it at load time.
+    """
+    from .desktop.browser_session import _BOOTSTRAP_NOTE
+
+    prefix = _BOOTSTRAP_NOTE + " "
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    return text
+
+
 def _cdp_click_outcome(result, *, action, target, by):
     """Translate a browser_click string into the click_anywhere
     dict. A landed click starts with 'Clicked' — the in-tree
@@ -1457,7 +1480,8 @@ def _cdp_click_outcome(result, *, action, target, by):
     own words: a miss, a no-guess list, a login wall, or a lost
     connection never reads as a click."""
     text = _cdp_result_text(result)
-    if text.startswith("Clicked"):
+    body = _strip_bootstrap_note(text)
+    if body.startswith("Clicked"):
         return _ok({"action": action, "target": target, "by": by,
                     "route": "cdp", "status": "clicked",
                     "report": text})
@@ -1470,7 +1494,8 @@ def _cdp_type_outcome(result, *, action, target, by):
     'Filled' — except the read-back mismatch, which starts the
     same way but says the fill did not land as typed."""
     text = _cdp_result_text(result)
-    if text.startswith("Filled") and "did not land as typed" not in text:
+    body = _strip_bootstrap_note(text)
+    if body.startswith("Filled") and "did not land as typed" not in body:
         return _ok({"action": action, "target": target, "by": by,
                     "route": "cdp", "status": "typed",
                     "report": text})
@@ -1482,7 +1507,8 @@ def _cdp_press_outcome(result, *, action, target, by):
     """Translate a browser_press result. A dispatched key starts
     with 'Pressed'."""
     text = _cdp_result_text(result)
-    if text.startswith("Pressed"):
+    body = _strip_bootstrap_note(text)
+    if body.startswith("Pressed"):
         return _ok({"action": action, "target": target, "by": by,
                     "route": "cdp", "status": "pressed",
                     "report": text})
@@ -1495,12 +1521,16 @@ def _cdp_navigate_outcome(result, *, action, target, by):
     click_anywhere dict. A landed navigation starts with
     'Opened' — or 'Still loading', the soft timeout: the page
     is under way and the connection is fine, so the act landed
-    and the browser's own words say to wait or read. Anything
+    and the browser's own words say to wait or read. The
+    first-attach note ("Attached to your Chrome to do this. ")
+    is skipped for the check — a landed navigation on the call
+    that attached reads the same as any other. Anything
     else is an honest failure carrying the browser's own words:
     a refused scheme, a failed open, or a dead session never
     reads as a navigation."""
     text = _cdp_result_text(result)
-    if text.startswith("Opened ") or text.startswith("Still loading "):
+    body = _strip_bootstrap_note(text)
+    if body.startswith("Opened ") or body.startswith("Still loading "):
         return _ok({"action": action, "target": target, "by": by,
                     "route": "cdp", "status": "navigated",
                     "report": text})
@@ -1517,7 +1547,8 @@ def _cdp_read_outcome(result, *, action, target, by):
     an empty page and a find with no hits are completed reads
     whose absence IS the answer."""
     text = _cdp_result_text(result)
-    if text.startswith("Browser action failed") or text.startswith(
+    body = _strip_bootstrap_note(text)
+    if body.startswith("Browser action failed") or body.startswith(
             "No controllable browser session is active."):
         return _fail(text or "the browser read returned no result",
                      rule="cdp-read-failed")

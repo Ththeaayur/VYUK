@@ -152,33 +152,56 @@ def _eval_node(node):
     raise _MathRefused(f"a {type(node).__name__} isn't allowed")
 
 
-def quick_math(expression: str) -> str:
-    """Evaluate a pure-arithmetic expression safely (AST whitelist)."""
+def quick_math(expression: str) -> str | dict:
+    """Evaluate a pure-arithmetic expression safely (AST whitelist).
+
+    Round-3 fix Q1: every non-computation path returns a
+    funnel-shaped failure dict (kind "invalid_expression") carrying
+    the exact refusal sentence as its message — never a plain
+    success string — so a plan/routine step that computes nothing
+    is never recorded as done. A successful evaluation still
+    returns the plain "expr = N" string.
+    """
+    from .funnel.tool_result import failure_result
     expr = (expression or "").strip()
     if not expr:
-        return ("Give me an expression to evaluate, e.g. '23 * 1.5' "
-                "or 'sqrt(2) + pi'.")
+        return failure_result(
+            "invalid_expression",
+            "Give me an expression to evaluate, e.g. '23 * 1.5' "
+            "or 'sqrt(2) + pi'.")
     if len(expr) > _MAX_EXPRESSION_CHARS:
-        return (f"That expression is too long ({len(expr)} characters; "
-                f"the cap is {_MAX_EXPRESSION_CHARS}).")
+        return failure_result(
+            "invalid_expression",
+            f"That expression is too long ({len(expr)} characters; "
+            f"the cap is {_MAX_EXPRESSION_CHARS}).")
     try:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError:
-        return _MATH_REFUSAL
+        return failure_result("invalid_expression", _MATH_REFUSAL)
     try:
         result = _eval_node(tree)
     except _MathRefused as refused:
-        return f"{_MATH_REFUSAL} ({refused})"
+        return failure_result(
+            "invalid_expression", f"{_MATH_REFUSAL} ({refused})")
     except ZeroDivisionError:
-        return f"'{expr}' doesn't evaluate: division by zero."
+        return failure_result(
+            "invalid_expression",
+            f"'{expr}' doesn't evaluate: division by zero.")
     except OverflowError:
-        return f"'{expr}' doesn't evaluate: the result overflows."
+        return failure_result(
+            "invalid_expression",
+            f"'{expr}' doesn't evaluate: the result overflows.")
     except (ValueError, TypeError) as e:
-        return f"'{expr}' doesn't evaluate: {e}."
+        return failure_result(
+            "invalid_expression", f"'{expr}' doesn't evaluate: {e}.")
     if isinstance(result, complex):
-        return f"'{expr}' doesn't evaluate to a real number."
+        return failure_result(
+            "invalid_expression",
+            f"'{expr}' doesn't evaluate to a real number.")
     if isinstance(result, float) and (math.isinf(result) or math.isnan(result)):
-        return f"'{expr}' doesn't evaluate to a finite number."
+        return failure_result(
+            "invalid_expression",
+            f"'{expr}' doesn't evaluate to a finite number.")
     return f"{expr} = {_format_number(result)}"
 
 
@@ -310,12 +333,22 @@ def _from_celsius(value: float, unit: str) -> float:
     return value + 273.15  # kelvin
 
 
-def unit_convert(value, from_unit: str, to_unit: str) -> str:
-    """Convert a quantity between units of one category (exact factors)."""
+def unit_convert(value, from_unit: str, to_unit: str) -> str | dict:
+    """Convert a quantity between units of one category (exact factors).
+
+    Round-3 fix Q1: every non-conversion path returns a
+    funnel-shaped failure dict carrying the exact sentence as its
+    message — never a plain success string — so a plan/routine
+    step that converts nothing is never recorded as done. A
+    successful conversion still returns the plain "N u = M v"
+    string.
+    """
+    from .funnel.tool_result import failure_result
     try:
         amount = float(value)
     except (TypeError, ValueError):
-        return f"'{value}' isn't a number I can convert."
+        return failure_result(
+            "invalid_number", f"'{value}' isn't a number I can convert.")
     src_raw = (from_unit or "").strip().lower()
     dst_raw = (to_unit or "").strip().lower()
     src = _UNIT_LOOKUP.get(src_raw)
@@ -329,18 +362,24 @@ def unit_convert(value, from_unit: str, to_unit: str) -> str:
                 supported = "c, f, k (or celsius, fahrenheit, kelvin)"
             else:
                 supported = ", ".join(_UNIT_TABLE[category].keys())
-            return (f"I don't know the unit '{unknown}'. For "
-                    f"{category} I support: {supported}. Conversions "
-                    f"work within one category: {_CATEGORIES_LINE}.")
-        return (f"I don't know the unit '{unknown}'. I convert within "
-                f"one category: {_CATEGORIES_LINE} — e.g. km to mi, "
-                "kg to lb, GB to MB, c to f.")
+            return failure_result(
+                "invalid_unit",
+                f"I don't know the unit '{unknown}'. For "
+                f"{category} I support: {supported}. Conversions "
+                f"work within one category: {_CATEGORIES_LINE}.")
+        return failure_result(
+            "invalid_unit",
+            f"I don't know the unit '{unknown}'. I convert within "
+            f"one category: {_CATEGORIES_LINE} — e.g. km to mi, "
+            "kg to lb, GB to MB, c to f.")
     (src_cat, src_unit), (dst_cat, dst_unit) = src, dst
     if src_cat != dst_cat:
-        return (f"Can't convert {from_unit} to {to_unit}: {from_unit} "
-                f"is a {src_cat} unit and {to_unit} is a {dst_cat} "
-                f"unit. I convert within one category only: "
-                f"{_CATEGORIES_LINE}.")
+        return failure_result(
+            "incompatible_units",
+            f"Can't convert {from_unit} to {to_unit}: {from_unit} "
+            f"is a {src_cat} unit and {to_unit} is a {dst_cat} "
+            f"unit. I convert within one category only: "
+            f"{_CATEGORIES_LINE}.")
     if src_cat == "temperature":
         result = _from_celsius(_to_celsius(amount, src_unit), dst_unit)
     else:

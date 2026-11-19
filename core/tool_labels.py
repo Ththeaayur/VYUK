@@ -123,6 +123,7 @@ TOOL_FRIENDLY_NAMES = {
     "get_plan": "Plan",
     "update_plan_step": "Plan",
     "delete_plan": "Plan",
+    "run_plan": "Plan",
     "save_routine": "Routine",
     "list_routines": "Routines",
     "run_routine": "Routine",

@@ -371,11 +371,13 @@ class WindowsOnlyOnLinuxTests(_Base):
         # FIXED (post-triage defect batch): adjust_volume now
         # returns the Windows-only sentence like its siblings
         # instead of raising AttributeError (ctypes.windll) on
-        # Linux. The funnel result is success carrying the
-        # honest sentence — the same shape as speak_text's
-        # unavailable sentence.
+        # Linux. INTENTIONAL — round-3 fix Q1 (2026-11-19): "I can't
+        # change the volume ..." is a refusal sentence, so the
+        # funnel now surfaces it as refused, not success carrying
+        # the honest sentence — the same shape as the other
+        # refusal sentences. The sentence itself is unchanged.
         out = self.call("adjust_volume", {"action": "up", "steps": 1})
-        self.assert_success(out)
+        self.assertEqual(out.get("status"), "refused", str(out))
         self.assertIn("Windows", _body(out))
         self.assertIn("media keys", _body(out))
 
@@ -419,8 +421,13 @@ class DesktopSeamTests(_Base):
                       _body(out))
 
     def test_take_screenshot_headless(self):
+        # INTENTIONAL — round-3 fix Q1 (2026-11-19): "Could not
+        # capture a screenshot" is a refusal sentence, so the funnel
+        # now surfaces it as refused, not success carrying the
+        # sentence. The honest sentence is unchanged, only the
+        # status: nothing was captured, so nothing is recorded done.
         out = self.call("take_screenshot", {})
-        self.assert_success(out)
+        self.assertEqual(out.get("status"), "refused", str(out))
         body = _body(out)
         self.assertIn("Could not capture a screenshot", body)
         self.assertIn("headless", body)
@@ -452,9 +459,14 @@ class DesktopSeamTests(_Base):
                       _body(out))
 
     def test_launch_application_absent(self):
+        # INTENTIONAL — round-3 fix Q1 (2026-11-19): "Could not find
+        # an application named ..." is a refusal sentence, so the
+        # funnel now surfaces it as refused, not success carrying
+        # the sentence. Nothing was launched, so nothing is recorded
+        # done.
         out = self.call("launch_application",
                         {"app_name": "definitely_not_installed_app_xyz"})
-        self.assert_success(out)
+        self.assertEqual(out.get("status"), "refused", str(out))
         self.assertIn("Could not find an application named "
                       "'definitely_not_installed_app_xyz'", _body(out))
 

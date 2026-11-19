@@ -164,7 +164,14 @@ class TextRepliesConfigTests(unittest.TestCase):
         self.assertIn("outputAudioTranscription", dumped)
         self.assertNotIn("inputAudioTranscription", dumped)
 
-    def test_tree_config_enables_output_not_input(self):
+    def test_tree_config_enables_output_and_input(self):
+        # Round-3 fix #5 (#56): the v5.94 "output only, input
+        # deliberately NOT enabled" is overturned by ruling #56 —
+        # the live path now transcribes the user's spoken words
+        # on screen, verbatim as STT heard. Renamed from
+        # test_tree_config_enables_output_not_input with the
+        # assertion flipped; the config test above (hand-built
+        # config) is unchanged.
         source = _strip_full_line_comments(
             (ROOT / "core" / "voice" / "live_client.py").read_text(encoding="utf-8")  # Phase 3 V1b INTENTIONAL: moved to core/voice/
             # INTENTIONAL (skills split B47): start() moved to the
@@ -174,7 +181,7 @@ class TextRepliesConfigTests(unittest.TestCase):
         self.assertIn(
             "output_audio_transcription=types.AudioTranscriptionConfig()",
             source)
-        self.assertNotIn("input_audio_transcription=", source)
+        self.assertIn("input_audio_transcription=", source)
         self.assertIn('response_modalities=["AUDIO"]', source)
 
 

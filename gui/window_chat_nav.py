@@ -300,6 +300,16 @@ class ChatNavMixin:
             chip = QPushButton(label)
             chip.setObjectName("chipSuggest")
             chip.clicked.connect(lambda _=False, f=fn: f())
+            # Round-3 fix #8 (A-UI5): the strip slides on the
+            # wheel — the filter must sit on each chip as well as
+            # the viewport. A wheel over a button never leaves
+            # the button (QWidget's default wheel handler leaves
+            # the event accepted, so it never propagates to the
+            # scroll area), which is exactly why the strip never
+            # slid. Deleted chips uninstall themselves with it.
+            _wf = getattr(self, "_chip_wheel_filter", None)
+            if _wf is not None:
+                chip.installEventFilter(_wf)
             layout.addWidget(chip)
         layout.addStretch()
         # Split layout: the row lives in a non-resizable scroll

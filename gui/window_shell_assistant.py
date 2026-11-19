@@ -81,7 +81,7 @@ import datetime
 from .icons import make_icon
 from .design_system.palette import parse_color, with_alpha
 from .room_home import RoomLight
-from .window_shell_assistant_widgets import _ChipRow, _HeroWidget, _DotsSplitterHandle, _DotsSplitter
+from .window_shell_assistant_widgets import _ChipRow, _ChipStripWheelFilter, _HeroWidget, _DotsSplitterHandle, _DotsSplitter
 
 
 class ShellAssistantMixin:
@@ -896,6 +896,15 @@ class ShellAssistantMixin:
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._chip_scroll.setStyleSheet(
             "QScrollArea { background: transparent; border: none; }")
+        # Round-3 fix #8 (A-UI5): the strip slides on the wheel.
+        # It was built as a scroll strip, but nothing could ever
+        # slide it (scrollbar always off, wheel did nothing), so
+        # the chips past the panel edge were cut with no way to
+        # reach them. Installed on the viewport, like the chat
+        # scroll's own viewport filter above.
+        self._chip_wheel_filter = _ChipStripWheelFilter(self._chip_scroll)
+        self._chip_scroll.viewport().installEventFilter(
+            self._chip_wheel_filter)
         panel_layout.addWidget(self._chip_scroll)
         self._refresh_chip_row()
 

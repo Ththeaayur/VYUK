@@ -324,6 +324,27 @@ class SessionStatusMixin:
             if not self.caption_label.text().startswith("“"):
                 self._set_caption("")
             self._set_pill("Thinking")
+        elif upper.startswith("CONNECTING: RETRY"):
+            # Round-3 fix #6 (#58): a connect retry names itself
+            # on the state label — the user was watching
+            # CONNECTING with no word that a retry was happening.
+            # The pill stays "Connecting" and the orb keeps its
+            # CONNECTING presentation (the status still contains
+            # CONNECTING); only the label carries the retry words,
+            # elided like the setup line above. The full line stays
+            # one hover away in the tooltip.
+            detail = status.split(":", 1)[1].strip() if ":" in status else status
+            detail = detail[:1].upper() + detail[1:] if detail else detail
+            metrics = QFontMetrics(self.state_label.font())
+            width = self.state_label.width()
+            if width > 40:
+                detail = metrics.elidedText(detail, Qt.TextElideMode.ElideRight, max(120, width - 8))
+            elif len(detail) > 110:
+                detail = detail[:107] + "…"
+            self.state_label.setText(detail)
+            self.state_label.setToolTip(status)
+            self._set_caption("Setting up your live session.")
+            self._set_pill("Connecting")
         elif "CONNECTING" in upper:
             self.state_label.setText("Connecting…")
             self._set_caption("Setting up your live session.")

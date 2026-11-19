@@ -280,6 +280,54 @@ class GeminiLiveSessionReceiveMixin:
                 "The assistant reply was shown but could not "
                 "be saved to memory: %s" % _short_exc(exc))
 
+    def _flush_input_transcript(self) -> None:
+        """Emit one accumulated user input-transcription utterance.
+
+        Round-3 fix #5 (#56): the mirror of
+        _flush_output_transcript for the user's own words. Emits
+        exactly ONE on_transcript("user", ...) for the whole
+        accumulated text, verbatim as STT heard — never cleaned
+        up — so the utterance lands as a single "You" bubble
+        through the existing transcript path (the same channel
+        the local path and the typed echo use), plus one
+        memory-log entry. Empty buffers emit nothing.
+
+        Unlike the assistant flush, a stop request does NOT
+        suppress this: Stop applies to the assistant's reply,
+        not to the user's words, and a genuine new spoken turn
+        is exactly what clears the stopped marker (fix #7 U4
+        #29). A failed bubble keeps the text for the next flush
+        (field-check fix #2 pattern); a bubble that landed but
+        whose memory row failed is gone from the buffer (the
+        bubble IS the record) and the missing memory row is
+        surfaced with a loss note.
+        """
+        text = self._input_transcript_buf
+        if not text.strip():
+            self._input_transcript_buf = ""
+            return
+        try:
+            if self.on_transcript:
+                self.on_transcript("user", text)
+        except Exception as exc:  # noqa: BLE001 - the words
+            # are kept for the next flush, and the loss is
+            # surfaced rather than swallowed
+            self._loss_note(
+                "The user's spoken words could not be shown "
+                "and were kept in the transcript buffer (%s); "
+                "they will be retried on the next utterance."
+                % _short_exc(exc))
+            return
+        self._input_transcript_buf = ""
+        try:
+            memory_store.log_message("user", text)
+        except Exception as exc:  # noqa: BLE001 - the bubble
+            # landed, so the words are not lost; only the
+            # memory row is, and that is surfaced
+            self._loss_note(
+                "The user's spoken words were shown but could "
+                "not be saved to memory: %s" % _short_exc(exc))
+
     def stop_reply(self) -> bool:
         """Stop the reply in flight (chat UI, 2026-11-16).
 
@@ -372,6 +420,44 @@ class GeminiLiveSessionReceiveMixin:
                     self._flush_output_transcript()
             if getattr(server_content, "turn_complete", False):
                 self._flush_output_transcript()
+        except Exception:  # noqa: BLE001 — transcription never breaks audio
+            pass
+
+    def _handle_input_transcription(self, server_content: Any) -> None:
+        """Accumulate one server message's input transcription.
+
+        Round-3 fix #5 (#56): the mirror of
+        _handle_output_transcription for the user's own words.
+        The server streams a transcription of the user's spoken
+        audio in small chunks alongside the turn. Each chunk
+        appends to the buffer; the buffer flushes once per
+        utterance when the transcription finishes or the turn
+        completes (see _flush_input_transcript), so the words
+        land as a single "You" bubble — verbatim as STT heard,
+        fillers and all, never cleaned up — through the same
+        on_transcript("user", ...) channel the local path and
+        the typed echo use. Any failure here is swallowed —
+        transcription never breaks audio, the session, or the
+        receive loop.
+
+        Deliberately no live chunk streaming: the GUI streams
+        assistant chunks only (its _on_transcript_chunk ignores
+        non-assistant roles), and the local path likewise emits
+        one bubble per utterance — the finished transcription
+        is the ruling's "transcribed on screen", and interim
+        text would need GUI work the ruling does not require.
+        """
+        try:
+            _in_tr = getattr(
+                server_content, "input_transcription", None)
+            if _in_tr is not None:
+                _chunk = getattr(_in_tr, "text", None) or ""
+                if _chunk:
+                    self._input_transcript_buf += _chunk
+                if getattr(_in_tr, "finished", False):
+                    self._flush_input_transcript()
+            if getattr(server_content, "turn_complete", False):
+                self._flush_input_transcript()
         except Exception:  # noqa: BLE001 — transcription never breaks audio
             pass
 
@@ -721,6 +807,13 @@ class GeminiLiveSessionReceiveMixin:
                         self._handle_output_transcription(
                             server_content)
 
+                        # User input transcription (round-3 fix
+                        # #5, #56): accumulate the user's spoken
+                        # words; flush once per utterance (see
+                        # _handle_input_transcription).
+                        self._handle_input_transcription(
+                            server_content)
+
                         # P2 speed pass: the turn ended — close
                         # the latency record (idempotent: the
                         # interaction-end note below calls the
@@ -735,6 +828,10 @@ class GeminiLiveSessionReceiveMixin:
                             # Preserve the partial transcribed
                             # reply as one bubble.
                             self._flush_output_transcript()
+                            # Round-3 fix #5 (#56): the barge-in
+                            # itself is a spoken utterance — its
+                            # words show too, as one bubble.
+                            self._flush_input_transcript()
                             self._notify_status("LISTENING")
                             # P2 speed pass: the interruption is
                             # part of the turn's latency record,
@@ -992,6 +1089,34 @@ class GeminiLiveSessionReceiveMixin:
                     return name
             return inner
         return name
+
+    @staticmethod
+    def _observe_args_for_call(fc, observed_name) -> dict:
+        """Round-3 fix #9 (A-RU5): the executed call's arguments
+        for the B12 observer, matching _observe_name_for_call.
+        Direct calls observe under their own name with their own
+        args. A routed call observed under the INNER tool
+        (use_toolbox action=call, route_*) observes with the
+        INNER tool's args, which ride in args["args"] (a JSON
+        string from Live models is parsed, as the funnel does) —
+        so a step declaring inner args is matched against the
+        args the inner tool actually ran with. When the name
+        fell back to the dispatcher (inner call failed), the
+        dispatcher's own args are returned; no step declares a
+        dispatcher name, so nothing completes either way."""
+        args = fc.args if isinstance(getattr(fc, "args", None), dict) \
+            else {}
+        if observed_name != fc.name:
+            inner = args.get("args")
+            if isinstance(inner, str):
+                try:
+                    import json as _json
+
+                    inner = _json.loads(inner)
+                except ValueError:
+                    inner = None
+            return dict(inner) if isinstance(inner, dict) else {}
+        return args
 
     def _record_cancelled_during_execution(self, batch, outcomes,
                                            dispatched, upto=None):
@@ -1348,8 +1473,10 @@ class GeminiLiveSessionReceiveMixin:
 
                 _observe_name = self._observe_name_for_call(fc, result)
                 _observe_result = result
+                _observe_args = self._observe_args_for_call(
+                    fc, _observe_name)
                 _anns = _planner.observe_tool_execution(
-                    _observe_name, _observe_result)
+                    _observe_name, _observe_result, _observe_args)
                 if _anns and isinstance(result, dict):
                     result = dict(result)
                     result["result"] = (

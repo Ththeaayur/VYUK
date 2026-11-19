@@ -904,6 +904,20 @@ def _classify_result(result: Any) -> tuple[str, bool, str]:
         status = result.get("status")
         if status == "success":
             text = str(result.get("result", "") or "")
+            # Round-3 fix Q1: an explicit Outcome verdict outranks
+            # the string heuristic, exactly as in the funnel
+            # dispatch. A failed outcome (the world was re-read and
+            # contradicts the claim) classifies "failed", never
+            # "refused" — a refusal means a gate prevented execution,
+            # and a failed node must block NONE_FAILED triggers,
+            # which a refused node does not. An unverified outcome
+            # stays an honest success (B13). Only a success with no
+            # verdict at all is read by its text.
+            if result.get("outcome_verified") is False:
+                if result.get("outcome_kind") == "failed":
+                    return "failed", False, f"failed: {_short(text)}"
+                if result.get("outcome_kind") == "unverified":
+                    return "success", False, ""
             if is_refusal_text(text):
                 return "refused", False, f"refused: {_short(text)}"
             return "success", False, ""

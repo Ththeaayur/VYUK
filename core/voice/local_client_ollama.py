@@ -173,7 +173,7 @@ class LocalLiveSessionOllamaMixin:
                     last_result = result
                     last_result_text = _feed_text(result)
                     # B12 (v5.45): plan auto-complete announcements.
-                    _anns = planner.observe_tool_execution(name, result)
+                    _anns = planner.observe_tool_execution(name, result, args)
                     for _ann in _anns:
                         if self.on_transcript:
                             self.on_transcript("assistant", _ann)

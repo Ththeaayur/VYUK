@@ -123,6 +123,18 @@ class GeminiLiveSessionLifecycleMixin:
         # reply lands as a single bubble on the existing path.
         # Empty between replies; never fed to audio playback.
         self._output_transcript_buf: str = ""
+        # Round-3 fix #5 (#56): buffer for USER input-
+        # transcription chunks — the mirror of the output
+        # buffer. The server streams a transcription of the
+        # user's spoken words in small pieces; the session
+        # accumulates them and emits ONE on_transcript("user",
+        # ...) per utterance on flush (see
+        # _flush_input_transcript), verbatim as STT heard —
+        # never cleaned up — so the user's words land as a
+        # single "You" bubble on the existing local-path
+        # channel. Empty between utterances; never fed to
+        # audio playback.
+        self._input_transcript_buf: str = ""
         self._ambient_packet: str = ""  # N4: packet this session holds
         # v5.54.1 watchdog stamps (monotonic seconds; None until
         # the session starts): last response-plane activity from
@@ -172,6 +184,24 @@ class GeminiLiveSessionLifecycleMixin:
     def _notify_status(self, status: str):
         if self.on_status_change:
             self.on_status_change(status)
+
+    def _notify_retry(self, detail: str) -> None:
+        """Put a connect retry on screen (round-3 fix #6, #58).
+
+        Every retry point in `_try_candidates` / `start()` calls
+        this instead of only printing + logging: the user watches
+        CONNECTING with no word that a retry is happening. The
+        "CONNECTING:" prefix keeps every status consumer in the
+        connecting presentation — the GUI's `_on_status` CONNECTING
+        branch, the room status word ("thinking"), the orb's
+        CONNECTING swell — while `_on_status` shows the retry
+        words themselves in the state label. `detail` names the
+        real cause (timed out / refused / couldn't resume) —
+        never a fake progress claim. The 45 s envelope is
+        untouched: this only surfaces retries, never extends or
+        resets the deadline.
+        """
+        self._notify_status(f"CONNECTING: retrying — {detail}")
 
     def _build_live_prompt(self, router_prompt: str = "") -> str:
         """The connect-time system prompt (extracted from start(),
@@ -580,17 +610,31 @@ class GeminiLiveSessionLifecycleMixin:
             session_config = types.LiveConnectConfig(
                 response_modalities=["AUDIO"],
                 # Text-replies (v5.94): assistant-side output
-                # transcription ONLY. The model still answers by
+                # transcription. The model still answers by
                 # audio (modality unchanged, voice sounds exactly
                 # as before); the server additionally streams a
                 # transcription of its spoken reply, which the
                 # receive loop turns into one text bubble per
-                # reply. Input transcription is deliberately NOT
-                # enabled — the user's spoken words stay out of
-                # chat, as before. If the server sends no
+                # reply.
+                output_audio_transcription=types.AudioTranscriptionConfig(),
+                # Round-3 fix #5 (#56): user-side input
+                # transcription, per ruling #56 — "what you say
+                # is transcribed on screen as you speak, so
+                # mishearing is visible immediately ... exactly
+                # what the STT heard, never a cleaned-up
+                # version". The server streams a transcription
+                # of the user's spoken words, which the receive
+                # loop turns into one "You" bubble per utterance
+                # on the existing local-path channel (see
+                # _handle_input_transcription). This overturns
+                # the v5.94 "deliberately NOT enabled" — the
+                # ruling's live path now holds. Guards stand:
+                # mic off/denied means no audio is sent, so no
+                # input transcription arrives and nothing is
+                # transcribed. If the server sends no
                 # transcription, nothing changes: voice-only, as
                 # today.
-                output_audio_transcription=types.AudioTranscriptionConfig(),
+                input_audio_transcription=types.AudioTranscriptionConfig(),
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(
                         prebuilt_voice_config=types.PrebuiltVoiceConfig(
@@ -627,6 +671,8 @@ class GeminiLiveSessionLifecycleMixin:
                           "exported — retrying once without it.")
                 print("[Live] Retrying the cloud connect without the "
                       "system proxy.")
+                # Round-3 fix #6 (#58): the retry shows on screen.
+                self._notify_retry("trying again without the system proxy.")
                 self._client = genai.Client(api_key=config.api_key)
                 connected, timed_out, last_rejection = (
                     await self._try_candidates(
@@ -724,6 +770,10 @@ class GeminiLiveSessionLifecycleMixin:
                                   "the saved handle; retrying cold.")
                         print("[Live] Resume attempt stalled; "
                               "retrying this model cold.")
+                        # Round-3 fix #6 (#58): the retry shows on screen.
+                        self._notify_retry(
+                            "the saved session didn't answer, trying "
+                            "this voice model again.")
                         continue
                     timed_out.append(model_id)
                     _log_line(f"Live handshake for '{model_id}' timed "
@@ -732,6 +782,16 @@ class GeminiLiveSessionLifecycleMixin:
                     print(f"[Live] Voice model '{model_id}' timed out "
                           f"after {timeout:g} s; trying the next "
                           "candidate.")
+                    # Round-3 fix #6 (#58): the retry shows on
+                    # screen — but only when there IS a next
+                    # candidate; a timeout on the last one ends
+                    # the pass, and "trying the next one" would
+                    # be a lie there.
+                    if index + 1 < len(candidates):
+                        self._notify_retry(
+                            f"the voice model '{model_id}' timed out "
+                            f"after {timeout:g} s, trying "
+                            f"'{candidates[index + 1]}' next.")
                     break
                 except asyncio.CancelledError:
                     raise
@@ -761,6 +821,10 @@ class GeminiLiveSessionLifecycleMixin:
                               "unavailable in this API mode; "
                               "retrying with handle-based "
                               "resumption only.")
+                        # Round-3 fix #6 (#58): the retry shows on screen.
+                        self._notify_retry(
+                            "the connection refused one resumption "
+                            "option, trying again without it.")
                         continue
                     if resume_pending:
                         # B9 fail-soft: ANY failure of a resumed
@@ -816,6 +880,10 @@ class GeminiLiveSessionLifecycleMixin:
                                   "cleared the saved handle; retrying cold.")
                         print(f"[Live] Resume failed for '{model_id}'; "
                               "retrying cold.")
+                        # Round-3 fix #6 (#58): the retry shows on screen.
+                        self._notify_retry(
+                            f"the saved session for '{model_id}' "
+                            "couldn't be resumed, starting fresh.")
                         continue
                     if (not config_retried
                             and getattr(attempt_config,
@@ -837,6 +905,10 @@ class GeminiLiveSessionLifecycleMixin:
                         print(f"[Live] Voice model '{model_id}' "
                               "rejected the realtime input config; "
                               "retrying without it.")
+                        # Round-3 fix #6 (#58): the retry shows on screen.
+                        self._notify_retry(
+                            f"the voice model '{model_id}' refused one "
+                            "setting, trying again without it.")
                         continue
                     if not _is_model_rejection(e):
                         if _is_already_connected_close(e):
@@ -854,6 +926,15 @@ class GeminiLiveSessionLifecycleMixin:
                     last_rejection = e
                     print(f"[Live] Voice model '{model_id}' was rejected by Google: {e}")
                     _log_line(f"Voice model '{model_id}' rejected by Google: {e}")
+                    # Round-3 fix #6 (#58): the retry shows on
+                    # screen — but only when there IS a next
+                    # candidate; a rejection on the last one ends
+                    # the pass, and "trying the next one" would
+                    # be a lie there.
+                    if index + 1 < len(candidates):
+                        self._notify_retry(
+                            f"the voice model '{model_id}' was refused, "
+                            f"trying '{candidates[index + 1]}' next.")
                     break
                 try:
                     # GAPS-22 (B-V5): the model actually serving —

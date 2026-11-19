@@ -94,6 +94,48 @@ class MindWorldPacksMixin:
             },
             handler=planner.delete_plan,
         )
+        # Round-3 fix #4 (T12): run a saved plan. The plan must
+        # already exist — list_plans shows the saved plans and
+        # their ids; this tool takes only the id, never a goal
+        # or steps, so it can never run a model-invented plan.
+        # Confirm-gated (core/funnel/tool_classification.py):
+        # every run asks the owner first, and no always-allow
+        # covers it. The call approves STARTING the plan, never
+        # its steps: each step keeps its own confirm/allowlist
+        # gate, and a step that needs a confirmation pauses the
+        # plan there. Steps that name their tool run it directly;
+        # plain-language steps are resolved to a tool at run time
+        # by the production executor (the run_anticipation_routine
+        # resolver); a step that cannot be resolved honestly halts
+        # the plan naming the step. A step that runs another plan
+        # or routine, creates or deletes a routine, or calls the
+        # toolbox is refused. The result names every step, what
+        # ran, and where the run stopped.
+        self.register(
+            name="run_plan",
+            description=(
+                "Run a saved plan: walks its steps in order, executing each step's "
+                "tool call. The plan must already exist — use list_plans to see saved "
+                "plans and give its id (e.g. 'plan-1'). SAFETY: running a plan needs "
+                "the owner's confirmation every time — this tool always asks first. "
+                "The call approves STARTING the plan, never its steps: each step keeps "
+                "its own confirm/allowlist gate, and a step that needs a confirmation "
+                "pauses the plan there. Steps that name their tool run it directly; "
+                "plain-language steps are resolved to a tool at run time, and a step "
+                "that cannot be resolved honestly halts the plan naming the step. A step "
+                "that runs another plan or routine, creates or deletes a routine, or "
+                "calls the toolbox is refused. The result names every step, what ran, "
+                "and where the run stopped."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "plan_id": {"type": "string", "description": "The plan id, e.g. 'plan-1' (see list_plans)"}
+                },
+                "required": ["plan_id"],
+            },
+            handler=planner.run_plan_tool,
+        )
         self.register(
             name="save_routine",
             description=(

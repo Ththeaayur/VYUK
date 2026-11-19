@@ -389,7 +389,7 @@ class LocalLiveSessionBuiltinMixin:
                         if self.on_tool_call:
                             self.on_tool_call(bname, bargs, bresult)
                         # B12 (v5.45): plan auto-complete announcements.
-                        _anns = planner.observe_tool_execution(bname, bresult)
+                        _anns = planner.observe_tool_execution(bname, bresult, bargs)
                         for _ann in _anns:
                             if self.on_transcript:
                                 self.on_transcript("assistant", _ann)
@@ -662,7 +662,7 @@ class LocalLiveSessionBuiltinMixin:
                     self.on_tool_call(name, args, result)
                 # B12 (v5.45): plan auto-complete announcements ride
                 # the fed-back result and the transcript.
-                _anns = planner.observe_tool_execution(name, result)
+                _anns = planner.observe_tool_execution(name, result, args)
                 for _ann in _anns:
                     if self.on_transcript:
                         self.on_transcript("assistant", _ann)
