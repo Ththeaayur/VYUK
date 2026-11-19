@@ -132,10 +132,15 @@ def _is_marker_row(entry: dict) -> bool:
 
 def _chain_file_unreadable() -> bool:
     """True when the chain file exists with content but no line
-    parses — the all-garbage case the tolerant reader skips
-    silently (its torn-line tolerance is by design, so a file
-    with SOME valid lines is readable, not broken). Missing or
-    empty file is healthy: False. Never raises."""
+    parses as a record — the all-garbage case the tolerant reader
+    skips silently (its torn-line tolerance is by design, so a file
+    with SOME valid lines is readable, not broken). A line only
+    counts as parseable when it parses as a JSON object: a JSON
+    array or bare string is garbage, not a record (round-3 C3-F1
+    — the section-C garbage includes "[1, 2, 3]" and a bare
+    string, which used to count as parseable and silenced the
+    marker). Missing or empty file is healthy: False. Never
+    raises."""
     try:
         from . import audit_chain
 
@@ -150,10 +155,11 @@ def _chain_file_unreadable() -> bool:
                 continue
             nonblank += 1
             try:
-                json.loads(line)
-                parseable += 1
+                parsed = json.loads(line)
             except ValueError:
                 continue
+            if isinstance(parsed, dict):
+                parseable += 1
         return nonblank > 0 and parseable == 0
     except Exception:  # noqa: BLE001 — the check must never
         return False  # break the feed

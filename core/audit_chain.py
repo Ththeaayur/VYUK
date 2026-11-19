@@ -57,6 +57,7 @@ Stdlib only. No new dependency.
 
 import hashlib
 import json
+import logging
 import os
 import threading
 import time
@@ -66,6 +67,7 @@ from pathlib import Path
 from . import store_base
 
 log_name = "nova.audit_chain"
+_log = logging.getLogger(log_name)
 
 # The genesis constant: the prev_hash of the very first entry.
 # Published here on purpose — it is a fixed starting point, not
@@ -152,24 +154,88 @@ def _entry_hash(seq: int, event_id: str, ts: str, kind: str,
                                      prev_hash)
 
 
-def _read_lines(path: Path) -> list[dict]:
-    """Parse a store file, skipping a torn last line (crash
-    mid-append) the way core/audit.py's reader does."""
-    entries: list[dict] = []
+def _read_lines_detailed(path: Path) -> list[tuple[int, dict | None]]:
+    """Non-blank lines of a store file, in file order, as
+    (0-based line number, parsed entry or None).
+
+    A line is an entry only when it parses as JSON AND is a dict
+    (a JSON array or bare string is garbage, not a record — the
+    same notion _read_lines has always used). None marks an
+    unparseable line: a torn write, or a destroyed file. Read
+    paths keep skipping those lines; verify_chain_detail()
+    treats any unparseable line as a break. append() refuses
+    only on a destroyed chain (zero parseable entries — the fork
+    case, round-3 C3-F1 rework); a partial tear still has valid
+    entries to chain from, so the append continues from the last
+    valid one while verify keeps naming the break."""
+    lines: list[tuple[int, dict | None]] = []
     if not path.exists():
-        return entries
+        return lines
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
+        for line_no, line in enumerate(f):
             line = line.strip()
             if not line:
                 continue
             try:
                 obj = json.loads(line)
             except ValueError:
+                lines.append((line_no, None))
                 continue  # torn / partial line: skipped, never fatal
             if isinstance(obj, dict):
-                entries.append(obj)
-    return entries
+                lines.append((line_no, obj))
+            else:
+                lines.append((line_no, None))
+    return lines
+
+
+def _read_lines(path: Path) -> list[dict]:
+    """Parse a store file, skipping a torn last line (crash
+    mid-append) the way core/audit.py's reader does."""
+    return [e for _, e in _read_lines_detailed(path)
+            if e is not None]
+
+
+def _corrupt_lines(path: Path) -> tuple[int, list[int]]:
+    """(non-blank line count, line numbers of the unparseable
+    ones) for a store file. (0, []) when the file is missing,
+    empty, or blank-only — a genuinely empty ledger is healthy,
+    only non-blank unparseable content is corruption."""
+    detailed = _read_lines_detailed(path)
+    bad = [n for n, e in detailed if e is None]
+    return len(detailed), bad
+
+
+# The last refused append (round-3 C3-F1): append() returns ""
+# on failure by design, so the reason a corrupt file was
+# refused has to live somewhere the caller — and a test — can
+# read it. None when no refusal has happened in this process.
+_last_refusal: dict | None = None
+
+
+def last_append_refusal() -> dict | None:
+    """The last append refusal on a corrupt ledger, if any:
+    {path, reason, nonblank_lines, unparseable_lines,
+    first_bad_line}. Never raises."""
+    return dict(_last_refusal) if _last_refusal is not None else None
+
+
+def _refuse_corrupt(path: Path, nonblank: int, bad: list[int]) -> str:
+    """Record an honest refusal to append to a corrupt ledger
+    (round-3 C3-F1) and return "" — the append's failure value.
+    Names the file and the state; never deletes, overwrites or
+    moves the corrupt bytes."""
+    global _last_refusal
+    reason = (
+        f"refused: ledger file {path} is corrupt — "
+        f"{len(bad)} of {nonblank} non-blank line(s) unparseable "
+        f"(first bad line {bad[0]}); append refused so the "
+        f"corrupt bytes are preserved, not forked into a new chain")
+    _last_refusal = {"path": str(path), "reason": reason,
+                     "nonblank_lines": nonblank,
+                     "unparseable_lines": len(bad),
+                     "first_bad_line": bad[0]}
+    _log.error("audit_chain.append %s", reason)
+    return ""
 
 
 def _file_sha256(path: Path) -> str:
@@ -182,9 +248,41 @@ def _file_sha256(path: Path) -> str:
 
 def append(kind: str, data: dict) -> str:
     """Append one event to the chain. Returns its id, or "" on
-    failure (a failing write never raises to the caller)."""
+    failure (a failing write never raises to the caller).
+
+    Round-3 C3-F1: when the live ledger file is a DESTROYED
+    chain (non-blank lines, zero parseable entries) the append
+    is REFUSED ("" + a logged, readable refusal — see
+    last_append_refusal()) instead of silently forking a fresh
+    chain at seq 0 after the garbage. A fork would make the
+    destroyed events unrecoverable AND invisible (verify would
+    attest the fresh chain); a refusal leaves the corrupt bytes
+    intact and the chain verdict not-ok, so the loss stays
+    visible. Rework (2026-11-20): the refusal is narrowed to
+    the destroyed chain only. On a PARTIAL tear (some valid
+    entries plus torn lines) there is no fork — the append
+    continues from the last valid entry (seq continues,
+    prev_hash chains from its hash), the torn bytes stay in the
+    file untouched, and verify still reports the break, so a
+    crash mid-append can never leave the chain stuck. A missing
+    / empty / blank-only file is a healthy empty chain and
+    appends as before."""
     if not isinstance(data, dict):
         return ""
+    # Corruption check BEFORE rotation: rotating a corrupt file
+    # would archive the garbage behind a fresh checkpoint and
+    # launder the loss the same way a fork would. Refuse ONLY a
+    # destroyed chain (zero parseable entries — the fork case,
+    # round-3 C3-F1 rework): a partial tear still has valid
+    # entries to chain from, so the append continues below from
+    # the last valid entry while verify keeps naming the break.
+    try:
+        _nonblank, _bad = _corrupt_lines(store_path())
+        if _bad and _nonblank == len(_bad):
+            return _refuse_corrupt(store_path(), _nonblank, _bad)
+    except Exception:  # noqa: BLE001 — a failed corruption scan
+        pass  # must never break the call; the in-lock check below
+        # is the backstop and runs on the same data.
     # v5.56 (Wave 2, PF-15): rotation is AUTOMATIC — when the live
     # store already crosses a bound, it rotates BEFORE this entry
     # is written, so no manual cleanup is ever needed AND the
@@ -205,7 +303,15 @@ def append(kind: str, data: dict) -> str:
         path = store_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         with _lock:
-            entries = _read_lines(path)
+            _detailed = _read_lines_detailed(path)
+            _bad = [n for n, e in _detailed if e is None]
+            if _bad and len(_detailed) == len(_bad):
+                # Backstop for a file corrupted between the
+                # pre-rotation scan and this write — destroyed
+                # chain only (round-3 C3-F1 rework); a partial
+                # tear continues from the last valid entry below.
+                return _refuse_corrupt(path, len(_detailed), _bad)
+            entries = [e for _, e in _detailed if e is not None]
             seq = (entries[-1]["seq"] + 1) if entries else 0
             prev = entries[-1]["hash"] if entries else GENESIS_PREV_HASH
             event_id = uuid.uuid4().hex
@@ -213,7 +319,23 @@ def append(kind: str, data: dict) -> str:
             h = _entry_hash(seq, event_id, ts, kind, data, prev)
             record = {"seq": seq, "id": event_id, "ts": ts, "kind": kind,
                       "data": data, "prev_hash": prev, "hash": h}
+            # A crash mid-append can leave a torn LAST line with no
+            # trailing newline. Writing the new record straight
+            # after it would merge the two lines into one
+            # unparseable line and swallow the new entry — the
+            # chain would not actually continue. Terminate the
+            # torn line first: the torn bytes themselves stay
+            # untouched and still unparseable, so verify keeps
+            # naming the break, and the new record lands on its
+            # own line, chained from the last valid entry.
+            _needs_terminator = False
+            if path.exists() and path.stat().st_size > 0:
+                with open(path, "rb") as _rf:
+                    _rf.seek(-1, 2)
+                    _needs_terminator = _rf.read(1) != b"\n"
             with open(path, "a", encoding="utf-8") as f:
+                if _needs_terminator:
+                    f.write("\n")
                 f.write(_canonical(record) + "\n")
                 f.flush()
                 os.fsync(f.fileno())
@@ -247,32 +369,63 @@ def verify_chain_detail() -> dict:
     {segment, index, id, reason} naming the FIRST bad link:
     a recomputed hash that does not match, a prev_hash that
     does not equal the previous entry's hash, a genesis entry
-    whose prev_hash is not GENESIS_PREV_HASH, or a checkpoint
+    whose prev_hash is not GENESIS_PREV_HASH, a checkpoint
     whose recorded archived hash does not match the segment it
-    names. ``warnings`` lists non-breaking notes (currently only
-    ``archive_missing`` entries for checkpoint-named segments
-    that are no longer on disk).
+    names, or a non-blank line that does not parse as a record
+    (round-3 C3-F1 — a destroyed chain is a broken chain, not
+    an empty one; a missing / empty / blank-only file still
+    verifies ok with checked 0). ``warnings`` lists
+    non-breaking notes (currently only ``archive_missing``
+    entries for checkpoint-named segments that are no longer
+    on disk).
     """
     warnings: list[dict] = []
     checked = 0
-    segments: list[tuple[str, list[dict]]] = []
-    live = _read_lines(store_path())
+    segments: list[tuple[str, list[tuple[int, dict | None]]]] = []
+    live = _read_lines_detailed(store_path())
     # Archived segments, oldest first (filename timestamp order).
     arch = archive_dir()
-    archived: list[tuple[str, list[dict]]] = []
+    archived: list[tuple[str, list[tuple[int, dict | None]]]] = []
     if arch.is_dir():
         for p in sorted(arch.glob("*.jsonl")):
-            archived.append((p.name, _read_lines(p)))
+            archived.append((p.name, _read_lines_detailed(p)))
     # A checkpoint in the live file names its archived segment;
     # verify archived segments first, then the live file, so the
     # reported first break follows chronological order.
-    for name, entries in archived:
-        segments.append((f"archive:{name}", entries))
+    for name, lines in archived:
+        segments.append((f"archive:{name}", lines))
     segments.append(("live", live))
 
     expected_prev = GENESIS_PREV_HASH
-    for segment_name, entries in segments:
-        for i, e in enumerate(entries):
+    for segment_name, lines in segments:
+        # Round-3 C3-F1: a file of pure garbage used to read as a
+        # healthy empty chain (zero parseable entries, ok True).
+        # A destroyed chain is a broken chain, not an empty one:
+        # any non-blank unparseable line is a break, named by its
+        # file line number, and a file with non-blank lines but
+        # zero parseable entries says so in the reason. A missing
+        # / empty / blank-only file still verifies ok with
+        # checked 0. Lines are walked in file order, so the first
+        # break — hash, link, malformed or unparseable — is the
+        # chronologically first one.
+        _parseable = sum(1 for _, e in lines if e is not None)
+        i = -1  # entry index within this segment (parseable only)
+        for line_no, e in lines:
+            if e is None:
+                if _parseable == 0:
+                    reason = (f"unparseable line {line_no}: "
+                              f"{len(lines)} non-blank line(s), "
+                              f"none parseable — destroyed chain, "
+                              f"not an empty one")
+                else:
+                    reason = f"unparseable line {line_no}"
+                return {"ok": False, "checked": checked,
+                        "first_break": {"segment": segment_name,
+                                        "index": line_no,
+                                        "id": None,
+                                        "reason": reason},
+                        "warnings": warnings}
+            i += 1
             checked += 1
             try:
                 seq, eid = e["seq"], e["id"]
@@ -394,7 +547,15 @@ def _rotate(force: bool) -> str:
     if not path.exists():
         return ""
     with _lock:
-        entries = _read_lines(path)
+        _detailed = _read_lines_detailed(path)
+        if any(e is None for _, e in _detailed):
+            # Round-3 C3-F1: never rotate a corrupt file — moving
+            # it to the archive behind a fresh checkpoint would
+            # launder the corruption the same way a forked append
+            # would. The caller (append) refuses first; this is
+            # the backstop for a direct rotate() call.
+            return ""
+        entries = [e for _, e in _detailed if e is not None]
         if not entries:
             return ""
         if not force and not rotation_needed():

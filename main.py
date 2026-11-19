@@ -234,6 +234,33 @@ def main():
     window = MainWindow(service_host=ServiceHost())
     window.show()
 
+    # Corrupt memory DB (round-3 C3-F2): if the memory store found
+    # data/assistant.db damaged at import, it quarantined the file
+    # and started fresh — the app must say so plainly and offer the
+    # repair, instead of starting silent on an empty memory. Yes
+    # tries to recover the facts (never deletes the old file); No
+    # starts fresh and records the choice next to the kept file.
+    # Guarded end to end — a notice failure must never break the
+    # launch (the store itself already imported cleanly).
+    try:
+        from voice_assistant.core.memory.memory import (
+            memory_store as _memory_store)
+
+        if _memory_store.corrupt_db_detected:
+            _recover = HudDialog.confirm(
+                window, "VYUK",
+                _memory_store.corruption_notice(),
+                default=True)
+            if _recover:
+                _repaired = _memory_store.repair_from_quarantine()
+                HudDialog.information(
+                    window, "VYUK",
+                    _memory_store.repair_notice(_repaired))
+            else:
+                _memory_store.declare_quarantine_lost()
+    except Exception as exc:  # noqa: BLE001 — startup survives
+        print(f"[memory] corrupt-DB notice failed: {exc}")
+
     # Deferred startup checks (Fix 6, 2026-11-05 — see the integrity
     # note above): the install-tree hash (0.74 s in the lab) runs
     # here, on a daemon thread AFTER first paint, so the launch

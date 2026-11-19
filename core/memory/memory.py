@@ -6,6 +6,8 @@ Uses local SQLite for facts, user preferences, and conversation history.
 import re
 import sqlite3
 import threading
+import time
+from pathlib import Path
 from typing import Any
 
 from ..config import DB_PATH  # Phase 3 M2h: config stays flat in core/
@@ -101,13 +103,243 @@ def _clean_source(source) -> str:
     return text if text in FACT_SOURCES else "unknown"
 
 
+class MemoryStoreUnavailableError(RuntimeError):
+    """The store file could not be opened AND could not be moved
+    aside, so no memory is available at all. Raised by _execute
+    instead of the raw sqlite error, naming the file."""
+
+
 class MemoryStore:
     def __init__(self, db_path=DB_PATH):
         self.db_path = str(db_path)
         self._lock = threading.Lock()
-        self._init_db()
+        # Round-3 C3-F2: a corrupt DB must never kill the import.
+        # Set by _init_db's guard below; healthy stores stay False.
+        self.corrupt_db_detected = False
+        self.corruption_error = None
+        self.quarantine_path = None
+        self._store_unusable = False
+        self._repair_result = None
+        try:
+            self._init_db()
+        except sqlite3.DatabaseError as exc:
+            # Corruption only: "file is not a database" /
+            # "database disk image is malformed". OperationalError
+            # is a SUBCLASS of DatabaseError, so a locked or
+            # read-only DB arrives here too — and a merely busy or
+            # unwritable file must NEVER be quarantined: only a
+            # file sqlite itself calls corrupt is moved aside.
+            # Anything else re-raises exactly as before.
+            message = str(exc).lower()
+            if ("not a database" not in message
+                    and "malformed" not in message):
+                raise
+            self.corrupt_db_detected = True
+            self.corruption_error = str(exc)
+            if self._quarantine_corrupt_db():
+                # Fresh, empty store on the same path; the original
+                # bytes live in the quarantine file for repair.
+                self._init_db()
+            else:
+                # The corrupt file could not be moved aside, so no
+                # fresh store can be created either. Import still
+                # succeeds; every operation raises the named error.
+                self._store_unusable = True
+
+    def _quarantine_corrupt_db(self) -> bool:
+        """Move the corrupt file aside, never delete it. Returns
+        True when the path is clear for a fresh store. The
+        quarantine name carries a timestamp; a same-second repeat
+        gets a counter so an earlier quarantine is never
+        overwritten. Sidecar files (-wal/-shm/-journal) move with
+        it when present — they are part of the same DB state."""
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        base = Path(self.db_path)
+        candidate = base.with_name(
+            f"{base.name}.corrupt-{stamp}")
+        n = 0
+        while candidate.exists():
+            n += 1
+            candidate = base.with_name(
+                f"{base.name}.corrupt-{stamp}-{n}")
+        try:
+            base.rename(candidate)
+            for suffix in ("-wal", "-shm", "-journal"):
+                sidecar = Path(str(self.db_path) + suffix)
+                if sidecar.exists():
+                    sidecar.rename(
+                        Path(str(candidate) + suffix))
+        except OSError:
+            return False
+        self.quarantine_path = str(candidate)
+        return True
+
+    def corruption_notice(self) -> str:
+        """Plain-words startup notice for a quarantined DB, naming
+        the file, what happened to it, and the choices. Empty on a
+        healthy store — callers check corrupt_db_detected first."""
+        if not self.corrupt_db_detected:
+            return ""
+        if self._store_unusable:
+            return (
+                "Your memory file "
+                f"({self.db_path}) was damaged and could not be "
+                "opened, and it could not be moved aside either, so "
+                "your remembered facts are unavailable right now. "
+                f"The error was: {self.corruption_error}. Nothing "
+                "was deleted — fix or remove the file and restart "
+                "VYUK to try again.")
+        return (
+            "Your memory file "
+            f"({self.db_path}) was damaged and could not be opened, "
+            "so VYUK started with a fresh, empty memory. Your old "
+            "file was kept safe as "
+            f"{Path(self.quarantine_path).name} — nothing was "
+            "deleted. Would you like to try recovering your "
+            "remembered facts from it? (Choosing No starts fresh — "
+            "your old file stays kept either way.)")
+
+    def repair_notice(self, result: dict) -> str:
+        """Plain-words outcome of repair_from_quarantine."""
+        if result.get("nothing_to_repair"):
+            return ("There is no damaged memory file to recover "
+                    "from — this memory was never recovered from a "
+                    "corrupt file.")
+        if not result.get("readable"):
+            return (
+                "The damaged file could not be read at all — it is "
+                "not a usable database, so no facts could be "
+                "recovered from it. Your old file is still kept as "
+                f"{Path(self.quarantine_path).name} in case it can "
+                "be examined later.")
+        return (
+            f"Recovered {result['facts_recovered']} remembered "
+            f"fact(s), {result['episodes_recovered']} episode(s) "
+            f"and {result['logs_recovered']} conversation log(s) "
+            "from the damaged file. Anything that could not be "
+            "read is still in "
+            f"{Path(self.quarantine_path).name} — nothing was "
+            "deleted.")
+
+    def repair_from_quarantine(self) -> dict:
+        """Try to recover facts, episodes and conversation logs
+        from the quarantined file into the fresh store. Read-only
+        on the quarantine; facts merge with INSERT OR IGNORE so a
+        fact saved since the fresh start always wins, and logs /
+        episodes are skipped when an identical row already exists,
+        so running the repair twice never duplicates anything.
+        Never raises for an unreadable quarantine — that is a
+        result (readable False), not an exception. A repeated call
+        in this process returns the first result."""
+        if self._repair_result is not None:
+            return dict(self._repair_result)
+        if not self.quarantine_path:
+            result = {"nothing_to_repair": True, "readable": None,
+                      "facts_recovered": 0, "episodes_recovered": 0,
+                      "logs_recovered": 0}
+            self._repair_result = result
+            return dict(result)
+        result = {"nothing_to_repair": False, "readable": False,
+                  "facts_recovered": 0, "episodes_recovered": 0,
+                  "logs_recovered": 0}
+        # Per-table reads: a partially damaged file still gives up
+        # whatever table is readable (facts outlive a damaged
+        # episodes page). A garbage file fails every table and
+        # reports readable False — that is a result, not an error.
+        tables = {}
+        try:
+            conn = sqlite3.connect(
+                f"file:{self.quarantine_path}?mode=ro", uri=True)
+            conn.row_factory = sqlite3.Row
+            try:
+                for name, sql in (
+                        ("facts",
+                         "SELECT category, key, value, source "
+                         "FROM facts"),
+                        ("episodes",
+                         "SELECT date, ts, kind, text FROM episodes"),
+                        ("logs",
+                         "SELECT role, content, timestamp "
+                         "FROM conversation_logs")):
+                    try:
+                        tables[name] = [dict(r) for r in
+                                        conn.execute(sql)]
+                    except sqlite3.Error:
+                        tables[name] = None
+            finally:
+                conn.close()
+        except sqlite3.Error:
+            self._repair_result = result
+            return dict(result)
+        if all(v is None for v in tables.values()):
+            self._repair_result = result
+            return dict(result)
+        result["readable"] = True
+        for row in tables.get("facts") or []:
+            landed = self._execute(
+                "INSERT OR IGNORE INTO facts "
+                "(category, key, value, source) VALUES (?, ?, ?, ?)",
+                (row.get("category") or "general",
+                 row.get("key") or "",
+                 row.get("value") or "",
+                 row.get("source") or "unknown"))
+            result["facts_recovered"] += 1 if landed else 0
+        for row in tables.get("episodes") or []:
+            exists = self._execute(
+                "SELECT COUNT(*) AS n FROM episodes WHERE date = ? "
+                "AND ts = ? AND kind = ? AND text = ?",
+                (row.get("date"), row.get("ts"),
+                 row.get("kind"), row.get("text")),
+                fetch_one=True)
+            if not (exists or {}).get("n"):
+                self._execute(
+                    "INSERT INTO episodes (date, ts, kind, text) "
+                    "VALUES (?, ?, ?, ?)",
+                    (row.get("date"), row.get("ts"),
+                     row.get("kind"), row.get("text")))
+                result["episodes_recovered"] += 1
+        for row in tables.get("logs") or []:
+            exists = self._execute(
+                "SELECT COUNT(*) AS n FROM conversation_logs "
+                "WHERE role = ? AND content = ? AND timestamp = ?",
+                (row.get("role"), row.get("content"),
+                 row.get("timestamp")),
+                fetch_one=True)
+            if not (exists or {}).get("n"):
+                self._execute(
+                    "INSERT INTO conversation_logs "
+                    "(role, content, timestamp) VALUES (?, ?, ?)",
+                    (row.get("role"), row.get("content"),
+                     row.get("timestamp")))
+                result["logs_recovered"] += 1
+        self._repair_result = result
+        return dict(result)
+
+    def declare_quarantine_lost(self) -> bool:
+        """The user chose 'Start fresh': record the choice next to
+        the quarantine file. The quarantined bytes are NOT deleted
+        — the declaration says the facts in it are accepted as
+        lost, and repair stays possible until the file itself is
+        removed. Returns False when there is no quarantine."""
+        if not self.quarantine_path:
+            return False
+        marker = Path(self.quarantine_path + ".LOST")
+        marker.write_text(
+            "The user chose 'Start fresh' on "
+            f"{time.strftime('%Y-%m-%d %H:%M:%S')}: the facts in "
+            f"{Path(self.quarantine_path).name} are declared lost. "
+            "The file itself is kept so nothing is destroyed; "
+            "repair is still possible until the file is deleted.\n",
+            encoding="utf-8")
+        return True
 
     def _execute(self, query: str, params: tuple = (), fetch: bool = False, fetch_one: bool = False):
+        if self._store_unusable:
+            raise MemoryStoreUnavailableError(
+                "Memory is unavailable: the memory file "
+                f"({self.db_path}) was damaged and could not be "
+                "moved aside, so no fresh memory could be created. "
+                f"The error was: {self.corruption_error}")
         with self._lock:
             conn = sqlite3.connect(self.db_path, check_same_thread=False)
             conn.row_factory = sqlite3.Row
