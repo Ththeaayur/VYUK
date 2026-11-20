@@ -5,8 +5,12 @@ saved routines, as plain functions returning human-readable strings.
 Plans live in data/plans.json, routines in data/routines.json —
 plain JSON files next to data/activity.log, so a human can read or
 edit them with any text editor. Persistence is corruption-tolerant:
-a missing or malformed file simply reads as "empty", never a crash,
-and saves are atomic-ish (write to a temp file, then replace).
+a missing file simply reads as "empty", never a crash, and saves
+are atomic-ish (write to a temp file, then replace). A corrupt
+FILE is different from a missing one: it reads as empty too, but
+the damage is disclosed (log line + a note in the list/save
+results) and the next save sets the damaged file aside first —
+never silently replaced, never deleted (round-3 C3-F3).
 Corrupt ENTRIES are tolerated the same way: _load_plans() /
 _load_routines() validate every record at the load boundary and
 skip the malformed ones, disclosing how many were ignored — one

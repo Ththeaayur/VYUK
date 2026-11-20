@@ -261,6 +261,61 @@ def main():
     except Exception as exc:  # noqa: BLE001 — startup survives
         print(f"[memory] corrupt-DB notice failed: {exc}")
 
+    # Corrupt permission-grants store (round-3 C3-F3): if the
+    # grants file is damaged, permissions read as their safe
+    # defaults (microphone/camera denied) with no signal — the
+    # app must say so plainly and offer to set the damaged file
+    # aside and start fresh, instead of leaving the user
+    # wondering why the mic stays off. Yes quarantines the file
+    # (bytes kept alongside) so Settings can be set again; No
+    # leaves the file in place and the notice repeats next
+    # launch. Guarded end to end — a notice failure must never
+    # break the launch.
+    try:
+        from voice_assistant.core import permission_grants as _pg
+
+        if _pg.corruption_state() is not None:
+            _quarantine = HudDialog.confirm(
+                window, "VYUK",
+                _pg.corruption_notice(),
+                default=True)
+            if _quarantine:
+                _kept = _pg.quarantine_corrupt_store()
+                HudDialog.information(
+                    window, "VYUK",
+                    "Your permission settings will start fresh — the "
+                    f"damaged file was set aside as {_kept or 'a backup'} "
+                    "so nothing was deleted. Set your permissions "
+                    "again in Settings.")
+    except Exception as exc:  # noqa: BLE001 — startup survives
+        print(f"[grants] corrupt-store notice failed: {exc}")
+
+    # Corrupt settings file (round-3 C3-F3): if Nova.conf is
+    # damaged, every setting reads as its default with no
+    # signal — the app must say so plainly and offer to set the
+    # damaged file aside and start fresh. Same shape as the
+    # grants notice above: Yes quarantines the file (bytes kept
+    # alongside); No leaves it in place and the notice repeats
+    # next launch (the next settings change would quarantine it
+    # anyway). Guarded end to end.
+    try:
+        from voice_assistant.core import config_spec as _cs
+
+        if _cs.qsettings_corruption_state() is not None:
+            _quarantine = HudDialog.confirm(
+                window, "VYUK",
+                _cs.qsettings_corruption_notice(),
+                default=True)
+            if _quarantine:
+                _kept = _cs.qsettings_quarantine_corrupt()
+                HudDialog.information(
+                    window, "VYUK",
+                    "Your settings will start fresh — the damaged "
+                    f"file was set aside as {_kept or 'a backup'} "
+                    "so nothing was deleted.")
+    except Exception as exc:  # noqa: BLE001 — startup survives
+        print(f"[settings] corrupt-conf notice failed: {exc}")
+
     # Deferred startup checks (Fix 6, 2026-11-05 — see the integrity
     # note above): the install-tree hash (0.74 s in the lab) runs
     # here, on a daemon thread AFTER first paint, so the launch

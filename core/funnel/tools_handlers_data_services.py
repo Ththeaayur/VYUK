@@ -767,8 +767,28 @@ def write_file_bytes(filepath: str, content: str,
             except Exception:  # noqa: BLE001 — never break the write
                 pass
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as handle:
-            handle.write(expected)
+        # C3-F5 (2026-11-20): the write is atomic — temp file in
+        # the same directory + os.replace, the scheduler /
+        # skills_text pattern — so a failure mid-write (ENOSPC)
+        # leaves the old file byte-identical (or no file at all
+        # for a new path), never a truncated partial the next
+        # read would present as the file. The temp file is
+        # removed on any failure; the failure itself still
+        # reaches the loud failed outcome below.
+        import tempfile
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent), prefix=path.name + ".",
+            suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(expected)
+            os.replace(tmp_name, path)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
         _ok, _evidence = _outcome.file_written(path, expected)
         if not _ok:
             if append and existed:

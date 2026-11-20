@@ -20,6 +20,8 @@ from .planner_storage import (
     _now,
     _save_list,
     _short,
+    corrupt_note,
+    take_quarantine_notice,
 )
 from ..funnel.tool_result import (
     LEGACY_ERROR_STATUS as _LEGACY_ERROR_STATUS,
@@ -523,6 +525,9 @@ def create_plan(goal: str, steps=None) -> str:
         lines.append(f"  {i + 1}. {s['text']}{via}")
     if damaged:
         lines.append(_damaged_note(damaged))
+    qnote = take_quarantine_notice(_PLANS_PATH)
+    if qnote:
+        lines.append(qnote)
     return "\n".join(lines)
 
 
@@ -530,9 +535,15 @@ def create_plan(goal: str, steps=None) -> str:
 def list_plans() -> str:
     """List all plans with step progress."""
     plans, damaged = _load_plans()
+    cnote = corrupt_note(_PLANS_PATH)
     if not plans:
         base = "No plans yet. Create one with create_plan."
-        return f"{base}\n{_damaged_note(damaged)}" if damaged else base
+        notes = []
+        if damaged:
+            notes.append(_damaged_note(damaged))
+        if cnote:
+            notes.append(cnote)
+        return f"{base}\n" + "\n".join(notes) if notes else base
     lines = [f"{len(plans)} plan(s):"]
     for p in plans:
         done, total = _progress(p)
@@ -540,6 +551,8 @@ def list_plans() -> str:
         lines.append(f"  {p.get('id')}: {p.get('goal')} ({done}/{total} steps done){state}")
     if damaged:
         lines.append(_damaged_note(damaged))
+    if cnote:
+        lines.append(cnote)
     return "\n".join(lines)
 
 
@@ -557,7 +570,13 @@ def get_plan(plan_id: str) -> str:
     plan = _find_plan(plans, plan_id)
     if plan is None:
         msg = f"No plan found with id '{plan_id}'. Use list_plans to see existing plans."
-        return f"{msg}\n{_damaged_note(damaged)}" if damaged else msg
+        notes = []
+        if damaged:
+            notes.append(_damaged_note(damaged))
+        cnote = corrupt_note(_PLANS_PATH)
+        if cnote:
+            notes.append(cnote)
+        return f"{msg}\n" + "\n".join(notes) if notes else msg
     marks = {"done": "✓", "skipped": "–", "pending": "•"}
     done, total = _progress(plan)
     lines = [f"Plan {plan.get('id')}: {plan.get('goal')} ({done}/{total} done)"]
@@ -567,6 +586,9 @@ def get_plan(plan_id: str) -> str:
     lines.append("Step numbers start at 1 — use them with update_plan_step.")
     if damaged:
         lines.append(_damaged_note(damaged))
+    cnote = corrupt_note(_PLANS_PATH)
+    if cnote:
+        lines.append(cnote)
     return "\n".join(lines)
 
 
@@ -643,7 +665,13 @@ def _set_step_status(plan_id, step_index, status: str) -> str:
     plan = _find_plan(plans, plan_id)
     if plan is None:
         msg = f"No plan found with id '{plan_id}'. Use list_plans to see existing plans."
-        return f"{msg}\n{_damaged_note(damaged)}" if damaged else msg
+        notes = []
+        if damaged:
+            notes.append(_damaged_note(damaged))
+        cnote = corrupt_note(_PLANS_PATH)
+        if cnote:
+            notes.append(cnote)
+        return f"{msg}\n" + "\n".join(notes) if notes else msg
     try:
         idx = int(step_index)
     except (TypeError, ValueError):
@@ -693,11 +721,19 @@ def delete_plan(plan_id: str) -> str:
     plan = _find_plan(plans, plan_id)
     if plan is None:
         msg = f"No plan found with id '{plan_id}'. Use list_plans to see existing plans."
-        return f"{msg}\n{_damaged_note(damaged)}" if damaged else msg
+        notes = []
+        if damaged:
+            notes.append(_damaged_note(damaged))
+        cnote = corrupt_note(_PLANS_PATH)
+        if cnote:
+            notes.append(cnote)
+        return f"{msg}\n" + "\n".join(notes) if notes else msg
     plans.remove(plan)
     if not _save_list(_PLANS_PATH, plans):
         return "Could not delete the plan: failed to write data/plans.json."
-    return f"Plan {plan.get('id')} deleted: \"{plan.get('goal')}\"."
+    result = f"Plan {plan.get('id')} deleted: \"{plan.get('goal')}\"."
+    qnote = take_quarantine_notice(_PLANS_PATH)
+    return f"{result}\n{qnote}" if qnote else result
 
 
 
@@ -793,7 +829,13 @@ def run_plan_tool(plan_id: str) -> str:
                "to see existing plans — a plan must already be "
                "saved before it can be run; this tool never "
                "invents or creates one.")
-        return f"{msg}\n{_damaged_note(damaged)}" if damaged else msg
+        notes = []
+        if damaged:
+            notes.append(_damaged_note(damaged))
+        cnote = corrupt_note(_PLANS_PATH)
+        if cnote:
+            notes.append(cnote)
+        return f"{msg}\n" + "\n".join(notes) if notes else msg
 
     async def _pick(step, plan_dict):
         # Resolve-only: the walk executes. The executor raises

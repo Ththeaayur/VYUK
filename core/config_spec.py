@@ -74,10 +74,14 @@ The QSettings reads themselves are IN this module now (GAPS-11).
 from __future__ import annotations
 
 import dataclasses
+import datetime
+import logging
 import os
 import typing
 from dataclasses import dataclass, field, fields
 from typing import Any, Callable, Mapping
+
+log = logging.getLogger(__name__)
 
 CONFIG_VERSION = 1
 CONFIG_VERSION_KEY = "VYUK_CONFIG_VERSION"
@@ -824,17 +828,25 @@ QSETTINGS_KEY_FOR_NAME: dict[str, str] = {
 }
 
 
-def qsettings_store():
-    """The single QSettings("NovaAI", "Nova") construction site.
+def qsettings_store(path=None):
+    """The single QSettings construction site.
 
     Lazy import — this module must never import PySide6 at module
     top (system python3 has no PySide6). Raises ImportError when
     Qt is absent; the helpers degrade instead of raising (get
     returns the table default, set/remove raise RuntimeError).
-    Every product-code construction goes through here."""
+    Every product-code construction goes through here.
+
+    `path` is the persistence probe's explicit INI file only:
+    the probe reads a temp copy of the conf, so its store must
+    be built on a different path — same-path stores share the
+    writer's in-process cache and would report the unflushed
+    value. Production always calls this with no argument."""
     from PySide6.QtCore import QSettings  # noqa: PLC0415 — lazy Qt
 
-    return QSettings("NovaAI", "Nova")
+    args = ("NovaAI", "Nova") if path is None else (
+        path, QSettings.Format.IniFormat)
+    return QSettings(*args)
 
 
 def _qsettings_resolve(settings):
@@ -929,6 +941,308 @@ def _qsettings_coerce_for_write(value, typ, key):
     return value
 
 
+# ---------------------------------------------------------------------------
+# Corrupt-conf disclosure + quarantine (round-3 C3-F3)
+#
+# QSettings returns table defaults on a corrupt conf with no
+# signal — and a set silently replaced the file. Qt's own status()
+# does NOT catch every corrupt file (garbage with no '[' parses
+# as NoError; only an unclosed section header trips FormatError),
+# so the detector reads the file itself: a configparser probe
+# (dummy section prepended, so top-level keys parse) fails on
+# garbage and on a truncated mid-line file, and passes a healthy
+# QSettings-written conf (verified against real Qt output,
+# including % values and escaped quotes). The probe is pure
+# Python — no Qt needed to judge the bytes. A genuinely MISSING
+# conf is still a healthy empty store (missing != corrupt) and
+# the happy path is untouched: the verdict is cached per
+# (path, mtime, size), so a healthy file is probed once.
+# ---------------------------------------------------------------------------
+_QSETTINGS_CORRUPTION: dict[str, dict] = {}
+_QSETTINGS_CORRUPTION_LOGGED: set[str] = set()
+_QSETTINGS_HEALTHY: dict[str, tuple[int, int]] = {}
+
+
+def _qsettings_file_problem(path: str) -> str | None:
+    """Why the conf file on disk is not a usable store, or None.
+
+    None means healthy-or-missing. A file that does not parse
+    as INI is a problem string. Read-only: never writes. The
+    healthy verdict is cached per (mtime_ns, size) so repeated
+    reads do not re-parse the file."""
+    try:
+        stat = os.stat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        return f"unreadable ({exc})"
+    if _QSETTINGS_HEALTHY.get(path) == (stat.st_mtime_ns, stat.st_size):
+        return None
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        return f"unreadable ({exc})"
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return f"not valid UTF-8 ({exc})"
+    import configparser  # noqa: PLC0415 — stdlib, local to the probe
+
+    parser = configparser.ConfigParser(strict=False)
+    try:
+        parser.read_string("[__top__]\n" + text)
+    except configparser.Error as exc:
+        return f"not a valid settings file ({type(exc).__name__})"
+    _QSETTINGS_HEALTHY[path] = (stat.st_mtime_ns, stat.st_size)
+    return None
+
+
+def _qsettings_note_corrupt(path: str, problem: str) -> None:
+    """Record a corrupt conf file (first detection only).
+
+    The log line names the file and the problem; the sticky
+    record is what qsettings_corruption_state() /
+    qsettings_corruption_notice() read."""
+    if path not in _QSETTINGS_CORRUPTION:
+        _QSETTINGS_CORRUPTION[path] = {
+            "path": path,
+            "error": problem,
+            "detected_at": datetime.datetime.now().isoformat(
+                timespec="seconds"),
+        }
+    if path not in _QSETTINGS_CORRUPTION_LOGGED:
+        _QSETTINGS_CORRUPTION_LOGGED.add(path)
+        log.warning("settings file %s looks damaged (%s); settings "
+                    "read as their defaults until repaired",
+                    path, problem)
+
+
+def _qsettings_check_corrupt(store) -> dict | None:
+    """Record a corrupt conf file for `store`, or None.
+
+    The verdict comes from the file bytes, never from the
+    store object's status() — a stale FormatError on a store
+    whose file was already replaced must not re-flag a healthy
+    file. A store with no file path (in-memory) has nothing on
+    disk to be corrupt. Returns the sticky record, or None."""
+    if store is None:
+        return None
+    try:
+        path = str(store.fileName() or "")
+    except Exception:  # noqa: BLE001 — a store without a path
+        return None
+    if not path:
+        return None
+    record = _QSETTINGS_CORRUPTION.get(path)
+    if record is not None:
+        return record
+    problem = _qsettings_file_problem(path)
+    if problem is None:
+        return None
+    _qsettings_note_corrupt(path, problem)
+    return _QSETTINGS_CORRUPTION.get(path)
+
+
+def qsettings_corruption_state(settings=None) -> dict | None:
+    """A copy of the corruption record for the store, or None.
+
+    Probes the file when nothing is recorded yet, so a caller
+    that never read a setting still gets a live answer. A
+    missing or healthy conf reads None (healthy empty). No Qt
+    and no injected store: None (nothing to check)."""
+    store = _qsettings_resolve(settings)
+    if store is None:
+        return None
+    record = _qsettings_check_corrupt(store)
+    return dict(record) if record is not None else None
+
+
+def qsettings_corruption_notice(settings=None) -> str:
+    """Plain-words notice for a corrupt conf file, or "".
+
+    Names the file and the choice (set it aside and start
+    fresh, or leave it). A healthy or missing conf has no
+    notice. Settings keep reading as their defaults either
+    way — the file is never silently replaced."""
+    record = qsettings_corruption_state(settings)
+    if record is None:
+        return ""
+    name = os.path.basename(record["path"])
+    return (f"Your settings file ({name}) looks damaged and could "
+            f"not be read ({record['error']}), so your settings are "
+            f"showing their defaults. Nothing was deleted: the "
+            f"damaged file is kept as-is. Set it aside and start "
+            f"fresh?")
+
+
+def qsettings_quarantine_corrupt(settings=None) -> str | None:
+    """Move a corrupt conf file aside, keeping its exact bytes.
+
+    The name is `<name>.corrupt-<YYYYMMDD-HHMMSS>` next to the
+    file (counter suffix on a same-second repeat), the C3-F2
+    shape. Returns the quarantine name, or None when there is
+    nothing corrupt to set aside or the rename itself fails. The
+    store then reads as a healthy empty one."""
+    record = qsettings_corruption_state(settings)
+    if record is None:
+        return None
+    path = record["path"]
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = f"{path}.corrupt-{stamp}"
+    n = 2
+    while os.path.exists(target):
+        target = f"{path}.corrupt-{stamp}-{n}"
+        n += 1
+    try:
+        os.replace(path, target)
+    except OSError as exc:
+        log.warning("could not set aside damaged settings file %s "
+                    "(%s)", path, exc)
+        return None
+    _QSETTINGS_CORRUPTION.pop(path, None)
+    _QSETTINGS_CORRUPTION_LOGGED.discard(path)
+    _QSETTINGS_HEALTHY.pop(path, None)
+    log.warning("damaged settings file %s set aside as %s",
+                path, target)
+    return os.path.basename(target)
+
+
+def reset_qsettings_corruption() -> None:
+    """Clear the sticky corruption records + healthy cache.
+    Tests only: production never forgets a corrupt file."""
+    _QSETTINGS_CORRUPTION.clear()
+    _QSETTINGS_CORRUPTION_LOGGED.clear()
+    _QSETTINGS_HEALTHY.clear()
+
+
+# Sentinel for "the key must be absent after this write" (a
+# remove), passed to _qsettings_persisted below.
+_QSETTINGS_ABSENT = object()
+
+
+def _qsettings_status_name(store) -> str | None:
+    """The store's status() as a plain name, or None.
+
+    Real QSettings always has status(); the dict-backed test
+    doubles have no status and no on-disk failure to report, so
+    they report nothing. The name comparison keeps this module
+    free of a top-level PySide6 import (Qt is lazy here):
+    "NoError" / "AccessError" / "FormatError"."""
+    status = getattr(store, "status", None)
+    if status is None:
+        return None
+    try:
+        result = status()
+    except Exception:  # noqa: BLE001 — a store that cannot
+        return None  # report its status cannot have failed loudly
+    return getattr(result, "name", None) or str(result)
+
+
+def _qsettings_persisted(store, key: str, expected) -> bool:
+    """Whether the key's post-write state is on disk, read back
+    from the FILE BYTES.
+
+    status() is sticky for the writing store's lifetime: a
+    store that once read a corrupt file still reports
+    FormatError after a successful sync, and one that once hit
+    a directory still reports AccessError (proven by probe —
+    the file is written correctly either way, and a second
+    sync never clears the status). Only the bytes on disk can
+    tell a stale error from a failed write — and a fresh
+    QSettings on the SAME path cannot be the reader, because
+    Qt shares the settings cache per path within a process
+    (proven by probe: a fresh store returns the unflushed
+    value while the file does not even exist). So the bytes
+    are read back through a QSettings on a TEMP COPY of the
+    file — a different path, so no shared cache — and Qt does
+    its own unescaping, so exotic strings compare correctly.
+    True when the copy agrees with what was just written (or
+    the key is absent after a remove), False when it disagrees
+    or the file is missing after a set. True when the store has
+    no file to read back (an in-memory store) — its sync
+    cannot fail the way a file's can."""
+    try:
+        path = str(store.fileName() or "")
+    except Exception:  # noqa: BLE001 — a store without a path
+        return True
+    if not path:
+        return True
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+    except FileNotFoundError:
+        # No file: a set persisted nothing; a remove left
+        # nothing behind.
+        return expected is _QSETTINGS_ABSENT
+    except OSError:
+        return False
+    import tempfile  # noqa: PLC0415 — stdlib, local to the probe
+
+    try:
+        fd, tmp = tempfile.mkstemp(prefix="nova_qs_check_",
+                                   suffix=".conf")
+    except OSError:
+        return False
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(raw)
+        try:
+            probe = qsettings_store(tmp)
+        except ImportError:
+            # No Qt on this interpreter: the bytes cannot be
+            # re-read, so the errored write is treated as not
+            # persisted — the same loud outcome.
+            return False
+        if expected is _QSETTINGS_ABSENT:
+            return not probe.contains(key)
+        got = probe.value(key, None)
+        if got is None:
+            return False
+        _name, typ, default = _QSETTINGS_BY_KEY[key]
+        return _qsettings_coerce(got, typ, default) == expected
+    except Exception:  # noqa: BLE001 — an unreadable copy is
+        return False  # not proof the write persisted
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def _qsettings_sync_or_raise(store, key: str, action: str,
+                             old, expected) -> None:
+    """Flush the store and honour the loud-write contract.
+
+    `action` is "write" / "remove" for the error sentence;
+    `old` is the value the key held BEFORE the write (captured
+    by the caller); `expected` is the value the key must hold
+    after it (or _QSETTINGS_ABSENT for a remove). A sync that
+    cannot persist (read-only HOME) leaves the in-memory value
+    looking set while the file on disk is unchanged — so the
+    pre-write value is put back in the store (a removed key is
+    re-set, a set key is restored to what it was) and a
+    RuntimeError names the key and the QSettings status. A
+    healthy sync changes nothing: no extra write, no extra
+    sync, no fresh-store read (the read-back runs only when
+    the writing store reports an error)."""
+    store.sync()
+    status = _qsettings_status_name(store)
+    if status is None or status == "NoError":
+        return
+    if _qsettings_persisted(store, key, expected):
+        return
+    if old is None:
+        store.remove(key)
+    else:
+        store.setValue(key, old)
+    raise RuntimeError(
+        f"cannot {action} QSettings key {key!r}: the settings "
+        f"file could not be saved (QSettings status {status})")
+
+
 def qsettings_get(key: str, settings=None):
     """Read a QSettings key through the spec table.
 
@@ -939,13 +1253,19 @@ def qsettings_get(key: str, settings=None):
     parameter is the injection seam: tests pass a temp store, and
     call sites that hold a store (the shell frame's self.settings,
     SettingsStore, the w9 store) pass it through so a replaced
-    store is honoured."""
+    store is honoured.
+
+    Round-3 C3-F3: a corrupt conf file still reads as the table
+    default (QSettings gives nothing better), but the corruption
+    is now disclosed — _qsettings_check_corrupt records it (log
+    line + qsettings_corruption_state) instead of silence."""
     if key not in _QSETTINGS_BY_KEY:
         raise KeyError(f"unknown QSettings key: {key!r} (not in the spec)")
     _name, typ, default = _QSETTINGS_BY_KEY[key]
     store = _qsettings_resolve(settings)
     if store is None:
         return default
+    _qsettings_check_corrupt(store)
     raw = store.value(key, None)
     if raw is None:
         return default
@@ -960,7 +1280,13 @@ def qsettings_set(key: str, value, settings=None) -> None:
     so the table default returns afterwards. No Qt and no
     injected store: raises RuntimeError — a write that cannot
     persist must be loud. Syncs after the write (the old _qs_set
-    / SettingsStore.write contract)."""
+    / SettingsStore.write contract).
+
+    Round-3 C3-F4: the sync is checked — a status other than
+    NoError (read-only HOME) raises RuntimeError naming the key
+    and the status, and the store is rolled back to the value
+    the key held before the write, so get() never presents a
+    value that never persisted."""
     if key not in _QSETTINGS_BY_KEY:
         raise KeyError(f"unknown QSettings key: {key!r} (not in the spec)")
     _name, typ, _default = _QSETTINGS_BY_KEY[key]
@@ -969,11 +1295,24 @@ def qsettings_set(key: str, value, settings=None) -> None:
         raise RuntimeError(
             f"cannot write QSettings key {key!r}: Qt is not available "
             "(no injected store)")
+    # Round-3 C3-F3: a corrupt conf file is quarantined first
+    # (original bytes kept alongside) — a set never silently
+    # replaces it. When the quarantine itself fails, the write is
+    # refused loudly rather than destroying the old file.
+    if _qsettings_check_corrupt(store) is not None:
+        if qsettings_quarantine_corrupt(settings) is None:
+            raise RuntimeError(
+                f"cannot write QSettings key {key!r}: the settings "
+                f"file looks damaged and could not be set aside")
+    old = store.value(key, None)
     if value is None:
         store.remove(key)
+        expected = _QSETTINGS_ABSENT
     else:
-        store.setValue(key, _qsettings_coerce_for_write(value, typ, key))
-    store.sync()
+        written = _qsettings_coerce_for_write(value, typ, key)
+        store.setValue(key, written)
+        expected = written
+    _qsettings_sync_or_raise(store, key, "write", old, expected)
 
 
 def qsettings_contains(key: str, settings=None) -> bool:
@@ -991,6 +1330,7 @@ def qsettings_contains(key: str, settings=None) -> bool:
     store = _qsettings_resolve(settings)
     if store is None:
         return False
+    _qsettings_check_corrupt(store)
     return bool(store.contains(key))
 
 
@@ -999,7 +1339,11 @@ def qsettings_remove(key: str, settings=None) -> None:
 
     Unknown keys raise KeyError. No Qt and no injected store:
     raises RuntimeError (same contract as set). Syncs after the
-    remove."""
+    remove. Round-3 C3-F4: the sync is checked the same way as
+    set — a status other than NoError raises RuntimeError
+    naming the key and the status, and the removed value is put
+    back in the store, so the key never looks removed when the
+    removal never persisted."""
     if key not in _QSETTINGS_BY_KEY:
         raise KeyError(f"unknown QSettings key: {key!r} (not in the spec)")
     store = _qsettings_resolve(settings)
@@ -1007,5 +1351,14 @@ def qsettings_remove(key: str, settings=None) -> None:
         raise RuntimeError(
             f"cannot remove QSettings key {key!r}: Qt is not available "
             "(no injected store)")
+    # Round-3 C3-F3: same quarantine-first rule as set — a
+    # remove never silently replaces a corrupt conf file.
+    if _qsettings_check_corrupt(store) is not None:
+        if qsettings_quarantine_corrupt(settings) is None:
+            raise RuntimeError(
+                f"cannot remove QSettings key {key!r}: the settings "
+                f"file looks damaged and could not be set aside")
+    old = store.value(key, None)
     store.remove(key)
-    store.sync()
+    _qsettings_sync_or_raise(store, key, "remove", old,
+                             _QSETTINGS_ABSENT)

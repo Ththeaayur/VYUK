@@ -427,8 +427,27 @@ def write_file_with_undo(path: str, content: str, *, append: bool = False,
         parent = os.path.dirname(os.path.abspath(path))
         if parent:
             os.makedirs(parent, exist_ok=True)
-        with open(path, "wb") as handle:
-            handle.write(new_bytes)
+        # C3-F5 (2026-11-20): the write is atomic — temp file in
+        # the same directory + os.replace, the scheduler /
+        # skills_text pattern — so a failure mid-write (ENOSPC)
+        # leaves the old file byte-identical (or no file at all
+        # for a new path), never a truncated partial the undo
+        # record would then disagree with. The temp file is
+        # removed on any failure.
+        import tempfile
+        fd, tmp_name = tempfile.mkstemp(
+            dir=parent, prefix=os.path.basename(path) + ".",
+            suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(new_bytes)
+            os.replace(tmp_name, path)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
         with open(path, "rb") as handle:
             if handle.read() != new_bytes:
                 return {"ok": False,

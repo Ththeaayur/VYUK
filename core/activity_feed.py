@@ -238,7 +238,9 @@ def _read_observability() -> list[dict]:
         for kind, rec in _cost_mod.live_record_degraded_state().items():
             count = rec.get("count", 0)
             last = str(rec.get("last_error") or "")[:80]
-            text = (f"Cost ledger degraded: {count} Live cost "
+            label = {"live": "Live", "local": "Local",
+                     "cloud_text": "Cloud text"}.get(kind, kind)
+            text = (f"Cost ledger degraded: {count} {label} cost "
                     "row(s) lost"
                     + (f" (last: {last})" if last else "")
                     + " — the cost cap totals undercount.")

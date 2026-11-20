@@ -112,6 +112,23 @@ def _cdp_fetch_json(port: int, path: str, timeout: float = 1.5):
         return json.loads(resp.read().decode("utf-8", "replace"))
 
 
+def _cdp_port_answers(port: int, timeout: float = 1.0) -> bool:
+    """True when a DevTools endpoint answers on ``port`` — a
+    /json/version or /json/list reply (a toggle-mode server 404s
+    /json/version, so the list is tried too). False when nothing
+    answers (port closed / not yet up). This is the C2-F1 probe:
+    whether the endpoint answers is the authority on whether a
+    Chrome is reachable — a process name is not. Never raises."""
+    for path in ("/json/version", "/json/list"):
+        try:
+            data = _cdp_fetch_json(port, path, timeout=timeout)
+        except Exception:  # noqa: BLE001 — no answer on this path
+            continue
+        if isinstance(data, (dict, list)):
+            return True
+    return False
+
+
 def _cdp_handshake(port: int) -> dict | None:
     """The endpoint's identity papers: {version, targets} from
     /json/version + /json/list, or None when nothing answers
@@ -401,23 +418,77 @@ def _read_devtools_active_port(profile_dir):
     return port if 1024 <= port <= 65535 else None
 
 
+def _is_browser_cmdline(cmdline) -> bool:
+    """True when ``cmdline`` looks like a Chrome BROWSER process's
+    launch — as opposed to a helper's, or a stray namesake's.
+    A helper (renderer / gpu / zygote / network / utility / ...) is
+    identified positively by a ``--type=`` flag. A positional
+    argument must look like something Chrome accepts — a flag, a
+    URL, or a file path; a bare token (a sleep duration, a stray
+    word) is not a browser launch. "Looks like a URL or a path"
+    means it carries a colon (a scheme or a host:port — so
+    about:blank and localhost:9334 count), a slash or backslash,
+    or a dot (a domain or a file extension). Residual risks,
+    stated plainly:
+    a real Chrome launched with a bare-word search query
+    (``chrome hello``) reads as not-a-browser, and a process named
+    chrome with no arguments at all reads as one — both are vanishingly
+    rare, and the remedy the diagnosis prescribes (Enable browser
+    control, which launches a fresh debug Chrome) still works
+    either way.
+    ``cmdline`` None (no cmdline info — a seam/mock, or psutil
+    could not read it) counts as a browser: absence of evidence is
+    not evidence of being a helper. An empty cmdline is a
+    zombie/defunct process — dead, not running."""
+    if cmdline is None:
+        return True
+    if not cmdline:
+        return False
+    for arg in cmdline[1:]:
+        if arg == "--type" or arg.startswith("--type="):
+            return False
+    for arg in cmdline[1:]:
+        if arg.startswith("-"):
+            continue
+        if (":" in arg or "/" in arg or "\\" in arg
+                or "." in arg):
+            continue
+        return False
+    return True
+
+
 def _chrome_running():
-    """True/False whether a Chrome process is alive, None when
-    it cannot be told (no psutil AND no tasklist answer).
+    """True/False whether a Chrome BROWSER process is alive, None
+    when it cannot be told (no psutil AND no tasklist answer).
     Moved here from browser_enable (GAPS-3) so the attach path
     can use it too; browser_enable re-exports the name, so its
     seam patches keep working. psutil is a declared tree
     dependency, imported lazily; tasklist is the Windows stdlib
-    fallback. Never raises."""
+    fallback. Never raises.
+    C2-F1: "a Chrome process is alive" means the BROWSER process,
+    not any process with a Chrome name. SIGKILLing the browser
+    leaves its helpers (renderer / gpu / zygote / ...) alive for a
+    moment, all still named chrome — a name-only scan reads True
+    for a dead browser and the attach failure blames the Chrome 136
+    wall. So the psutil path requires a browser-shaped command
+    line (_is_browser_cmdline): no --type= helper flag, and every
+    positional argument a URL or a path. The tasklist fallback
+    (Windows, psutil missing) can only see names, so it may still
+    read True for leftover helpers — a known weak fallback, kept
+    only so a psutil-less install degrades to the old answer
+    instead of no answer."""
     try:
         import psutil
 
-        for proc in psutil.process_iter(["name"]):
+        for proc in psutil.process_iter(["name", "cmdline"]):
             try:
-                name = (proc.info.get("name") or "").strip().lower()
+                info = proc.info or {}
+                name = (info.get("name") or "").strip().lower()
+                cmdline = info.get("cmdline")
             except Exception:  # noqa: BLE001 — one dead proc
                 continue
-            if name in _CHROME_PROC_NAMES:
+            if (name in _CHROME_PROC_NAMES
+                    and _is_browser_cmdline(cmdline)):
                 return True
         return False
     except ImportError:

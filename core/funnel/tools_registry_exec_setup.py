@@ -348,15 +348,21 @@ class ToolRegistryExecSetupMixin:
                     # call — surface it, don't swallow it.
                     _note_obs_failure("receipts")
                 if ctx._receipt_attempt is not None:
+                    # C2-F2 (2026-11-20): the outcome row records
+                    # the ACT's outcome, not the dispatch — a
+                    # failed act reads "failed" with the cause
+                    # named, never "succeeded" with an empty
+                    # summary. The derivation reads the full
+                    # result (verdict + result string), not just
+                    # the funnel status.
+                    _r_status, _r_summary = (
+                        _receipts_mod.receipt_outcome_for_result(
+                            result,
+                            is_read=getattr(ctx, "_receipt_is_read",
+                                            False)))
                     _outcome_ok = _receipts_mod.try_record_outcome(
                         ctx._receipt_attempt,
-                        status=_receipts_mod.funnel_status_to_receipt(
-                            result.get("status", "")
-                            if isinstance(result, dict) else "",
-                            result.get("kind", "")
-                            if isinstance(result, dict) else ""),
-                        summary=result.get("message", "")
-                        if isinstance(result, dict) else "")
+                        status=_r_status, summary=_r_summary)
                     if not _outcome_ok:
                         _note_obs_failure("receipts")
             except Exception:  # noqa: BLE001 — receipts never break

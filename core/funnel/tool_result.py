@@ -43,6 +43,7 @@ without a cycle.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 STATUSES = ("success", "failure", "refused", "timeout", "unknown",
@@ -173,6 +174,70 @@ def is_refusal_text(text: Any) -> bool:
     if not isinstance(text, str):
         return False
     return is_refusal_marker_text(text) or is_refusal_opener_text(text)
+
+
+# Failure sentences (round-3 section C, C2-F2) — the plain-string
+# failure reports handlers actually return ("Browser action
+# failed: couldn't search for ...", "Download failed: ...",
+# "File operation 'delete' failed: ...", "The transcription
+# failed inside the model runtime ..."). A handler that returns
+# one of these as a plain string has already said the act
+# failed; the funnel still treats the string as a success
+# payload (plain strings pass through with verified=None), so
+# the RECEIPT reader is the one place that must not call it a
+# success. The detector is used ONLY for the outcome row — never
+# to change the funnel result the brain sees.
+#
+# Rule: the word "failed" is the sentence's verb, before the
+# first period (or within the first 100 chars), followed by ":"
+# / "(" / "." / " for" / " on" / " inside" / " to" / " at" / end
+# of string. A success sentence that merely MENTIONS a failure
+# mid-text ("1 failed and was retried", "the download failed
+# earlier, but it worked on retry") does not match: after
+# "failed" comes " and" / " earlier", not one of the listed
+# continuations. Residual risk, stated plainly (the same shape
+# as the Q1 refusal-opener risk): a success sentence whose FIRST
+# sentence is shaped like a failure report ("3 files failed to
+# copy, 7 copied ok") will read as failed in the receipts — a
+# wrong label on the durable record, with the full text still
+# visible in the summary; the guard is unaffected either way (a
+# failed outcome resolves the attempt exactly like a succeeded
+# one). Handlers that need certainty should return
+# outcome.failed(...) instead of a sentence.
+_FAILURE_SENTENCE_RE = re.compile(
+    r"^[A-Z][^.]{0,100}?\bfailed\b"
+    r"(?=\s*(?::|\(|\.| for\b| on\b| inside\b| to\b| at\b|$))")
+
+# The ONE not-connected error shape (v5.52 item 5) has no
+# "failed" in it, but it IS a failure sentence: the act did not
+# happen because no browser session is active.
+_FAILURE_OPENERS = (
+    "No controllable browser session is active.",
+)
+
+
+def is_failure_text(text: Any) -> bool:
+    """True when a handler-returned string is a failure sentence.
+
+    Either the whole text starts with one of the _FAILURE_OPENERS
+    or its first sentence is shaped like a failure report (see
+    _FAILURE_SENTENCE_RE). Used ONLY by the receipt outcome
+    writer (core.tool_receipts.receipt_outcome_for_result): the
+    funnel result itself is untouched, so a failure string still
+    reaches the brain as the success payload it always was — the
+    durable record is the only thing that stops calling it a
+    success. An explicit Outcome verdict always wins over this
+    heuristic (see the dispatch and the receipt function): a
+    handler that returned outcome.failed/unverified already said
+    exactly what happened.
+    """
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if any(stripped.startswith(opener)
+           for opener in _FAILURE_OPENERS):
+        return True
+    return bool(_FAILURE_SENTENCE_RE.match(stripped))
 
 
 def is_funnel_shaped(value: Any) -> bool:

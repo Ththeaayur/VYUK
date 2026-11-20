@@ -206,14 +206,22 @@ class ToolRegistryExecDispatchMixin:
                 ctx.name, "error: receipt attempt failed — not run")
             ctx._audit_gate["value"] = "refused:receipt-unavailable"
             ctx._obs_failures.append("receipts")
+            # C3-F7 (2026-11-20): name the cause-specific remedy —
+            # a full disk is fixed by freeing space, not by
+            # rotating the receipts file.
+            try:
+                from .. import tool_receipts as _rcpt_mod
+                _remedy = _rcpt_mod.receipt_failure_remedy("attempt")
+            except Exception:  # noqa: BLE001 — remedy never breaks
+                _remedy = ("Repair or rotate data/tool_receipts.jsonl "
+                           "and retry.")
             return ctx._audited({
                 "status": "refused", "kind": "refused",
                 "message": (
                     f"Refused: the tool-receipt store could not "
                     f"record this call to '{ctx.name}' before dispatch, "
                     f"so its outcome could not be evidenced — "
-                    f"nothing was run. Repair or rotate "
-                    f"data/tool_receipts.jsonl and retry.")})
+                    f"nothing was run. {_remedy}")})
 
     def _exec_mark_dispatched(self, ctx):
         # Regression batch (R2): mark the attempt dispatched
@@ -237,6 +245,15 @@ class ToolRegistryExecDispatchMixin:
                 _marked = False
             if not _marked:
                 ctx._audit_gate["value"] = "refused:receipt-unavailable"
+                # C3-F7 (2026-11-20): name the cause-specific remedy
+                # — a full disk is fixed by freeing space, not by
+                # rotating the receipts file.
+                try:
+                    from .. import tool_receipts as _rcpt_mod
+                    _remedy = _rcpt_mod.receipt_failure_remedy("mark")
+                except Exception:  # noqa: BLE001 — remedy never breaks
+                    _remedy = ("Repair or rotate "
+                               "data/tool_receipts.jsonl and retry.")
                 return ctx._audited({
                     "status": "refused", "kind": "refused",
                     "message": (
@@ -244,8 +261,7 @@ class ToolRegistryExecDispatchMixin:
                         f"not mark this call to '{ctx.name}' as "
                         f"dispatched, so its outcome could not "
                         f"be evidenced — nothing was run. "
-                        f"Repair or rotate "
-                        f"data/tool_receipts.jsonl and retry.")})
+                        f"{_remedy}")})
 
     def _exec_deadline_legs(self, ctx):
         ctx._deadline = deadline_for(ctx.name, ctx.args)

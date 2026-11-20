@@ -327,6 +327,16 @@ def _cost_preflight_or_raise(model: str, prompt_text: str) -> None:
         pass
 
 
+def _cost_ledger_db_path() -> str:
+    """The ledger file the record sites write to, for the loss
+    log line. Never raises: falls back to the default filename
+    when the ledger itself cannot be built."""
+    try:
+        return str(_cost_ledger().db_path)
+    except Exception:  # noqa: BLE001
+        return _cost_ledger_mod.DEFAULT_DB_FILENAME
+
+
 def _cost_record(parsed: Any, model: str, prompt_text: str) -> None:
     """One ledger row per completed Groq call: exact when the
     reply carried a usage block, estimated otherwise."""
@@ -342,8 +352,24 @@ def _cost_record(parsed: Any, model: str, prompt_text: str) -> None:
                 completion_text = msg["content"]
         _cost_ledger().record_from_usage(
             "cloud_text", model, usage, prompt_text, completion_text)
-    except Exception:  # noqa: BLE001 — ledger failure never breaks a turn
-        pass
+    except Exception as exc:  # noqa: BLE001 — ledger failure
+        # never breaks a turn. C3-F6: a lost row means the cap
+        # totals undercount, so the loss is logged and the
+        # ledger is marked degraded — the Activity feed surfaces
+        # it (same shape as the Live hook, field-check fix #2).
+        try:
+            _log_line(
+                "Cloud-text cost row lost: the turn's spend was "
+                "not recorded (%s: %s) — ledger %s; the cost cap "
+                "totals undercount until this is fixed."
+                % (type(exc).__name__, str(exc).strip(),
+                   _cost_ledger_db_path()))
+        except Exception:  # noqa: BLE001 - the log must never raise
+            pass
+        try:
+            _cost_ledger_mod.note_record_failure("cloud_text", exc)
+        except Exception:  # noqa: BLE001 - the note must never raise
+            pass
 
 
 def _groq_temperature() -> float:

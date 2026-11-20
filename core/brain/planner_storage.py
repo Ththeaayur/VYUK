@@ -14,9 +14,12 @@ resolves to the same directory (B24 updater pattern).
 
 import datetime
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"  # Phase 3 B2-remainder: one level deeper in core/brain/
 _PLANS_PATH = _DATA_DIR / "plans.json"
@@ -31,12 +34,23 @@ def _now() -> str:
 
 
 def _load_list(path: Path) -> list:
-    """Read a JSON list from disk. Missing/corrupt/wrong-type -> []."""
+    """Read a JSON list from disk. Missing/wrong-type -> [].
+
+    A corrupt FILE (unparseable JSON, unreadable) also reads [] —
+    but unlike a missing file it is DISCLOSED: _note_corrupt
+    records it (log line + sticky state, see store_corruption),
+    so a caller can say so instead of reporting "none saved"."""
     try:
         raw = path.read_text(encoding="utf-8")
         data = json.loads(raw)
-        return data if isinstance(data, list) else []
-    except Exception:  # noqa: BLE001 — corrupt state must never crash a tool
+        if isinstance(data, list):
+            return data
+        _note_corrupt(path, "not a JSON list")
+        return []
+    except FileNotFoundError:
+        return []
+    except Exception as exc:  # noqa: BLE001 — corrupt state never crashes
+        _note_corrupt(path, f"not valid JSON ({exc})")
         return []
 
 
@@ -56,6 +70,12 @@ def _save_list(path: Path, data: list) -> bool:
     claimed fixed here."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Round-3 C3-F3: a corrupt file on disk must never be
+        # silently replaced by a fresh write — quarantine it
+        # first (original bytes kept alongside), or refuse.
+        if path.exists() and _file_problem(path) is not None:
+            if _quarantine_file(path) is None:
+                return False
         fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".",
                                         dir=str(path.parent))
         try:
@@ -79,6 +99,168 @@ def _damaged_note(count: int) -> str:
     if count == 1:
         return "Note: 1 damaged record was ignored."
     return f"Note: {count} damaged records were ignored."
+
+
+# ---------------------------------------------------------------------------
+# Corrupt-FILE disclosure + quarantine (round-3 C3-F3)
+#
+# _load_records counts bad ENTRIES, not a bad FILE — a wholly corrupt
+# file used to load as zero records ("No routines saved yet") with no
+# disclosure anywhere, and the next save silently destroyed it for
+# good. The shape is the C3-F2 memory-DB precedent, adapted to a
+# JSON list store: disclose (log line + sticky state + a note in
+# the tool results), quarantine before any re-write, never delete
+# the corrupt bytes. A genuinely MISSING file is still a healthy
+# empty store (missing != corrupt) and the happy path is untouched.
+# ---------------------------------------------------------------------------
+_CORRUPT: dict[str, dict] = {}
+_CORRUPT_LOGGED: set[str] = set()
+
+
+def _file_problem(path: Path) -> str | None:
+    """Why the file on disk is not a usable store, or None.
+
+    None means healthy-or-missing: a missing file is a healthy
+    empty store, a valid JSON list is a healthy store. A JSON
+    parse failure, a non-list top level, or an unreadable file
+    is a problem string. Read-only: never writes, never notes."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        return f"unreadable ({exc})"
+    try:
+        data = json.loads(raw)
+    except ValueError as exc:
+        return f"not valid JSON ({exc})"
+    if not isinstance(data, list):
+        return "not a JSON list"
+    return None
+
+
+def _note_corrupt(path: Path, problem: str) -> None:
+    """Record a corrupt file (first detection only per process).
+
+    The log line names the file and the problem; the sticky
+    record is what the tool results and the repair surface read.
+    A later healthy read does not clear it — the file on disk
+    is still corrupt until it is quarantined or replaced."""
+    key = str(path)
+    if key not in _CORRUPT:
+        _CORRUPT[key] = {
+            "path": key,
+            "error": problem,
+            "detected_at": _now(),
+            "quarantine_path": None,
+        }
+    if key not in _CORRUPT_LOGGED:
+        _CORRUPT_LOGGED.add(key)
+        log.warning("planner store %s looks damaged (%s); reads as "
+                    "empty until repaired", path, problem)
+
+
+def store_corruption(path: Path) -> dict | None:
+    """A copy of the corruption record for `path`, or None.
+
+    Probes the file when nothing is recorded yet, so a caller
+    that never loaded the store still gets a live answer. A
+    missing or healthy file reads None (healthy empty)."""
+    key = str(path)
+    record = _CORRUPT.get(key)
+    if record is None:
+        problem = _file_problem(path)
+        if problem is not None:
+            _note_corrupt(path, problem)
+            record = _CORRUPT.get(key)
+    return dict(record) if record is not None else None
+
+
+def corruption_notice(path: Path) -> str:
+    """Plain-words notice for a corrupt store file, or "".
+
+    Names the file and the quarantine that will happen on the
+    next save; the caller decides the surface (tool result,
+    dialog). A healthy or missing file has no notice."""
+    record = store_corruption(path)
+    if record is None:
+        return ""
+    name = Path(record["path"]).name
+    return (f"Your {name} file looks damaged and could not be read "
+            f"({record['error']}), so it is showing as empty. Nothing "
+            f"was deleted: the file is kept as-is, and the next save "
+            f"will set it aside first.")
+
+
+def corrupt_note(path: Path) -> str:
+    """One-line disclosure for a corrupt store file, or "".
+
+    The tool-result shape (cf. _damaged_note): list/save
+    results append this when the file they read is corrupt."""
+    record = store_corruption(path)
+    if record is None:
+        return ""
+    name = Path(record["path"]).name
+    return (f"Note: {name} could not be read — the file looks damaged "
+            f"({record['error']}). Nothing was deleted: the file is "
+            f"kept as-is, and the next save will set it aside first.")
+
+
+def reset_corruption_state() -> None:
+    """Clear the sticky corruption records + once-per-process log
+    flags. Tests only: production never forgets a corrupt file."""
+    _CORRUPT.clear()
+    _CORRUPT_LOGGED.clear()
+    _LAST_QUARANTINE.clear()
+
+
+# The last quarantine per store path, so a save that set a damaged
+# file aside can say so in its result. Consume-once (see
+# take_quarantine_notice): the saving function is the only reader.
+_LAST_QUARANTINE: dict[str, str] = {}
+
+
+def take_quarantine_notice(path: Path) -> str:
+    """The set-aside note for a save that quarantined `path`, or "".
+
+    Consumes the record: one save, one note. The name is the
+    quarantine file's name (the bytes live next to the store)."""
+    kept = _LAST_QUARANTINE.pop(str(path), None)
+    if kept is None:
+        return ""
+    return (f"Note: the damaged {path.name} was set aside as "
+            f"{Path(kept).name} — nothing was deleted.")
+
+
+def _quarantine_file(path: Path) -> Path | None:
+    """Move a corrupt store file aside, keeping its exact bytes.
+
+    The name is `<name>.corrupt-<YYYYMMDD-HHMMSS>` next to the
+    file (counter suffix on a same-second repeat), the C3-F2
+    shape. The corruption record is cleared — the file on disk
+    is gone, so the store reads as a healthy empty one
+    afterwards — and the quarantine path is left for the saving
+    function to report (see take_quarantine_notice). None (never
+    raising) when the rename itself fails; the caller must then
+    refuse the write."""
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = path.with_name(f"{path.name}.corrupt-{stamp}")
+    n = 2
+    while target.exists():
+        target = path.with_name(f"{path.name}.corrupt-{stamp}-{n}")
+        n += 1
+    try:
+        os.replace(path, target)
+    except OSError as exc:
+        log.warning("could not set aside damaged planner store %s "
+                    "(%s); refusing to overwrite it", path, exc)
+        return None
+    _CORRUPT.pop(str(path), None)
+    _CORRUPT_LOGGED.discard(str(path))
+    _LAST_QUARANTINE[str(path)] = str(target)
+    log.warning("damaged planner store %s set aside as %s",
+                path, target)
+    return target
 
 
 def _valid_plan(entry) -> bool:
@@ -128,7 +310,10 @@ def _load_records(path: Path, validator) -> tuple[list, int]:
     this tolerates corrupt ENTRIES — damaged records are skipped
     and counted (callers disclose the count), never raised on and
     never allowed to take list/get/create down with them. Skipped
-    records drop out of the file on the next successful save."""
+    records drop out of the file on the next successful save. A
+    corrupt FILE reads as zero records with damaged 0 — the file
+    itself is disclosed separately (corrupt_note / store_corruption)
+    and a save quarantines it first (see _save_list)."""
     raw = _load_list(path)
     good = [e for e in raw if validator(e)]
     return good, len(raw) - len(good)

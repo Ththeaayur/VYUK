@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from .browser_cdp import (_real_chrome_attach_allowed, _cdp_port, _cdp_url_for, _REAL_ATTACH_REFUSAL, _chrome_running, _default_chrome_profile_dir, _read_devtools_active_port, _CHROME_136_WALL, _CHROME_136_SHORT)  # GAPS-18: trimmed to the 9 used names
+from .browser_cdp import (_real_chrome_attach_allowed, _cdp_port, _cdp_url_for, _REAL_ATTACH_REFUSAL, _chrome_running, _cdp_port_answers, _default_chrome_profile_dir, _read_devtools_active_port, _CHROME_136_WALL, _CHROME_136_SHORT)  # GAPS-18: trimmed to the 10 used names
 from .browser_engine import browsers_dir, start_playwright  # GAPS-18: the one engine interface
 
 
@@ -550,16 +550,39 @@ def _with_bootstrap(dispatch, *args, **kwargs) -> str:
 
 
 def _attach_failure(port: int, cdp_url: str, exc: Exception) -> str:
-    """The honest attach-failure message (GAPS-3). The old text
-    blamed a missing --remote-debugging-port flag, which is false
-    on Chrome 136+ — the flag is silently ignored on the default
-    profile even when it WAS used. So: name the wall when Chrome
-    is running, name the flag+user-data-dir pairing when it is
-    not, and name the DevToolsActivePort hint when the running
+    """The honest attach-failure message (GAPS-3, C2-F1). The old
+    text blamed a missing --remote-debugging-port flag, which is
+    false on Chrome 136+ — the flag is silently ignored on the
+    default profile even when it WAS used. So: name the wall when
+    Chrome is running, name the flag+user-data-dir pairing when it
+    is not, and name the DevToolsActivePort hint when the running
     Chrome opened a debugging server on another port (the file
     outlives the server, so it is reported as a hint, never as a
-    claim). Never raises."""
+    claim). Never raises.
+    C2-F1: the CDP endpoint is probed FIRST — a process name is
+    not a live browser. SIGKILLing Chrome leaves its helpers
+    alive for a moment, all still named chrome, so the old
+    process-name scan read True for a dead browser and took the
+    "running" branch. When the port answers but the attach failed,
+    Chrome is listening and the failure is something else; when it
+    does not answer, the (browser-shaped) process scan decides
+    between the 136 wall (a browser running with no port) and a
+    dead browser — never "running" on a dead port."""
     base = f"Couldn't attach to Chrome at {cdp_url} ({_short(exc)}). "
+    try:
+        port_answers = _cdp_port_answers(port)
+    except Exception:  # noqa: BLE001 — a probe failure reads as no
+        port_answers = False
+    if port_answers:
+        wall = (
+            f"Chrome is answering on port {port} — it is running and "
+            "its debugging server is listening — but the attach "
+            f"itself failed ({_short(exc)}). Try again, or use "
+            "Settings → Browser control → Enable browser control to "
+            "reconnect.")
+        return (base + wall + " Your real Chrome is the only "
+                "browser I drive, so there is nothing else to fall "
+                "back to.")
     try:
         running = _chrome_running()
     except Exception:  # noqa: BLE001 — a probe failure reads unknown
@@ -575,8 +598,10 @@ def _attach_failure(port: int, cdp_url: str, exc: Exception) -> str:
             "again.")
     elif running is False:
         wall = (
-            "Chrome isn't running. Start it with the connection port "
-            "AND a non-default --user-data-dir — "
+            "Chrome isn't running — nothing is answering on port "
+            f"{port}, and no Chrome browser process is running (it may "
+            "have closed or crashed). Start it with the connection "
+            "port AND a non-default --user-data-dir — "
             f"{_CHROME_136_SHORT} — or use Settings → Browser control "
             "→ Enable browser control, which does both for you.")
     else:

@@ -18,6 +18,8 @@ from .planner_storage import (
     _now,
     _save_list,
     _short,
+    corrupt_note,
+    take_quarantine_notice,
 )
 # INTENTIONAL (skills split B41): plans family lives in
 # core/brain/planner_plans.py; imported, never redefined.
@@ -380,7 +382,13 @@ def save_routine(name: str, actions=None, schedule=None) -> str:
     tool_list = ", ".join(a["tool"] for a in parsed)
     suffix = f" It runs on a schedule: '{record['schedule_text']}'." if record.get("schedule_text") else ""
     result = f"Routine '{name}' {verb} with {len(parsed)} action(s): {tool_list}.{suffix}"
-    return f"{result}\n{_damaged_note(damaged)}" if damaged else result
+    notes = []
+    if damaged:
+        notes.append(_damaged_note(damaged))
+    qnote = take_quarantine_notice(_ROUTINES_PATH)
+    if qnote:
+        notes.append(qnote)
+    return f"{result}\n" + "\n".join(notes) if notes else result
 
 
 
@@ -389,16 +397,25 @@ def list_routines() -> str:
 
     Only well-formed records are listed and counted — a damaged
     record is skipped with a disclosure note, never reported with a
-    phantom action count."""
+    phantom action count. A corrupt FILE is disclosed the same way
+    (never "No routines saved yet" in silence)."""
     routines, damaged = _load_routines()
+    cnote = corrupt_note(_ROUTINES_PATH)
     if not routines:
         base = "No routines saved yet. Create one with save_routine."
-        return f"{base}\n{_damaged_note(damaged)}" if damaged else base
+        notes = []
+        if damaged:
+            notes.append(_damaged_note(damaged))
+        if cnote:
+            notes.append(cnote)
+        return f"{base}\n" + "\n".join(notes) if notes else base
     lines = [f"{len(routines)} routine(s):"]
     for r in routines:
         lines.append(f"  {r.get('name')}: {len(r.get('actions', []))} action(s){_schedule_suffix(r)}")
     if damaged:
         lines.append(_damaged_note(damaged))
+    if cnote:
+        lines.append(cnote)
     return "\n".join(lines)
 
 
@@ -896,8 +913,16 @@ def delete_routine(name: str) -> str:
     routine = _find_routine(routines, name)
     if routine is None:
         msg = f"No routine named '{name}'. Use list_routines to see saved routines."
-        return f"{msg}\n{_damaged_note(damaged)}" if damaged else msg
+        notes = []
+        if damaged:
+            notes.append(_damaged_note(damaged))
+        cnote = corrupt_note(_ROUTINES_PATH)
+        if cnote:
+            notes.append(cnote)
+        return f"{msg}\n" + "\n".join(notes) if notes else msg
     routines.remove(routine)
     if not _save_list(_ROUTINES_PATH, routines):
         return "Could not delete the routine: failed to write data/routines.json."
-    return f"Routine '{routine.get('name')}' deleted."
+    result = f"Routine '{routine.get('name')}' deleted."
+    qnote = take_quarantine_notice(_ROUTINES_PATH)
+    return f"{result}\n{qnote}" if qnote else result

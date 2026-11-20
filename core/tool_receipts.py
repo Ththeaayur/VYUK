@@ -97,6 +97,7 @@ from pathlib import Path  # noqa: F401
 from typing import Any  # noqa: F401
 
 # INTENTIONAL (skills split B17): re-exports of the moved names.
+from .funnel import tool_result as _tool_result
 from .tool_receipts_normalize import (
     _SCHEMA_VERSION,
     _DEFAULT_FILENAME,
@@ -197,6 +198,26 @@ def last_receipt_failure(kind: str) -> dict | None:
     """A copy of one kind's sticky failure record, or None."""
     rec = _failures.get(kind)
     return dict(rec) if rec else None
+
+
+def receipt_failure_remedy(kind: str) -> str:
+    """The remedy a receipt-gate refusal should name for the last
+    failure of one helper kind (C3-F7, 2026-11-20).
+
+    A full disk (ENOSPC) is not fixed by repairing or rotating
+    the receipts file — the remedy is freeing disk space, and the
+    refusal must say so. Any other cause (a corrupt receipts
+    file, an unreadable store) keeps the repair/rotate remedy,
+    which is the right one there; an unknown cause (no sticky
+    failure recorded) keeps it too.
+    """
+    rec = last_receipt_failure(kind)
+    err = str(rec.get("last_error", "")) if rec else ""
+    if "No space left on device" in err or "[Errno 28]" in err:
+        return ("Free up disk space and retry — the disk is full, "
+                "so repairing or rotating the receipts file cannot "
+                "help.")
+    return "Repair or rotate data/tool_receipts.jsonl and retry."
 
 
 def receipt_degraded_state() -> dict:
@@ -418,3 +439,45 @@ def funnel_status_to_receipt(status: str, kind: str) -> str:
         return "refused" if kind in ("refused", "not_confirmed",
                                      "validation", "budget") else "failed"
     return "unknown"
+
+
+def receipt_outcome_for_result(result: Any, *,
+                              is_read: bool = False) -> tuple[str, str]:
+    """(status, summary) for one funnel result dict (C2-F2).
+
+    The outcome row records the ACT's outcome, not the dispatch:
+    a failed act reads "failed" with the cause named, never
+    "succeeded" with an empty summary. Non-success statuses use
+    the pinned funnel_status_to_receipt mapping. A "success"
+    status is refined by the act's own verdict: an explicit
+    Outcome.failed verdict -> "failed" (an unverified one stays
+    an honest success, B13 — the world was not re-read, so the
+    act is not a failure); a plain-string failure sentence ->
+    "failed"; anything else -> "succeeded". The summary is the
+    result's own message, or the act's report string for a
+    successful effectful call; a successful READ keeps an empty
+    summary — its result is data, not a description, and copying
+    it into the receipts file would leak content there.
+    """
+    if not isinstance(result, dict):
+        return "unknown", ""
+    status = result.get("status", "")
+    kind = result.get("kind", "")
+    message = result.get("message")
+    message = message if isinstance(message, str) else ""
+    text = result.get("result")
+    text = text if isinstance(text, str) else ""
+    summary = message or text
+    if status != "success":
+        return funnel_status_to_receipt(status, kind), message
+    verified = result.get("outcome_verified")
+    if verified is not None:
+        # An explicit Outcome verdict already said exactly what
+        # happened; the string heuristic must not override it
+        # (the Q1 rule's own principle).
+        if verified is False and result.get("outcome_kind") == "failed":
+            return "failed", summary
+        return "succeeded", "" if is_read else summary
+    if text and _tool_result.is_failure_text(text):
+        return "failed", text
+    return "succeeded", "" if is_read else summary

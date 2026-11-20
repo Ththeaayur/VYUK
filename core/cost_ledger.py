@@ -100,6 +100,7 @@ __all__ = [
     "extract_usage",
     "live_record_degraded_state",
     "note_live_record_failure",
+    "note_record_failure",
     "record_cloud_text_usage",
     "record_live_usage",
     "record_local_usage",
@@ -123,26 +124,29 @@ DEFAULT_RATES: dict[str, tuple[float, float]] = {
 _BRAIN_CLOUD = ("live", "cloud_text")
 _MEASUREMENTS = ("exact", "estimated")
 
-# Field-check fix #2 (T7 #20): sticky record of Live cost rows
+# Field-check fix #2 (T7 #20): sticky record of cost rows
 # lost to a ledger failure — same shape as the receipt degraded
 # state (core/tool_receipts.py). A lost row means the cap totals
 # undercount, so the loss must be visible (Activity feed marker,
 # readable by the cap check) instead of swallowed by a bare
-# `except: pass`.
+# `except: pass`. One record per brain ("live", "cloud_text",
+# "local") — the Live hook noted its losses here first; C3-F6
+# extends the same record to the local and cloud-text record
+# sites. (The name keeps the original "live" — a test touches
+# this dict directly.)
 _LIVE_RECORD_FAILURES: dict[str, dict[str, Any]] = {}
 
 
-def note_live_record_failure(exc: BaseException) -> None:
-    """Record one lost Live cost row (field-check fix #2, T7 #20).
-    Called by the Live cost hook when record_live_turn raises.
-    Never raises: the note itself must not break the session."""
+def note_record_failure(brain: str, exc: BaseException) -> None:
+    """Record one lost cost row for `brain`. Never raises: the
+    note itself must not break the turn."""
     try:
         now = time.time()
-        rec = _LIVE_RECORD_FAILURES.get("live")
+        rec = _LIVE_RECORD_FAILURES.get(brain)
         if rec is None:
             rec = {"count": 0, "last_error": "", "first_at": now,
                    "last_at": now}
-            _LIVE_RECORD_FAILURES["live"] = rec
+            _LIVE_RECORD_FAILURES[brain] = rec
         rec["count"] += 1
         rec["last_error"] = str(exc)[:200]
         rec["last_at"] = now
@@ -150,11 +154,19 @@ def note_live_record_failure(exc: BaseException) -> None:
         pass
 
 
+def note_live_record_failure(exc: BaseException) -> None:
+    """Record one lost Live cost row (field-check fix #2, T7 #20).
+    Called by the Live cost hook when record_live_turn raises.
+    Never raises: the note itself must not break the session."""
+    note_record_failure("live", exc)
+
+
 def live_record_degraded_state() -> dict[str, dict[str, Any]]:
-    """A COPY of the sticky lost-Live-cost-row record, keyed by
-    brain ("live"). Empty when no Live cost row has ever been
-    lost in this process — the Activity feed reads this, and
-    the cap check can read it before trusting its totals."""
+    """A COPY of the sticky lost-cost-row record, keyed by
+    brain ("live", "cloud_text", "local"). Empty when no cost
+    row has ever been lost in this process — the Activity feed
+    reads this, and the cap check can read it before trusting
+    its totals."""
     return {kind: dict(rec)
             for kind, rec in _LIVE_RECORD_FAILURES.items()}
 

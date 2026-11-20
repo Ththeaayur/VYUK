@@ -491,6 +491,13 @@ class AttachFailureTests(unittest.TestCase):
                               return_value=True),
             mock.patch.object(bs, "_chrome_running",
                               return_value=running),
+            # C2-F1: _attach_failure probes the CDP port first, so
+            # the probe is held at False here — these tests pin the
+            # _chrome_running branches given a non-answering port.
+            # (Without the pin, a real Chrome on the same port from
+            # a parallel run could flip a branch mid-test.)
+            mock.patch.object(bs, "_cdp_port_answers",
+                              return_value=False),
             mock.patch.object(bs, "_start_pw",
                               return_value=self._FakePw(self)),
             mock.patch.object(bs, "_read_devtools_active_port",

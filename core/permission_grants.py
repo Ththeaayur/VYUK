@@ -326,30 +326,177 @@ def _blank_record(pid: str) -> dict:
     }
 
 
+def _file_problem(path: pathlib.Path) -> str | None:
+    """Why the file on disk is not a usable grants store, or None.
+
+    None means healthy-or-missing: a missing file is a healthy
+    empty store (first run), a well-formed envelope is a healthy
+    store. A parse failure, a wrong top-level shape, or an
+    unreadable file is a problem string. Read-only: never writes,
+    never notes."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        return f"unreadable ({exc})"
+    except ValueError as exc:
+        return f"not valid JSON ({exc})"
+    if not isinstance(payload, dict):
+        return "not a JSON object"
+    grants = payload.get("grants")
+    changes = payload.get("changes")
+    if not isinstance(grants, dict) or not isinstance(changes, list):
+        return "grants/changes have the wrong shape"
+    return None
+
+
+# Corrupt-STORE disclosure + quarantine (round-3 C3-F3). _read_store
+# used to return None silently for missing AND corrupt alike, so a
+# corrupt file read as "no grants" with no signal anywhere, and the
+# next set_permission_state silently replaced it. The shape is the
+# C3-F2 memory-DB precedent: disclose (log line + sticky state +
+# a plain-words notice), quarantine before any re-write, never
+# delete the corrupt bytes. Fail-closed is untouched: a corrupt
+# store still reads denied (mic/camera) or unknown (the rest).
+_CORRUPTION: dict | None = None
+_CORRUPTION_LOGGED: bool = False
+
+
+def _note_corruption(problem: str) -> None:
+    """Record a corrupt grants file (first detection only).
+
+    The log line names the file and the problem; the sticky
+    record is what corruption_state()/corruption_notice() read.
+    A later healthy read does not clear it — the file on disk
+    is still corrupt until it is quarantined or replaced."""
+    global _CORRUPTION, _CORRUPTION_LOGGED
+    if _CORRUPTION is None:
+        _CORRUPTION = {
+            "path": str(_grants_path()),
+            "error": problem,
+            "detected_at": _now_iso(),
+        }
+    if not _CORRUPTION_LOGGED:
+        _CORRUPTION_LOGGED = True
+        log.warning("permission grants store %s looks damaged (%s); "
+                    "permissions read as their safe defaults until "
+                    "repaired", _grants_path(), problem)
+
+
+def corruption_state() -> dict | None:
+    """A copy of the corruption record, or None.
+
+    Probes the file when nothing is recorded yet, so a caller
+    that never read the store still gets a live answer. A
+    missing or healthy file reads None (healthy empty)."""
+    if _CORRUPTION is None:
+        _read_store()
+    return dict(_CORRUPTION) if _CORRUPTION is not None else None
+
+
+def corruption_notice() -> str:
+    """Plain-words notice for a corrupt grants file, or "".
+
+    Names the file and the choice (set it aside and start
+    fresh, or leave it). A healthy or missing file has no
+    notice. The read side stays fail-closed either way —
+    microphone and camera read denied until set again."""
+    record = corruption_state()
+    if record is None:
+        return ""
+    name = pathlib.Path(record["path"]).name
+    return (f"Your permission settings file ({name}) looks damaged "
+            f"and could not be read ({record['error']}), so your "
+            f"permissions are showing their safe defaults — "
+            f"microphone and camera denied until you set them again. "
+            f"Nothing was deleted: the damaged file is kept as-is. "
+            f"Set it aside and start fresh?")
+
+
+def reset_corruption_state() -> None:
+    """Clear the sticky corruption record + once-per-process log
+    flag. Tests only: production never forgets a corrupt file."""
+    global _CORRUPTION, _CORRUPTION_LOGGED
+    _CORRUPTION = None
+    _CORRUPTION_LOGGED = False
+
+
+def quarantine_corrupt_store() -> str | None:
+    """Move a corrupt grants file aside, keeping its exact bytes.
+
+    The name is `<name>.corrupt-<YYYYMMDD-HHMMSS>` next to the
+    file (counter suffix on a same-second repeat), the C3-F2
+    shape. Returns the quarantine name, or None when there is
+    nothing corrupt to set aside or the rename itself fails. The
+    store then reads as a healthy empty one (first-run state)."""
+    global _CORRUPTION, _CORRUPTION_LOGGED
+    record = corruption_state()
+    if record is None:
+        return None
+    path = pathlib.Path(record["path"])
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    target = path.with_name(f"{path.name}.corrupt-{stamp}")
+    n = 2
+    while target.exists():
+        target = path.with_name(f"{path.name}.corrupt-{stamp}-{n}")
+        n += 1
+    try:
+        os.replace(path, target)
+    except OSError as exc:
+        log.warning("could not set aside damaged grants store %s "
+                    "(%s)", path, exc)
+        return None
+    _CORRUPTION = None
+    _CORRUPTION_LOGGED = False
+    log.warning("damaged grants store %s set aside as %s",
+                path, target)
+    return target.name
+
+
 def _read_store() -> tuple[dict, list] | None:
     """(grants, changes) or None when the store is missing/corrupt.
 
     Never raises: any read failure is None, and get_state() turns
-    None into denied (fail-closed ids) or unknown (the rest).
+    None into denied (fail-closed ids) or unknown (the rest). A
+    MISSING file reads None with no signal (healthy empty); a
+    CORRUPT file also reads None, but is now disclosed — see
+    corruption_state() / corruption_notice().
     """
     try:
         payload = json.loads(_grants_path().read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 — missing/corrupt/unreadable
+    except FileNotFoundError:
+        return None
+    except ValueError as exc:  # noqa: BLE001 — not valid JSON
+        _note_corruption(f"not valid JSON ({exc})")
+        return None
+    except Exception as exc:  # noqa: BLE001 — unreadable, not missing
+        _note_corruption(f"unreadable ({exc})")
         return None
     if not isinstance(payload, dict):
+        _note_corruption("not a JSON object")
         return None
     grants = payload.get("grants")
     changes = payload.get("changes")
     if not isinstance(grants, dict) or not isinstance(changes, list):
+        _note_corruption("grants/changes have the wrong shape")
         return None
     return grants, changes
 
 
 def _write_store(grants: dict, changes: list) -> bool:
-    """Atomic whole-file rewrite. False (never raising) on failure."""
+    """Atomic whole-file rewrite. False (never raising) on failure.
+
+    Round-3 C3-F3: a corrupt file on disk is quarantined first
+    (original bytes kept alongside) — a re-write never silently
+    replaces it. When the quarantine itself fails, the write is
+    refused (False) rather than destroying the old file."""
     try:
         path = _grants_path()
         path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists() and _file_problem(path) is not None:
+            if quarantine_corrupt_store() is None:
+                return False
         fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".",
                                         dir=str(path.parent))
         try:
