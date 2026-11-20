@@ -34,11 +34,16 @@ from .live_client_error_cost import (
     _log_line,
     _short_exc,
 )
+from collections import deque
+
 from .live_client_helpers import (
     _AUDIBLE_RMS_FLOOR,
     _chunk_rms,
     _SEND_REALTIME_TIMEOUT_S,
+    _VOICE_EPISODE_END_GAP_S,
+    _VOICE_EPISODE_MAX_SAMPLES,
     _VOICE_RMS_FLOOR,
+    _voice_episode_is_stationary,
 )
 from .live_client_interaction import (
     _call_id_of,
@@ -209,6 +214,43 @@ class GeminiLiveSessionReceiveMixin:
         except Exception:  # noqa: BLE001 - the chat line is
             pass  # best-effort; the feed line already landed
 
+    def _release_held_output_chunks(self) -> None:
+        """Emit the output-transcription chunks held while the
+        user's words for the turn were still unflushed (see
+        _handle_output_transcription). The chunks are a prefix
+        of the buffered reply, so the live bubble they create
+        is finalised by the flush that follows with the same
+        full text. A chunk consumer that raises is surfaced
+        with the same once-per-run loss note as the live
+        stream (see _handle_output_transcription); the
+        remaining held chunks are dropped — they are already
+        in the buffer, so the full reply still lands at the
+        flush. Never raises; the flush must not lose the reply
+        to a display fault."""
+        held = getattr(self, "_held_output_chunks", None)
+        if not held:
+            return
+        self._held_output_chunks = []
+        _cb = getattr(self, "on_transcript_chunk", None)
+        if _cb is None:
+            return
+        for _chunk in held:
+            if getattr(self, "_reply_stop_requested", False):
+                return
+            try:
+                _cb("assistant", _chunk)
+            except Exception as exc:  # noqa: BLE001
+                if not getattr(self, "_chunk_loss_noted", False):
+                    self._chunk_loss_noted = True
+                    self._loss_note(
+                        "The live reply text could not be shown "
+                        "as it arrived: %s — the full reply will "
+                        "still appear when it finishes."
+                        % _short_exc(exc))
+                return
+            else:
+                self._chunk_loss_noted = False
+
     def _flush_output_transcript(self) -> None:
         """Emit one accumulated assistant-transcription reply.
 
@@ -230,6 +272,26 @@ class GeminiLiveSessionReceiveMixin:
         surfaced with a loss note. A stopped reply's memory
         failure is likewise surfaced, never swallowed.
         """
+        # Round-3 section C fix queue item 9 (C1-F2): the answer
+        # must never render above its own question. When the
+        # user's words for this turn have not flushed yet
+        # (_input_transcript_open), the reply is held in the
+        # buffer — the input flush releases it (see
+        # _flush_input_transcript). The stop flag is NOT cleared
+        # on this path: the deferred flush is still this
+        # reply's flush, and a stopped reply must stay stopped
+        # when it eventually runs.
+        if getattr(self, "_input_transcript_open", False):
+            self._output_flush_deferred = True
+            return
+        if getattr(self, "_input_transcript_buf", "").strip():
+            # The input finished but its flush did not land (a
+            # raising consumer keeps the text) — retry it now
+            # so the question still precedes the answer, then
+            # proceed either way: the input is finished, so
+            # holding the reply for it would strand the answer
+            # on a broken consumer.
+            self._flush_input_transcript()
         # Field-check fix #19: a reply ends here, so the
         # chunk-loss note arms again for the next reply.
         self._chunk_loss_noted = False
@@ -258,6 +320,12 @@ class GeminiLiveSessionReceiveMixin:
                     % _short_exc(exc))
             self._output_transcript_buf = ""
             return
+        # Round-3 section C fix queue item 9 (C1-F2): the held
+        # live-stream chunks go out first — they create the
+        # live assistant bubble AFTER the user's bubble has
+        # landed (the input flush above released this reply),
+        # and the bubble below finalises it with the full text.
+        self._release_held_output_chunks()
         try:
             if self.on_transcript:
                 self.on_transcript("assistant", text)
@@ -305,6 +373,7 @@ class GeminiLiveSessionReceiveMixin:
         text = self._input_transcript_buf
         if not text.strip():
             self._input_transcript_buf = ""
+            self._input_transcript_open = False
             return
         try:
             if self.on_transcript:
@@ -319,6 +388,7 @@ class GeminiLiveSessionReceiveMixin:
                 % _short_exc(exc))
             return
         self._input_transcript_buf = ""
+        self._input_transcript_open = False
         try:
             memory_store.log_message("user", text)
         except Exception as exc:  # noqa: BLE001 - the bubble
@@ -327,6 +397,17 @@ class GeminiLiveSessionReceiveMixin:
             self._loss_note(
                 "The user's spoken words were shown but could "
                 "not be saved to memory: %s" % _short_exc(exc))
+        # Round-3 section C fix queue item 9 (C1-F2): the
+        # question has landed, so a reply held for it is
+        # released now — the answer follows its question, in
+        # the transcript and in memory (the release flush
+        # logs the assistant row after this user row). Only
+        # on a landed bubble: a failed bubble keeps its text,
+        # and releasing the answer above an unlanded question
+        # would be the bug again.
+        if getattr(self, "_output_flush_deferred", False):
+            self._output_flush_deferred = False
+            self._flush_output_transcript()
 
     def stop_reply(self) -> bool:
         """Stop the reply in flight (chat UI, 2026-11-16).
@@ -382,40 +463,62 @@ class GeminiLiveSessionReceiveMixin:
                     # accumulated only: the GUI has already
                     # finalised the reply as stopped, and a
                     # late chunk must not grow it again.
+                    # Round-3 section C fix queue item 9 (C1-F2):
+                    # while the user's words for this turn are
+                    # still unflushed, the chunk is HELD, not
+                    # streamed: streaming it would create the
+                    # live assistant bubble above the question.
+                    # Held chunks are released by the flush that
+                    # follows the question (see
+                    # _release_held_output_chunks) — the hold
+                    # lasts ~0.08 s in the field, the gap
+                    # between the output finishing and the input
+                    # finishing. A turn with no input
+                    # transcription at all streams exactly as
+                    # before (nothing is held).
                     if not getattr(self, "_reply_stop_requested",
                                    False):
                         _cb = getattr(self, "on_transcript_chunk",
                                       None)
                         if _cb is not None:
-                            try:
-                                _cb("assistant", _chunk)
-                            except Exception as exc:  # noqa: BLE001
-                                # Field-check fix #19 (F2
-                                # follow-up): a raising chunk
-                                # consumer must not swallow
-                                # silently — the live words were
-                                # not shown as they arrived. The
-                                # chunk itself is already in the
-                                # buffer, so the full reply still
-                                # lands at the flush; only the
-                                # streaming is lost, and the loss
-                                # is noted once per failure run —
-                                # a note per chunk would flood
-                                # the feed and the chat, a reply
-                                # streams dozens of them.
-                                if not getattr(
-                                        self, "_chunk_loss_noted",
-                                        False):
-                                    self._chunk_loss_noted = True
-                                    self._loss_note(
-                                        "The live reply text "
-                                        "could not be shown as it "
-                                        "arrived: %s — the full "
-                                        "reply will still appear "
-                                        "when it finishes."
-                                        % _short_exc(exc))
+                            if getattr(self, "_input_transcript_open",
+                                       False):
+                                _held = getattr(
+                                    self, "_held_output_chunks", None)
+                                if _held is None:
+                                    _held = \
+                                        self._held_output_chunks = []
+                                _held.append(_chunk)
                             else:
-                                self._chunk_loss_noted = False
+                                try:
+                                    _cb("assistant", _chunk)
+                                except Exception as exc:  # noqa: BLE001
+                                    # Field-check fix #19 (F2
+                                    # follow-up): a raising chunk
+                                    # consumer must not swallow
+                                    # silently — the live words were
+                                    # not shown as they arrived. The
+                                    # chunk itself is already in the
+                                    # buffer, so the full reply still
+                                    # lands at the flush; only the
+                                    # streaming is lost, and the loss
+                                    # is noted once per failure run —
+                                    # a note per chunk would flood
+                                    # the feed and the chat, a reply
+                                    # streams dozens of them.
+                                    if not getattr(
+                                            self, "_chunk_loss_noted",
+                                            False):
+                                        self._chunk_loss_noted = True
+                                        self._loss_note(
+                                            "The live reply text "
+                                            "could not be shown as it "
+                                            "arrived: %s — the full "
+                                            "reply will still appear "
+                                            "when it finishes."
+                                            % _short_exc(exc))
+                                else:
+                                    self._chunk_loss_noted = False
                 if getattr(_out_tr, "finished", False):
                     self._flush_output_transcript()
             if getattr(server_content, "turn_complete", False):
@@ -454,12 +557,98 @@ class GeminiLiveSessionReceiveMixin:
                 _chunk = getattr(_in_tr, "text", None) or ""
                 if _chunk:
                     self._input_transcript_buf += _chunk
+                    # Round-3 section C fix queue item 9 (C1-F2):
+                    # the utterance is open — its words are
+                    # pending, not final. The reply side holds
+                    # its flush and its live chunks until this
+                    # clears (see _flush_output_transcript).
+                    self._input_transcript_open = True
                 if getattr(_in_tr, "finished", False):
+                    self._input_transcript_open = False
                     self._flush_input_transcript()
             if getattr(server_content, "turn_complete", False):
                 self._flush_input_transcript()
         except Exception:  # noqa: BLE001 — transcription never breaks audio
             pass
+
+    def _voice_episode_note_chunk(self, rms: float, now: float) -> None:
+        """Record one voice-level chunk in the current voice
+        episode (round-3 section C fix queue item 9, C1-F1).
+        An episode opens on the first voice-level chunk after a
+        gap and remembers the watchdog stamps as they stood
+        before it, so the episode-end classification can roll
+        them back when the episode turns out to be stationary
+        loudness, not speech. Lazily created (getattr pattern):
+        test fakes driving this loop without _run_session get
+        the state here, exactly like the speed pass below."""
+        rms_hist = getattr(self, "_voice_episode_rms", None)
+        if rms_hist is None:
+            rms_hist = deque(maxlen=_VOICE_EPISODE_MAX_SAMPLES)
+            self._voice_episode_rms = rms_hist
+        if getattr(self, "_voice_episode_started_at", None) is None:
+            self._voice_episode_started_at = now
+            self._voice_episode_prev_voice_at = getattr(
+                self, "_last_voice_at", None)
+            self._voice_episode_prev_audible_at = getattr(
+                self, "_last_audible_at", None)
+        rms_hist.append(rms)
+        self._voice_episode_last_chunk_at = now
+
+    def _voice_episode_close_if_ended(self, now: float) -> None:
+        """Close the open voice episode once no voice-level
+        chunk has arrived for _VOICE_EPISODE_END_GAP_S, and
+        classify it. A stationary episode (sustained loud
+        noise, not speech) has its watchdog stamps rolled back
+        to before the episode — the server's VAD correctly
+        ignored it, so the stamps are a false turn and must
+        not end the session (C1-8a). A speech episode keeps
+        its stamps: the turn was real and the silence rules
+        still apply to it on the same envelope. Never raises:
+        classification must not break the send loop."""
+        started = getattr(self, "_voice_episode_started_at", None)
+        if started is None:
+            return
+        last = getattr(self, "_voice_episode_last_chunk_at", None)
+        if last is None or now - last <= _VOICE_EPISODE_END_GAP_S:
+            return
+        # The episode has ended: classify it, then clear the
+        # state. (The clearing MUST live here, on the close
+        # path only — an early return above must leave the open
+        # episode untouched, or the next iteration would wipe
+        # an episode that only just opened.)
+        try:
+            rms_hist = getattr(self, "_voice_episode_rms", None) or []
+            duration = last - started
+            if _voice_episode_is_stationary(list(rms_hist),
+                                            duration):
+                self._last_voice_at = getattr(
+                    self, "_voice_episode_prev_voice_at", None)
+                cur_aud = getattr(self, "_last_audible_at", None)
+                # Roll the audible stamp back too, unless a
+                # LATER audible stamp exists: the episode's own
+                # tail (a sub-voice chunk inside the end gap)
+                # belongs to the episode, but audio after the
+                # gap is a separate, later sound and its stamp
+                # must survive.
+                if (cur_aud is None
+                        or cur_aud <= last
+                        + _VOICE_EPISODE_END_GAP_S):
+                    self._last_audible_at = getattr(
+                        self, "_voice_episode_prev_audible_at", None)
+                _log_line(
+                    "[Live] stationary loudness, not speech "
+                    f"({duration:.1f}s, RMS variation below the "
+                    "speech floor) — watchdog stamps rolled back "
+                    "to before the episode.")
+        except Exception:  # noqa: BLE001 — never break the loop
+            pass
+        self._voice_episode_started_at = None
+        self._voice_episode_last_chunk_at = None
+        self._voice_episode_prev_voice_at = None
+        self._voice_episode_prev_audible_at = None
+        rms_hist = getattr(self, "_voice_episode_rms", None)
+        if rms_hist is not None:
+            rms_hist.clear()
 
     async def _send_audio_loop(self, audio_manager):
         """Continuously pulls recorded microphone chunks and streams to Gemini Live."""
@@ -486,6 +675,17 @@ class GeminiLiveSessionReceiveMixin:
         self._mic_starved_since = None
         self._mic_starved_seconds = 0.0
         self._mic_starved_logged_at = None
+        # Round-3 section C fix queue item 9 (C1-F1): the voice
+        # episode tracker is per run, reset here like the
+        # starvation state above, so a reused session object
+        # never carries a stale open episode into a fresh run.
+        self._voice_episode_started_at = None
+        self._voice_episode_last_chunk_at = None
+        self._voice_episode_prev_voice_at = None
+        self._voice_episode_prev_audible_at = None
+        _rms_hist = getattr(self, "_voice_episode_rms", None)
+        if _rms_hist is not None:
+            _rms_hist.clear()
         # Issue-hunt #5: the audio manager's copy resets here
         # too, so a reused session object never carries a stale
         # starved value into a fresh run (the GUI keys the deaf
@@ -494,6 +694,23 @@ class GeminiLiveSessionReceiveMixin:
         while self._running and self._session \
                 and getattr(self, "is_connected", True):
             try:
+                # Round-3 section C fix queue item 9 (C1-F1):
+                # once per iteration, close a voice episode
+                # whose last voice-level chunk is older than
+                # the end gap — the classification (and any
+                # stamp rollback) lands here, on every path
+                # through the loop, including the empty-queue
+                # path below that otherwise continues early.
+                # getattr: the micfix send tests drive this
+                # loop on a SimpleNamespace fake without the
+                # method — a missing attribute must read as
+                # "nothing to close", never raise before the
+                # chunk is even pulled (an unguarded call
+                # would spin the loop without consuming).
+                _close_ep = getattr(
+                    self, "_voice_episode_close_if_ended", None)
+                if callable(_close_ep):
+                    _close_ep(time.monotonic())
                 try:
                     chunk = audio_manager.mic_queue.get_nowait()
                     # A frame arrived — the mic is delivering,
@@ -585,7 +802,25 @@ class GeminiLiveSessionReceiveMixin:
                 # both stamps fire on a loud chunk.
                 _rms = _chunk_rms(chunk)
                 if _rms > _VOICE_RMS_FLOOR:
-                    self._last_voice_at = time.monotonic()
+                    # Round-3 section C fix queue item 9 (C1-F1):
+                    # the chunk joins the current voice episode
+                    # BEFORE its stamp lands (see
+                    # _voice_episode_note_chunk): the episode
+                    # opener must capture the stamps as they
+                    # stood before the episode, so a stationary
+                    # episode rolls this stamp back to before
+                    # itself — capturing after the stamp would
+                    # roll back to the episode's own first
+                    # chunk and the watchdog would still trip.
+                    _now_voice = time.monotonic()
+                    # getattr, as above: a SimpleNamespace fake
+                    # driving this loop has no episode tracker —
+                    # the chunk still stamps, exactly as before.
+                    _note_ep = getattr(
+                        self, "_voice_episode_note_chunk", None)
+                    if callable(_note_ep):
+                        _note_ep(_rms, _now_voice)
+                    self._last_voice_at = _now_voice
                     # P2 speed pass: the turn's clock starts at
                     # the user's voice — the recorder and the
                     # filler both key on it. Guarded: test fakes
@@ -800,18 +1035,26 @@ class GeminiLiveSessionReceiveMixin:
                                             "saved to memory: %s"
                                             % _short_exc(exc))
 
+                        # User input transcription (round-3 fix
+                        # #5, #56): accumulate the user's spoken
+                        # words; flush once per utterance (see
+                        # _handle_input_transcription). Handled
+                        # BEFORE the output transcription below:
+                        # round-3 section C fix queue item 9
+                        # (C1-F2) — when one server message
+                        # carries both sides, the question is
+                        # accumulated (and flushed on finished /
+                        # turn_complete) before the answer is
+                        # even looked at, so the answer can
+                        # never flush above its own question.
+                        self._handle_input_transcription(
+                            server_content)
+
                         # Assistant output transcription
                         # (v5.94 text-replies): accumulate
                         # streamed reply text; flush once per
                         # reply (see _handle_output_transcription).
                         self._handle_output_transcription(
-                            server_content)
-
-                        # User input transcription (round-3 fix
-                        # #5, #56): accumulate the user's spoken
-                        # words; flush once per utterance (see
-                        # _handle_input_transcription).
-                        self._handle_input_transcription(
                             server_content)
 
                         # P2 speed pass: the turn ended — close
@@ -825,13 +1068,20 @@ class GeminiLiveSessionReceiveMixin:
                         # Interruption detection: user started speaking while model was outputting
                         if server_content.interrupted:
                             audio_manager.interrupt_playback()
+                            # Round-3 section C fix queue item 9
+                            # (C1-F2): the barge-in itself is a
+                            # spoken utterance — its words show
+                            # first, as one bubble, and only then
+                            # the partial reply (the old order
+                            # flushed the reply first, so the
+                            # answer sat above its own question).
+                            # The input flush releases a reply
+                            # held for it, so the output call
+                            # below is a no-op when held.
+                            self._flush_input_transcript()
                             # Preserve the partial transcribed
                             # reply as one bubble.
                             self._flush_output_transcript()
-                            # Round-3 fix #5 (#56): the barge-in
-                            # itself is a spoken utterance — its
-                            # words show too, as one bubble.
-                            self._flush_input_transcript()
                             self._notify_status("LISTENING")
                             # P2 speed pass: the interruption is
                             # part of the turn's latency record,

@@ -101,6 +101,9 @@ __all__ = [
     "live_record_degraded_state",
     "note_live_record_failure",
     "note_record_failure",
+    "preflight_degraded_state",
+    "note_preflight_failure",
+    "reset_preflight_degraded",
     "record_cloud_text_usage",
     "record_live_usage",
     "record_local_usage",
@@ -175,6 +178,51 @@ def reset_live_record_degraded() -> None:
     """Clear the sticky lost-Live-cost-row record. Tests only:
     production code never resets it (a lost row stays lost)."""
     _LIVE_RECORD_FAILURES.clear()
+
+
+# Round-3 section C fix queue item 10 (C3-F6 follow-up): sticky
+# record of cost-cap preflight failures — a cap check that could
+# not read the ledger. Same shape as the lost-row record above,
+# but a DIFFERENT fact, kept in its own dict so the two are never
+# confused: no row was lost and nothing undercounted — the turn
+# was REFUSED, so the totals are intact. The Activity feed renders
+# this as its own marker ("Cost cap check unavailable"), never as
+# a lost row. One record per brain ("cloud_text" today — the only
+# brain with a preflight gate).
+_PREFLIGHT_FAILURES: dict[str, dict[str, Any]] = {}
+
+
+def note_preflight_failure(brain: str, exc: BaseException) -> None:
+    """Record one failed cost-cap preflight for `brain`. Never
+    raises: the note itself must not break the turn."""
+    try:
+        now = time.time()
+        rec = _PREFLIGHT_FAILURES.get(brain)
+        if rec is None:
+            rec = {"count": 0, "last_error": "", "first_at": now,
+                   "last_at": now}
+            _PREFLIGHT_FAILURES[brain] = rec
+        rec["count"] += 1
+        rec["last_error"] = str(exc)[:200]
+        rec["last_at"] = now
+    except Exception:  # noqa: BLE001 - the note must never raise
+        pass
+
+
+def preflight_degraded_state() -> dict[str, dict[str, Any]]:
+    """A COPY of the sticky failed-preflight record, keyed by
+    brain ("cloud_text"). Empty when no cap check has ever failed
+    to read the ledger in this process — the Activity feed reads
+    this, and the user can see why cloud-text turns are paused."""
+    return {kind: dict(rec)
+            for kind, rec in _PREFLIGHT_FAILURES.items()}
+
+
+def reset_preflight_degraded() -> None:
+    """Clear the sticky failed-preflight record. Tests only:
+    production code never resets it (a failed check stays
+    failed until the ledger is repaired)."""
+    _PREFLIGHT_FAILURES.clear()
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (

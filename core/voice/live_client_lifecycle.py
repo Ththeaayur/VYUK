@@ -136,6 +136,27 @@ class GeminiLiveSessionLifecycleMixin:
         # channel. Empty between utterances; never fed to
         # audio playback.
         self._input_transcript_buf: str = ""
+        # Round-3 section C fix queue item 9 (C1-F2): the
+        # transcript-order state — whether the user's words for
+        # the current turn are still unflushed, the live reply
+        # chunks held until they flush, and whether a reply
+        # flush was deferred for them. Reset per session run
+        # in _run_session (a reused singleton must not carry
+        # a held reply into the next session).
+        self._input_transcript_open: bool = False
+        self._held_output_chunks: list = []
+        self._output_flush_deferred: bool = False
+        # Round-3 section C fix queue item 9 (C1-F1): the
+        # voice-episode tracker for the send loop — the RMS
+        # history of the current voice-level episode, when it
+        # started and last saw a voice chunk, and the watchdog
+        # stamps as they stood before it (see
+        # _voice_episode_note_chunk). Reset per session run.
+        self._voice_episode_rms = None
+        self._voice_episode_started_at: float | None = None
+        self._voice_episode_last_chunk_at: float | None = None
+        self._voice_episode_prev_voice_at: float | None = None
+        self._voice_episode_prev_audible_at: float | None = None
         self._ambient_packet: str = ""  # N4: packet this session holds
         # v5.54.1 watchdog stamps (monotonic seconds; None until
         # the session starts): last response-plane activity from
@@ -342,6 +363,19 @@ class GeminiLiveSessionLifecycleMixin:
         self._live_tool_rounds = 0
         self._live_tool_cap_announced = False
         self._output_transcript_buf = ""
+        # Round-3 section C fix queue item 9: fresh transcript
+        # order + voice-episode state per session run (see
+        # __init__ for what each field is) — a reused session
+        # object never carries a held reply, a deferred flush,
+        # or an open noise episode into the next session.
+        self._input_transcript_open = False
+        self._held_output_chunks = []
+        self._output_flush_deferred = False
+        self._voice_episode_rms = None
+        self._voice_episode_started_at = None
+        self._voice_episode_last_chunk_at = None
+        self._voice_episode_prev_voice_at = None
+        self._voice_episode_prev_audible_at = None
         self._notify_status("LISTENING")
 
         # Launch concurrent send and receive loops, plus the H2

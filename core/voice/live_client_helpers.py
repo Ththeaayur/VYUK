@@ -184,6 +184,51 @@ def validate_api_key(key: str, model: str) -> tuple[bool, str, str]:
         return (False, _classify_key_error(exc), str(exc)[:300])
 
 
+# Round-3 section C fix queue item 9 (C1-F1): a voice-level
+# episode that is stationary loudness, not speech — sustained
+# white noise, a fan, a held pure tone — must not arm the
+# watchdog's silence rules. The server's VAD correctly ignores
+# it (no transcript, no reply), so the voice stamp it leaves is
+# a false turn and the session ends ~12 s later for nothing
+# (C1-8a: LIVE_WATCHDOG 11.31 -> DISCONNECTED 11.33). The
+# discriminator is the RMS variation across the episode:
+# measured on the section-C clips (100 ms chunks), white noise
+# at RMS 0.05 has CV 0.018 while every speech clip measures
+# CV 0.35-0.75 (quietest, speech-under-noise, 0.348). The
+# threshold below sits 11x above the noise measurement and
+# 1.7x below the lowest speech measurement. A sustained
+# near-pure tone (a sung held note with shallow vibrato,
+# CV ~0.13) reads as stationary too — the documented residual:
+# the session survives it, which is the safe direction; only
+# that episode's watchdog arming is deferred to the next
+# varied utterance. An episode shorter than
+# _VOICE_EPISODE_MIN_S is never classified (a transient under
+# 0.4 s — a door slam, a cough — keeps today's behaviour: it
+# arms the watchdog like a short word).
+_VOICE_EPISODE_MIN_S = 0.4
+_VOICE_EPISODE_END_GAP_S = 0.5
+_VOICE_EPISODE_MAX_SAMPLES = 300
+_VOICE_STATIONARY_CV_MAX = 0.20
+
+
+def _voice_episode_is_stationary(rms_values, duration_s) -> bool:
+    """True when a run of per-chunk RMS values is stationary
+    loudness, not speech: at least 4 samples spanning at least
+    _VOICE_EPISODE_MIN_S, with a coefficient of variation
+    (std / mean) under _VOICE_STATIONARY_CV_MAX. Stdlib only —
+    the send loop must not drag numpy into the Live path (see
+    _chunk_rms). An empty or degenerate run is not stationary:
+    the safe direction is to arm the watchdog, never to
+    disarm it on no evidence."""
+    if len(rms_values) < 4 or duration_s < _VOICE_EPISODE_MIN_S:
+        return False
+    mean = sum(rms_values) / len(rms_values)
+    if mean <= 0:
+        return False
+    var = sum((v - mean) ** 2 for v in rms_values) / len(rms_values)
+    return (var ** 0.5) / mean < _VOICE_STATIONARY_CV_MAX
+
+
 def _chunk_rms(data: bytes) -> float:
     """RMS of an int16 PCM chunk on the 0.0–1.0 scale (the
     house voice floor in _VOICE_RMS_FLOOR reads this scale).

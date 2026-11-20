@@ -305,7 +305,15 @@ def _cost_preflight_or_raise(model: str, prompt_text: str) -> None:
     a configured cap, cloud spend proceeds ONLY if the
     ledger's confirm callback explicitly approves it (no
     callback = refusal). Warn-level projections pass through;
-    the caller surfaces the warning via the activity log."""
+    the caller surfaces the warning via the activity log.
+
+    A cap check that cannot READ the ledger fails closed too
+    (round-3 section C fix queue item 10): the turn is refused
+    with a plain-words message naming the ledger file and the
+    cause — the spend must not proceed without a cap check.
+    The failure is logged and marked degraded (the C3-F6 shape)
+    so the Activity feed shows why cloud-text turns are paused.
+    """
     try:
         ledger = _cost_ledger()
         prompt_tokens = _cost_ledger_mod.estimate_tokens(prompt_text)
@@ -323,8 +331,32 @@ def _cost_preflight_or_raise(model: str, prompt_text: str) -> None:
                 " explicitly confirmed (MN-2.8 ledger).")
     except _GroqTurnError:
         raise
-    except Exception:  # noqa: BLE001 — ledger failure never breaks a turn
-        pass
+    except Exception as exc:  # noqa: BLE001 — a cap check that
+        # cannot read the ledger FAILS CLOSED (item 10): the turn
+        # must not proceed without a cap check. The spend is
+        # refused, the failure is logged and the ledger is marked
+        # degraded so the user can see why cloud-text turns are
+        # paused. (The write side is unchanged: a failed cost
+        # WRITE still never breaks a turn — C3-F6.)
+        try:
+            _log_line(
+                "Cost cap check unavailable: the cost ledger could "
+                "not be read (%s: %s) — ledger %s; cloud-text "
+                "turns are paused until the ledger is repaired."
+                % (type(exc).__name__, str(exc).strip(),
+                   _cost_ledger_db_path()))
+        except Exception:  # noqa: BLE001 - the log must never raise
+            pass
+        try:
+            _cost_ledger_mod.note_preflight_failure("cloud_text", exc)
+        except Exception:  # noqa: BLE001 - the note must never raise
+            pass
+        raise _GroqTurnError(
+            "Cost cap check unavailable — the cost ledger could "
+            "not be read (%s: %s); cloud-text turns are paused "
+            "until the ledger is repaired (ledger %s)."
+            % (type(exc).__name__, str(exc).strip(),
+               _cost_ledger_db_path())) from exc
 
 
 def _cost_ledger_db_path() -> str:

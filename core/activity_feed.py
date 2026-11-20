@@ -253,6 +253,32 @@ def _read_observability() -> list[dict]:
             })
     except Exception:  # noqa: BLE001 - a broken ledger read
         pass  # must never break the feed
+    try:
+        # Round-3 section C fix queue item 10: a cap check that
+        # could not read the ledger is its own marker — a blocked
+        # turn, not a lost row (the totals are intact; the spend
+        # was refused, not undercounted).
+        from . import cost_ledger as _cost_mod_pf
+
+        for kind, rec in _cost_mod_pf.preflight_degraded_state().items():
+            count = rec.get("count", 0)
+            last = str(rec.get("last_error") or "")[:80]
+            label = {"live": "Live", "local": "Local",
+                     "cloud_text": "Cloud text"}.get(kind, kind)
+            text = (f"Cost cap check unavailable: {count} {label} cap "
+                    "check(s) failed"
+                    + (f" (last: {last})" if last else "")
+                    + " — cloud-text turns are paused until this "
+                    "is fixed.")
+            markers.append({
+                "source": "observability",
+                "ts": _iso_from_epoch(rec.get("last_at")),
+                "title": text,
+                "kind": "degraded",
+                "detail": text,
+            })
+    except Exception:  # noqa: BLE001 - a broken ledger read
+        pass  # must never break the feed
     return markers
 
 
