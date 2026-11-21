@@ -577,6 +577,10 @@ class S7ConsumersPacksMixin:
             identified = _aa.identify(foreground)
             if identified.get("matched") != app_id:
                 matched = identified.get("matched")
+                # F-F501: nothing resolves under the wrong adapter,
+                # so the verdict is failed, not a plain string the
+                # receipts would read "succeeded".
+                from .. import tool_outcome as _outcome  # R1b: seam wiring
                 if matched is None:
                     if identified.get("ambiguous"):
                         detail = ("foreground matches several adapters "
@@ -585,12 +589,16 @@ class S7ConsumersPacksMixin:
                     else:
                         detail = (identified.get("note")
                                   or "no adapter matches this foreground")
-                    return ("Adapter mismatch: the foreground does not "
-                            "identify '%s' (%s) — nothing resolves "
-                            "under the wrong adapter." % (app_id, detail))
-                return ("Adapter mismatch: the foreground identifies "
-                        "'%s', not '%s' — nothing resolves under the "
-                        "wrong adapter." % (matched, app_id))
+                    return _outcome.failed(
+                        ("Adapter mismatch: the foreground does not "
+                         "identify '%s' (%s) — nothing resolves "
+                         "under the wrong adapter." % (app_id, detail)),
+                        "foreground adapter mismatch")
+                return _outcome.failed(
+                    ("Adapter mismatch: the foreground identifies "
+                     "'%s', not '%s' — nothing resolves under the "
+                     "wrong adapter." % (matched, app_id)),
+                    "foreground adapter mismatch")
         resolution = _aa.resolve(str(phrase), foreground=foreground,
                                  app_version=app_version,
                                  confirmed=bool(confirmed))

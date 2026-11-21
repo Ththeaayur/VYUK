@@ -42,6 +42,39 @@ def _funnel_dispatch_scope():
         _FUNNEL_DISPATCH.reset(_token)
 
 
+def _funnel_dispatch_active() -> bool:
+    """True when ANY funnel dispatch scope is active in this context.
+
+    F-F204: the tree loads the funnel package under two module
+    identities (bare `core.*` and `voice_assistant.core.*`), each
+    with its own `_FUNNEL_DISPATCH` contextvar. A handler guarded
+    by one identity's decorator must still run when dispatched by
+    the other identity's funnel — the dispatch IS a funnel dispatch
+    either way, so the capability boundary holds exactly: the flag
+    is set only by `_funnel_dispatch_scope`, in either identity,
+    and only around a real dispatch. Checking the sibling's flag
+    cannot launder a direct call: outside any dispatch scope both
+    flags read False in this context."""
+    if _FUNNEL_DISPATCH.get():
+        return True
+    try:
+        import sys
+        for _name in ("core.funnel.tools_registry_core",
+                      "voice_assistant.core.funnel.tools_registry_core"):
+            if _name == __name__:
+                continue
+            _mod = sys.modules.get(_name)
+            if _mod is None:
+                continue
+            _var = getattr(_mod, "_FUNNEL_DISPATCH", None)
+            if _var is not None and _var.get():
+                return True
+    except Exception:  # noqa: BLE001 — a half-initialised sibling
+        # must never turn a direct call into a dispatch.
+        pass
+    return False
+
+
 def _funnel_only(fn):
     """Wrap one handler METHOD so it refuses outside the funnel.
 
@@ -52,7 +85,7 @@ def _funnel_only(fn):
     the caller never passes — use _funnel_only_fn for those."""
     @functools.wraps(fn)
     def _guarded(self, *args, **kwargs):
-        if not _FUNNEL_DISPATCH.get():
+        if not _funnel_dispatch_active():
             raise RuntimeError(
                 "tool handler %s called outside the funnel — "
                 "call it through ToolRegistry.execute() instead "
@@ -77,7 +110,7 @@ def _funnel_only_fn(fn):
     choke-point guarantee."""
     @functools.wraps(fn)
     def _guarded(*args, **kwargs):
-        if not _FUNNEL_DISPATCH.get():
+        if not _funnel_dispatch_active():
             raise RuntimeError(
                 "tool handler %s called outside the funnel — "
                 "call it through ToolRegistry.execute() instead "

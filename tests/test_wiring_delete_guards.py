@@ -156,7 +156,7 @@ class DeleteGuardTests(unittest.TestCase):
         # 2026-11-15: the pin had not been swept since the
         # wallpaper-revert batch; the live set is 164 and the
         # census agrees.)
-        self.assertEqual(len(gate._CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — 143 -> 164: confirm-gate set growth with the census (debug pass, 2026-11-15).; round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+        self.assertEqual(len(gate._CONFIRM_GATE_TOOLS), 167)  # INTENTIONAL — 143 -> 164: confirm-gate set growth with the census (debug pass, 2026-11-15).; round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
 
     def test_four_deletes_are_not_free_by_design(self):
         # They used to sit in the "app-state" free class; a tool

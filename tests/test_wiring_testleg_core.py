@@ -354,8 +354,13 @@ class WindowsOnlyOnLinuxTests(_Base):
         self.assertIn("Focus Assist is a Windows feature", _body(out))
 
     def test_notify_user(self):
+        # F-F303 (2026-11-21): notify_user is confirm-gated now —
+        # a toast pops on the user's screen, so the call asks
+        # first. approve=True is the approved leg (the deny leg
+        # lives in tests/test_r3ff303_notify_user.py).
         out = self.call("notify_user", {"title": "probe",
-                                        "message": "probe notification xyz"})
+                                        "message": "probe notification xyz"},
+                        approve=True)
         self.assert_success(out)
         self.assertIn("Toast notifications need Windows", _body(out))
 

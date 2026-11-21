@@ -146,7 +146,13 @@ def connect_wifi(ssid: str, password: str = "", confirm: bool = False) -> str:
     if not name:
         return "Connecting needs the network name (ssid)."
     if not _is_windows():
-        return f"Joining a Wi-Fi network with a new profile uses netsh — {_NOT_WINDOWS}"
+        # F-F501: no profile was created and nothing was changed,
+        # so the verdict is failed, not a plain string the receipts
+        # would read "succeeded".
+        from . import tool_outcome as _outcome  # R1b: seam wiring
+        return _outcome.failed(
+            f"Joining a Wi-Fi network with a new profile uses netsh — {_NOT_WINDOWS}",
+            "netsh unavailable off Windows")
     password = password or ""
     xml = _build_wifi_profile_xml(name, password)
     tmp_path: Path | None = None

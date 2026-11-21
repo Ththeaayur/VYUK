@@ -262,6 +262,13 @@ class ToolRegistryExecDispatchMixin:
                         f"dispatched, so its outcome could not "
                         f"be evidenced — nothing was run. "
                         f"{_remedy}")})
+            # F-F502 (2026-11-21): the mark SUCCEEDED — a
+            # {"type": "dispatched"} record now precedes this
+            # call's outcome in the file. Record the fact on the
+            # context so _audited passes dispatched=True for this
+            # outcome instead of the default. A mark failure
+            # returned above, so reaching here means dispatched.
+            ctx._receipt_dispatched = True
 
     def _exec_deadline_legs(self, ctx):
         ctx._deadline = deadline_for(ctx.name, ctx.args)

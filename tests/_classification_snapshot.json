@@ -2035,8 +2035,8 @@
   "read": true
  },
  "notify_user": {
-  "confirm": false,
-  "free": "output to user",
+  "confirm": true,
+  "free": null,
   "read": false
  },
  "number_guess": {

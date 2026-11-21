@@ -344,6 +344,14 @@ class GeminiLiveSessionLifecycleMixin:
         # Session-scoped like the voice stamp; bracketed
         # internal injections never stamp it.
         self._last_text_at = None
+        # Round-3 section D fix D-O2: the answered-turn
+        # rule's clocks — the last reply the user actually
+        # heard (model audio or an assistant transcript),
+        # the last tool batch's completion, and the batches
+        # still running. Session-scoped like the text stamp.
+        self._last_reply_at = None
+        self._last_tool_done_at = None
+        self._tool_in_flight = 0
         self._send_drop_count = 0
         self._go_away_received = False
         # Voice-control batch (2026-11-16, B1/B4): the send
@@ -572,6 +580,96 @@ class GeminiLiveSessionLifecycleMixin:
                                   "typed message was sent — session "
                                   "ended for auto-reconnect.")
                         self._notify_status("LIVE_DEAD")
+                        return
+                # Round-3 section D fix D-O2: the answered-turn
+                # rule — a tool call (or any other
+                # non-transcript yield) stamps _last_response_at,
+                # so rules 1/2/Q8 above all read the turn as
+                # answered even though the user heard nothing:
+                # the model called a tool and then never spoke
+                # (the soak's 15 silent turns — the tool ran,
+                # its result went back, no reply followed). The
+                # reply clock (_last_reply_at: model audio or
+                # an assistant transcript, the only things the
+                # user actually hears) is what the turn is
+                # judged against. A turn sent after the last
+                # reply, itself 7 s old, with no reply for the
+                # 7 s silence budget after the last server
+                # activity or tool completion, and no tool batch
+                # still running, is a skipped turn — end the
+                # session with the channel's notice (voice ->
+                # LIVE_WATCHDOG, typed -> LIVE_DEAD) so the user
+                # is told and auto-reconnect retries. The turn
+                # itself must be 7 s old: the response clock
+                # alone is stale the moment a turn is sent, and
+                # without it the rule would trip before the
+                # model had its budget (Q8 measures the same
+                # way, from the text). Long tools never
+                # trip: a batch still running holds the rule
+                # off, and the 7 s runs from its completion,
+                # not from the call; a confirm gate holds the
+                # same way (the batch cannot complete until
+                # the user answers).
+                _last_reply = getattr(self, "_last_reply_at", None)
+                _last_turn = None
+                _turn_is_voice = False
+                if (last_voice is not None
+                        and (last_text is None
+                             or last_voice >= last_text)):
+                    _last_turn = last_voice
+                    _turn_is_voice = True
+                elif last_text is not None:
+                    _last_turn = last_text
+                if (_last_turn is not None
+                        and (_last_reply is None
+                             or _last_turn > _last_reply)):
+                    _now = time.monotonic()
+                    _last_tool_done = getattr(
+                        self, "_last_tool_done_at", None)
+                    _activity = last_resp
+                    if (_last_tool_done is not None
+                            and _last_tool_done > _activity):
+                        _activity = _last_tool_done
+                    _in_flight = int(getattr(
+                        self, "_tool_in_flight", 0) or 0)
+                    _queue = getattr(self, "_tool_queue", None)
+                    try:
+                        _queued = (_queue.qsize()
+                                   if _queue is not None else 0)
+                    except Exception:  # noqa: BLE001 — a guard
+                        _queued = 0  # never breaks audio
+                    if (_in_flight == 0 and _queued == 0
+                            and _now - _activity > _WATCHDOG_SILENCE_S
+                            and _now - _last_turn > _WATCHDOG_SILENCE_S
+                            and (not _turn_is_voice
+                                 or _now - _last_turn
+                                 > _WATCHDOG_VOICE_QUIET_S)):
+                        if _turn_is_voice:
+                            print(f"[Live] Watchdog: no reply for "
+                                  f"{_now - _activity:.0f}s after a "
+                                  "voice turn — the server responded "
+                                  "but never spoke — ending the "
+                                  "session so auto-reconnect can "
+                                  "repair it.")
+                            _log_line("Live watchdog fired (D-O2 "
+                                      "answered-turn rule): no reply "
+                                      f"{_now - _activity:.0f}s after "
+                                      "a voice turn — session ended "
+                                      "for auto-reconnect.")
+                            self._notify_status("LIVE_WATCHDOG")
+                        else:
+                            print(f"[Live] Watchdog: no reply for "
+                                  f"{_now - _activity:.0f}s after a "
+                                  "typed message was sent — the "
+                                  "session responded but never "
+                                  "answered — ending the session so "
+                                  "auto-reconnect can repair it.")
+                            _log_line("Live watchdog fired (D-O2 "
+                                      "answered-turn rule): no reply "
+                                      f"{_now - _activity:.0f}s after "
+                                      "a typed message — session "
+                                      "ended for auto-reconnect.")
+                            self._notify_status("LIVE_DEAD")
                         return
                 # Voice-control batch (2026-11-16, B1), third rule:
                 # the send path itself has failed continuously —

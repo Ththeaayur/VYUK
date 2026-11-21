@@ -350,7 +350,19 @@ _BATCH_WINDOW_S = 10.0
 
 _batch_lock = threading.Lock()
 _batch_last: dict = {"key": None, "decision": False, "at": 0.0,
-                     "count": 0, "origin_id": None}
+                     "count": 0, "origin_id": None, "revoke_seq": 0}
+# F-F403: the per-kind revocation generation. An effective revoke
+# bumps the sequence for THAT kind only (see
+# clear_batch_for_kind); a batched decision is only valid in the
+# generation it was stored in. This is what stops a decision
+# whose ask STARTED before a revoke from seeding the batch
+# afterwards (the in-flight shape): request_confirmation captures
+# the sequence when it computes the batch key, and _batch_store
+# drops a decision whose sequence has moved on. Per-kind, not
+# global — a revoke of kind Y must not void a popup approval
+# for kind X made seconds ago (the single stored record belongs
+# to one kind; other kinds' replays are untouched).
+_batch_revoke_seq: dict = {}
 # INTENTIONAL (2026-11-03 product fix, batch-key id-reuse trap):
 # _batch_handler holds a STRONG reference to the handler object
 # that made the batched decision, OUTSIDE the serialisable
@@ -424,6 +436,14 @@ def _batch_lookup(key, handler=None) -> bool | None:
         if _time.monotonic() - float(_batch_last.get("at") or 0) \
                 > _BATCH_WINDOW_S:
             return None
+        # F-F403: a record is only valid in the revocation
+        # generation it was stored in — a revoke of its kind
+        # since then voids it even if the record itself was
+        # never cleared (belt-and-braces with the clear in
+        # clear_batch_for_kind below).
+        if int(_batch_last.get("revoke_seq") or 0) != \
+                _batch_revoke_seq.get(key[0], 0):
+            return None
         # Identity, not id(): a different handler object with a
         # recycled id must be asked afresh, never replayed to.
         if _batch_handler is not handler:
@@ -441,20 +461,89 @@ def _batch_origin_id():
 
 
 def _batch_store(key, decision: bool, origin_id=None,
-                 handler=None) -> None:
+                 handler=None, revoke_seq=None) -> None:
+    """Record a batched decision — unless a revoke has moved the
+    sequence on since the ask started (F-F403, in-flight shape):
+    `revoke_seq` is the generation captured when the batch key
+    was computed, and a decision from an earlier generation is
+    dropped, never stored. `revoke_seq=None` (direct callers,
+    and the pre-F-F403 tests) stores unconditionally, as before.
+    The call itself is unaffected — only the seeding is dropped.
+    """
     import time as _time
 
     global _batch_handler
     with _batch_lock:
+        if revoke_seq is not None and \
+                int(revoke_seq) != _batch_revoke_seq.get(key[0], 0):
+            return
         # v5.48 (programme item 19): remember WHICH request made
         # this decision, so a later replay can name its origin.
         _batch_last.update({"key": key, "decision": bool(decision),
                             "at": _time.monotonic(), "count": 1,
-                            "origin_id": origin_id})
+                            "origin_id": origin_id,
+                            "revoke_seq": _batch_revoke_seq.get(
+                                key[0], 0)})
         # INTENTIONAL (2026-11-03 product fix): hold the handler
         # object itself, not just its id, so its id cannot be
         # recycled while this record lives (see _batch_handler).
         _batch_handler = handler
+
+
+def _clear_batch_for_kind_local(tool_name: str) -> None:
+    """Drop THIS module's batched decision for `tool_name` and
+    bump THIS module's revocation sequence for that kind
+    (F-F403). The bump is unconditional for the kind: even with
+    no record for it, an ask that started before the revoke
+    must not seed the batch afterwards (see _batch_store's
+    sequence guard). Other kinds' sequences are untouched."""
+    global _batch_handler
+    with _batch_lock:
+        _batch_revoke_seq[tool_name] = \
+            _batch_revoke_seq.get(tool_name, 0) + 1
+        key = _batch_last.get("key")
+        if key is not None and key[0] == tool_name:
+            _batch_last.update({"key": None, "decision": False,
+                                "at": 0.0, "count": 0,
+                                "origin_id": None,
+                                "revoke_seq": _batch_revoke_seq[
+                                    tool_name]})
+            _batch_handler = None
+
+
+def clear_batch_for_kind(tool_name: str) -> None:
+    """Invalidate the batched decision for `tool_name` in every
+    loaded confirm_gate identity (F-F403 — called by
+    revoke_kind after a stored kind is forgotten, so the revoke
+    is immediately effective against an identical tainted
+    repeat inside the 10 s window).
+
+    F-F204 idiom: the tree loads core.confirm_gate under two
+    module identities (bare `core.*` and `voice_assistant.core.*`),
+    each with its own batch record and epoch. Clearing only the
+    caller's identity would leave the other identity's replay
+    live — a revoke issued through one identity must clear both,
+    so both are visited via sys.modules (the caller's own module
+    included). Never raises: a failed clear must not break the
+    revoke that already succeeded — the caller logs it."""
+    try:
+        import sys
+
+        seen = set()
+        for _name in ("core.confirm_gate",
+                      "voice_assistant.core.confirm_gate"):
+            _mod = sys.modules.get(_name)
+            if _mod is None or id(_mod) in seen:
+                continue
+            seen.add(id(_mod))
+            _clear = getattr(_mod, "_clear_batch_for_kind_local",
+                             None)
+            if _clear is not None:
+                _clear(tool_name)
+        if not seen:
+            _clear_batch_for_kind_local(tool_name)
+    except Exception:  # noqa: BLE001 — never break the revoke
+        pass
 
 
 def request_confirmation(tool_name: str, args: dict | None = None,
@@ -527,6 +616,7 @@ def request_confirmation(tool_name: str, args: dict | None = None,
         handler = _handler
         arity = _handler_arity
     batch_key = None
+    batch_revoke_seq = None
     if tainted_now:
         named = ", ".join(tsources) if tsources else str(tsource)
         summary = (f"⚠ Taint source: {named} — untrusted content "
@@ -551,6 +641,12 @@ def request_confirmation(tool_name: str, args: dict | None = None,
         else:
             batch_key = (tool_name, _canonical_args_digest(args),
                          id(handler))
+            # F-F403: capture the revocation generation with the
+            # key — a revoke of this kind landing after this
+            # point must stop this ask's decision from seeding
+            # the batch (the in-flight shape), even though the
+            # ask itself still returns the human's answer.
+            batch_revoke_seq = _batch_revoke_seq.get(tool_name, 0)
             # 2026-11-03 product fix: pass the handler object for
             # the identity check in _batch_lookup — the id() in
             # the key alone is not handler identity (see
@@ -677,7 +773,8 @@ def request_confirmation(tool_name: str, args: dict | None = None,
                       request_id=request_id, authority="popup")
         if batch_key is not None:
             _batch_store(batch_key, approved, origin_id=request_id,
-                         handler=handler)
+                         handler=handler,
+                         revoke_seq=batch_revoke_seq)
         return approved
     finally:
         # Unregistered in ALL exit paths (v5.48, programme item 19).

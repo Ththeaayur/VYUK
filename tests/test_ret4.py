@@ -143,7 +143,7 @@ class Ret4CensusTests(unittest.TestCase):
     def test_audit_totals_pinned(self):
         text = AUDIT.read_text(encoding="utf-8")
         for fragment in ('"total": 758', '"read": 383', '"effectful": 375',  # INTENTIONAL — field-check fix #32 (2026-11-18): 755/373 -> 756/374 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756/374 -> 757/375 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758, 382 -> 383 — one new tool get_morning_briefing
-                         '"confirm_gated": 166', '"seam_wired": 44',  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+                         '"confirm_gated": 167', '"seam_wired": 44',  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
                          '"already_verified_in_handler": 309',  # INTENTIONAL — field-check fix #32 (2026-11-18): 307 -> 308 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 308 -> 309 — one new tool run_plan
                          '"honestly_unverifiable": 22',
                          '"next_pass_pool": 0'):

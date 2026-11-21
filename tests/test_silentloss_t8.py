@@ -355,6 +355,7 @@ class BrowserRefusalTests(unittest.TestCase):
 
         self._pg = _pg
         self._orig_check = _pg.check_tool
+        self._orig_never = _pg.permission_never_decided
         gates = object.__new__(_gates.ToolRegistryExecGatesMixin)
         gates._log_activity = lambda *a, **k: None
         self.gates = gates
@@ -362,9 +363,15 @@ class BrowserRefusalTests(unittest.TestCase):
 
     def _restore(self):
         self._pg.check_tool = self._orig_check
+        self._pg.permission_never_decided = self._orig_never
 
     def _refuse(self, pid):
         self._pg.check_tool = lambda name: (False, pid)
+        # F-F301: this class pins the DENIED wording, so it pins the
+        # state as decided too — the message builder now consults
+        # permission_never_decided, and the ambient store has no
+        # record (never-decided would read "has never been granted").
+        self._pg.permission_never_decided = lambda pid: False
         ctx = SimpleNamespace(
             name="browser_navigate",
             _audit_gate={"value": "free", "request_id": None},

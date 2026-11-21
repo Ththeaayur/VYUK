@@ -37,6 +37,15 @@ class _ExecuteContext:
       here would be circular).
     - receipt_attempt, receipt_error, receipt_is_read: set in the
       receipt stage, read-only after.
+    - receipt_dispatched: set False in the receipt stage, set True
+      by the mark stage ONLY when try_mark_dispatched succeeds
+      (F-F502, 2026-11-21) — it means exactly "a
+      {"type": "dispatched"} record precedes this call's outcome
+      in the file". _audited reads it when recording the outcome,
+      so a never-dispatched outcome records dispatched False
+      instead of inheriting the store's dispatched=True default.
+      Reads never mark, so their outcomes read False too, matching
+      their attempt rows (which already say dispatched False).
     - mark_dispatched_cb: set in the mark_cb stage, read-only after.
     - human_approved_this_call: set in the confirm stage, read in
       the rule-of-two stage.
@@ -284,11 +293,31 @@ class ToolRegistryExecSetupMixin:
                         "browser": "Browser",
                         "home_devices": "Home devices",
                     }.get(_pid, _pid)
-                    _activity_text = (
-                        f"Tool {ctx.name}: refused — {_label} is "
-                        f"switched off in Settings, so nothing was "
-                        f"run. Switch {_label.lower()} back on in "
-                        f"Settings to use it again.")
+                    # F-F301: the Activity line must carry the same
+                    # true cause as the funnel message — a permission
+                    # never decided is off by default, not switched
+                    # off by the user. A failed consult falls back
+                    # to the denied wording (this is an observability
+                    # line; it must never break the audit path).
+                    _never = False
+                    try:
+                        from .. import permission_grants as _pg2
+                        _never = bool(
+                            _pg2.permission_never_decided(_pid))
+                    except Exception:  # noqa: BLE001 — denied wording
+                        _never = False
+                    if _never:
+                        _activity_text = (
+                            f"Tool {ctx.name}: refused — {_label} has "
+                            f"never been granted, so nothing was run. "
+                            f"Switch {_label.lower()} on in Settings "
+                            f"to use it again.")
+                    else:
+                        _activity_text = (
+                            f"Tool {ctx.name}: refused — {_label} is "
+                            f"switched off in Settings, so nothing was "
+                            f"run. Switch {_label.lower()} back on in "
+                            f"Settings to use it again.")
                 elif _gate_value == "refused:folder-scope":
                     _activity_text = (
                         f"Tool {ctx.name}: refused — outside the "
@@ -360,9 +389,20 @@ class ToolRegistryExecSetupMixin:
                             result,
                             is_read=getattr(ctx, "_receipt_is_read",
                                             False)))
+                    # F-F502 (2026-11-21): the flag is the funnel's
+                    # own dispatch fact — True only when the mark
+                    # stage wrote a {"type": "dispatched"} record
+                    # for this call. The store's dispatched=True
+                    # default must NOT leak onto outcomes that
+                    # never reached dispatch (permission / scope /
+                    # validation / confirm-deny / no-handler
+                    # refusals, unknown tools, reads): their rows
+                    # claimed a dispatch the file has no record of.
                     _outcome_ok = _receipts_mod.try_record_outcome(
                         ctx._receipt_attempt,
-                        status=_r_status, summary=_r_summary)
+                        status=_r_status, summary=_r_summary,
+                        dispatched=bool(getattr(
+                            ctx, "_receipt_dispatched", False)))
                     if not _outcome_ok:
                         _note_obs_failure("receipts")
             except Exception:  # noqa: BLE001 — receipts never break
@@ -408,6 +448,10 @@ class ToolRegistryExecSetupMixin:
         # lookup / attempt write does.
         ctx._receipt_attempt = None
         ctx._receipt_error = False
+        # F-F502 (2026-11-21): False until the mark stage proves a
+        # dispatched record exists for this call; _audited reads
+        # this flag when recording the outcome.
+        ctx._receipt_dispatched = False
         ctx._receipt_is_read = _is_read_class(
             ctx.name, ctx.args if isinstance(ctx.args, dict) else None)
         try:

@@ -469,9 +469,18 @@ def ensure_capture_allowed(kind: str) -> tuple[bool, str]:
 
             _cam_denied = _pg.get_state("camera") == "denied" \
                 and not _pg.session_grant_allows("camera")
+            # F-F301: never decided is off by default, not switched
+            # off by the user — the refusal must say so.
+            _cam_never = _pg.permission_never_decided("camera")
         except Exception:  # noqa: BLE001 — fail closed, never open
             _cam_denied = True
+            _cam_never = False
         if _cam_denied:
+            if _cam_never:
+                return False, (
+                    "Camera has never been granted, so nothing was "
+                    "captured. To use it, switch camera on in "
+                    "Settings.")
             return False, (
                 "Camera is switched off in Settings, so nothing "
                 "was captured. To use it again, switch camera back "
@@ -491,9 +500,18 @@ def ensure_capture_allowed(kind: str) -> tuple[bool, str]:
             from . import permission_grants as _pg
 
             _mic_denied = _pg.get_state("microphone") == "denied"
+            # F-F301: never decided is off by default, not switched
+            # off by the user — the refusal must say so.
+            _mic_never = _pg.permission_never_decided("microphone")
         except Exception:  # noqa: BLE001 — fail closed, never open
             _mic_denied = True
+            _mic_never = False
         if _mic_denied:
+            if _mic_never:
+                return False, (
+                    "Microphone has never been granted, so nothing "
+                    "was captured. To use it, switch microphone on "
+                    "in Settings.")
             return False, (
                 "Microphone is switched off in Settings, so nothing "
                 "was captured. To use it again, switch microphone "
@@ -513,9 +531,18 @@ def ensure_capture_allowed(kind: str) -> tuple[bool, str]:
             from . import permission_grants as _pg
 
             _screen_denied = _pg.get_state("screen") == "denied"
+            # F-F301: never decided is off by default, not switched
+            # off by the user — the refusal must say so.
+            _screen_never = _pg.permission_never_decided("screen")
         except Exception:  # noqa: BLE001 — fail closed, never open
             _screen_denied = True
+            _screen_never = False
         if _screen_denied:
+            if _screen_never:
+                return False, (
+                    "Screen has never been granted, so nothing was "
+                    "captured. To use it, switch screen on in "
+                    "Settings.")
             return False, (
                 "Screen is switched off in Settings, so nothing "
                 "was captured. To use it again, switch screen back "

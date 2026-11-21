@@ -421,7 +421,15 @@ def paste_text(text: str) -> str:
 
         pyperclip.copy(content)
     except ImportError:
-        return "Pasting isn't available in this build of VYUK — the clipboard part didn't make it into the package."
+        # F-F203: nothing was pasted and nothing reached the
+        # clipboard, so the verdict is failed, not a plain string
+        # the receipts would read "succeeded". (The other two
+        # branches stay plain strings — they name different
+        # conditions, not this filed shape.)
+        from . import tool_outcome as _outcome  # R1b: seam wiring
+        return _outcome.failed(
+            "Pasting isn't available in this build of VYUK — the clipboard part didn't make it into the package.",
+            "clipboard part not in build")
     except Exception as e:  # noqa: BLE001 — headless / no clipboard mechanism
         return (f"Could not reach the clipboard to paste: {e}. "
                 "A desktop session with a clipboard is needed.")

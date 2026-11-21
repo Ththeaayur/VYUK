@@ -395,7 +395,13 @@ def create_event(title: str = "", start: str = "", end: str = "",
         "calendar", "your calendar", CALENDAR_EVENTS_SCOPE,
         "adding events")
     if svc is None:
-        return failure
+        # F-F501: no event was created — the service could not be
+        # built (not connected, sign-in expired, libraries
+        # missing, or the write scope absent) — so the verdict is
+        # failed, not a plain string the receipts would read
+        # "succeeded". The failure sentence itself names the cause.
+        from . import tool_outcome as _outcome  # R1b: seam wiring
+        return _outcome.failed(failure, "calendar service unavailable")
     event = {
         "summary": title,
         "start": {"dateTime": begin.isoformat()},

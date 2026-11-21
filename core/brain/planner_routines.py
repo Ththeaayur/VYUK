@@ -919,7 +919,13 @@ def delete_routine(name: str) -> str:
         cnote = corrupt_note(_ROUTINES_PATH)
         if cnote:
             notes.append(cnote)
-        return f"{msg}\n" + "\n".join(notes) if notes else msg
+        # F-F501: nothing was deleted, so the verdict is failed,
+        # not a plain string the receipts would read "succeeded".
+        # (The identical sentence at :473/:637 belongs to the
+        # run-routine path, not this delete — left alone.)
+        from .. import tool_outcome as _outcome  # R1b: seam wiring
+        text = f"{msg}\n" + "\n".join(notes) if notes else msg
+        return _outcome.failed(text, "routine missing")
     routines.remove(routine)
     if not _save_list(_ROUTINES_PATH, routines):
         return "Could not delete the routine: failed to write data/routines.json."

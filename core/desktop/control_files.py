@@ -519,7 +519,11 @@ def file_control(action: str, path: str, destination: str = "", pattern: str = "
             if not destination:
                 return f"File '{action}' needs a destination."
             if not src.exists():
-                return f"Path not found: {src}"
+                # F-F501 (same hole as delete): the act did not
+                # happen, so the verdict is failed, not a plain
+                # string the receipts would read "succeeded".
+                return _outcome.failed(
+                    f"Path not found: {src}", "source missing")
             dest = Path(str(destination)).expanduser()
             verb = {"copy": "Copied", "move": "Moved", "rename": "Renamed"}[action]
             src_is_dir = src.is_dir()
@@ -745,7 +749,14 @@ def file_control(action: str, path: str, destination: str = "", pattern: str = "
                     "Even then it is moved to the central trash folder, not permanently deleted."
                 )
             if not src.exists():
-                return f"Path not found: {src}"
+                # F-F203: the delete did not happen, so the verdict
+                # is failed, not a plain string the receipts would
+                # read "succeeded". (The list/find/info not-found
+                # branches above stay plain strings — they are
+                # reads, and a read that finds nothing is not a
+                # failed act.)
+                return _outcome.failed(
+                    f"Path not found: {src}", "source missing")
             # v5.48 (programme item 27): deletes land in the ONE
             # central trash root under a timestamped unique name,
             # with a manifest entry (see _move_to_central_trash) —

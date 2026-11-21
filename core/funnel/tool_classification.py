@@ -93,6 +93,20 @@ _CONFIRM_GATE_TOOLS = frozenset({
     "batch_rename",         # renames many files at once (v4.4)
     "send_email",           # mail leaves the machine (v5.2)
     "create_calendar_event",  # writes to the user's calendar (v5.2)
+    # Round-3 section F fix F-F303 (2026-11-21): a toast pops on
+    # the user's screen outside the conversation, with no ask and
+    # no permission to revoke — the sharp half of F-F303 (the
+    # gated-three half is a parent ruling: the confirm ask IS the
+    # per-call permission there). Confirm-gated, so every
+    # notification asks first; membership here ALSO bars the
+    # always-allow shortcut structurally (confirm_gate_allowlist
+    # ._in_allowlistable_base returns False for every
+    # _CONFIRM_GATE_TOOLS member), so no standing grant can ever
+    # cover a notification. The "output to user" siblings stay
+    # free: speech is the reply channel itself (gating
+    # speak_text would ask before every spoken reply), while a
+    # toast is a screen pop the user did not ask to see.
+    "notify_user",
     "write_file",           # overwrites/creates files wholesale (v5.3)
     "study_export_deck",    # writes a caller-chosen .apkg file
                             # (Triage Wire Build 1; write_file parity)
@@ -1381,9 +1395,11 @@ _FREE_BY_DESIGN: dict[str, str] = {
     # panic-refused like webcam_snapshot; the guard inside the session
     # refuses a denied camera before any frame is read.
     "watch_gestures": "capture",
-    # output to user (v5.47, programme item 11)
+    # output to user (v5.47, programme item 11) — notify_user
+    # left this class in round-3 section F fix F-F303
+    # (2026-11-21): a toast is a screen pop, not the reply
+    # channel, so it is confirm-gated (see _CONFIRM_GATE_TOOLS).
     "ambient_scene": "output to user",
-    "notify_user": "output to user",
     "read_selection_aloud": "output to user",
     "speak_text": "output to user",
     "speaker_check": "output to user",

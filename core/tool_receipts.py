@@ -465,8 +465,12 @@ def receipt_outcome_for_result(result: Any, *,
     a failure); a dict payload whose own verdict is failure
     (``ok`` False — e.g. a ``cdp-click-failed`` click, a
     ``needs-observation`` pick-first, a route-death pause) ->
-    "failed" with the reason named (R2); a plain-string failure
-    sentence -> "failed"; anything else -> "succeeded". The
+    "failed" with the reason named (R2); a JSON-string carrying
+    the same failure verdict (the record-tool Triage Wire
+    pattern, F-F202) is decoded and judged the same way, while
+    a JSON-string success or JSON data keeps its raw-string
+    summary; a plain-string failure sentence -> "failed";
+    anything else -> "succeeded". The
     summary is the result's own message, or the act's report
     string for a successful effectful call (a dict payload's
     ``reason`` / ``report``); a successful READ keeps an empty
@@ -494,6 +498,26 @@ def receipt_outcome_for_result(result: Any, *,
     else:
         text = ""
         payload_dict = None
+    if payload_dict is None and isinstance(payload, str):
+        # A JSON-string verdict (the record-tool Triage Wire pattern,
+        # F-F202): the same verdict the dict branch reads, one
+        # envelope out — '{"ok": false, "reason": ...}' as a string.
+        # Decode it ONLY when it parses as a FAILURE verdict
+        # (ok False, or status needs-observation) and let the dict
+        # branch judge it; a successful JSON-string verdict keeps
+        # its raw-string summary, and JSON data with no verdict
+        # keys is never treated as a verdict.
+        _stripped = payload.strip()
+        if _stripped.startswith("{"):
+            try:
+                _decoded = json.loads(_stripped)
+            except Exception:  # noqa: BLE001 — not JSON, plain text
+                _decoded = None
+            if isinstance(_decoded, dict) and (
+                    _decoded.get("ok") is False
+                    or _decoded.get("status") == "needs-observation"):
+                payload_dict = _decoded
+                text = ""
     dict_report = ""
     if payload_dict is not None:
         for _key in ("reason", "report"):

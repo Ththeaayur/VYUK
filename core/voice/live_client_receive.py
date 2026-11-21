@@ -313,6 +313,17 @@ class GeminiLiveSessionReceiveMixin:
         if not text.strip():
             self._output_transcript_buf = ""
             return
+        # Round-3 section D fix D-O2: this reply reaches the
+        # user — as a bubble, as the stopped partial the GUI
+        # already finalised, or as the loss note the failure
+        # paths below surface — so stamp the reply clock. The
+        # deferred and empty exits above stamp nothing: a
+        # reply held for its question, or no reply at all, is
+        # not an answer yet. Live-streamed chunks do NOT
+        # stamp: a reply that stalls mid-stream must still
+        # trip (its chunks refreshed the response clock, so
+        # the voice rule cannot see it).
+        self._last_reply_at = time.monotonic()
         if stopped:
             # The user stopped this reply: the words already
             # shown stay shown (the GUI finalised its live
@@ -999,6 +1010,17 @@ class GeminiLiveSessionReceiveMixin:
                                         except Exception:  # noqa: BLE001
                                             pass
                                     audio_manager.enqueue_playback(pcm_data)
+                                    # Round-3 section D fix D-O2: the
+                                    # model is speaking — stamp the
+                                    # reply clock (see the watchdog's
+                                    # answered-turn rule): audio the
+                                    # user hears is a reply, whatever
+                                    # the transcript says. The filler
+                                    # never lands here (it enqueues
+                                    # straight to the audio manager),
+                                    # so holding audio cannot pose
+                                    # as an answer.
+                                    self._last_reply_at = time.monotonic()
                                     self._notify_status("SPEAKING")
                                     # P2 speed pass: the first audio
                                     # chunk of the turn closes the
@@ -1948,6 +1970,13 @@ class GeminiLiveSessionReceiveMixin:
         while True:
             batch = await self._tool_queue.get()
             try:
+                # Round-3 section D fix D-O2: the answered-turn
+                # rule must not trip while a batch is still
+                # running — a long tool, or a confirm gate
+                # waiting on the user, is a turn still in
+                # progress, not a skipped one.
+                self._tool_in_flight = int(getattr(
+                    self, "_tool_in_flight", 0) or 0) + 1
                 await self._run_tool_batch(batch)
             except asyncio.CancelledError:
                 raise
@@ -1955,4 +1984,11 @@ class GeminiLiveSessionReceiveMixin:
                 print(f"[Tool Worker Error]: {e}")  # never kills it
                 _log_line(f"Tool worker batch failed: {e}")
             finally:
+                self._tool_in_flight = max(
+                    0, int(getattr(self, "_tool_in_flight", 0) or 0)
+                    - 1)
+                # The batch is done — delivered, failed, or
+                # cancelled — so the model's 7 s to speak runs
+                # from here, not from the call.
+                self._last_tool_done_at = time.monotonic()
                 self._tool_queue.task_done()

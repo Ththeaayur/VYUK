@@ -286,7 +286,13 @@ def delete_snippet(name: str) -> str:
         if key is None:
             extra = (f" Saved snippets: {_names_line(store)}."
                      if store else " No snippets are saved yet.")
-            return f"There's no snippet called '{name}'.{extra}"
+            # F-F501: nothing was deleted, so the verdict is failed,
+            # not a plain string the receipts would read
+            # "succeeded".
+            from . import tool_outcome as _outcome  # R1b: seam wiring
+            return _outcome.failed(
+                f"There's no snippet called '{name}'.{extra}",
+                "snippet missing")
         del store[key]
         if not _save_store(store):
             return (f"Couldn't delete snippet '{key}' — writing the "

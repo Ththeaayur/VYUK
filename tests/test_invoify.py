@@ -153,7 +153,7 @@ class TestGate(_InvoiceBase):
     def test_invoice_in_confirm_set(self):
         from core.funnel.tools_gate_confirm import _CONFIRM_GATE_TOOLS
         self.assertIn("invoice", _CONFIRM_GATE_TOOLS)
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — R19-6 tolgee pack (2026-11-12): 161 -> 162 — translations is confirm-gated for translate; SOCIAL Phase 1 (2026-11-13): 162 -> 163 — social_send is confirm-gated; GAPS-8 scheduled-agents pack (2026-11-13): 163 -> 164 — scheduled_agents is confirm-gated; round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 167)  # INTENTIONAL — R19-6 tolgee pack (2026-11-12): 161 -> 162 — translations is confirm-gated for translate; SOCIAL Phase 1 (2026-11-13): 162 -> 163 — social_send is confirm-gated; GAPS-8 scheduled-agents pack (2026-11-13): 163 -> 164 — scheduled_agents is confirm-gated; round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
 
     def test_invoice_not_in_free_set(self):
         from core.funnel.tools_gate_free import _FREE_BY_DESIGN

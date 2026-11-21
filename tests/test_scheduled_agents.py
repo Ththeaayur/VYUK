@@ -686,7 +686,7 @@ class TestCensus(unittest.TestCase):
 
     def test_confirm_gated_is_164(self):
         from core.funnel.tools_gate_confirm import _CONFIRM_GATE_TOOLS
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 167)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
         self.assertIn("scheduled_agents", _CONFIRM_GATE_TOOLS)
         from core.funnel.tools_gate import _needs_confirmation
         self.assertFalse(_needs_confirmation(
@@ -714,7 +714,7 @@ class TestCensus(unittest.TestCase):
         self.assertEqual(sum(1 for v in snap.values()
                              if not v.get("read")), 375)  # INTENTIONAL — Click-anywhere (2026-11-14): 372 -> 373 — click_anywhere is effectful; field-check fix #32 (2026-11-18): 373 -> 374 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 374 -> 375 — one new tool run_plan
         self.assertEqual(sum(1 for v in snap.values()
-                             if v.get("confirm")), 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+                             if v.get("confirm")), 167)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ regress silently:
   teach_trigger). The parent ruling (2026-11-19): running a
   saved anticipation routine executes its steps, exactly like
   run_plan — same gate, same reason. This suite pins the
-  membership, the snapshot value, and the confirm count (166).
+  membership, the snapshot value, and the confirm count (167).
 - The teach ranking gap from the same batch: fix #32's new
   tool scored 24 for "teach me a routine" and pushed
   teach_list_sequences out of the top 8 (it scored only on
@@ -56,12 +56,14 @@ class TestAnticipationRoutineClassification(unittest.TestCase):
         self.assertNotIn("run_anticipation_routine", _FREE_BY_DESIGN)
         self.assertTrue(_needs_confirmation("run_anticipation_routine", {}))
 
-    def test_confirm_count_is_166(self):
+    def test_confirm_count_is_167(self):
         self.assertEqual(
-            len(_CONFIRM_GATE_TOOLS), 166,
+            len(_CONFIRM_GATE_TOOLS), 167,
             "fix #32 follow-up (2026-11-19): 165 -> 166 — "
             "run_anticipation_routine classified confirm-gated "
-            "per parent ruling")
+            "per parent ruling; round-3 section F fix F-F303 "
+            "(2026-11-21): 166 -> 167 — notify_user classified "
+            "confirm-gated")
 
     def test_snapshot_entry_is_confirm_gated(self):
         snap = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))

@@ -145,7 +145,7 @@ class TestGate(_DealsBase):
     def test_deals_not_in_confirm_set(self):
         from core.funnel.tools_gate_confirm import _CONFIRM_GATE_TOOLS
         self.assertNotIn("deals", _CONFIRM_GATE_TOOLS)
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — SOCIAL Phase 1 (2026-11-13): 162 -> 163 — social_send is confirm-gated; GAPS-8 scheduled-agents pack (2026-11-13): 163 -> 164 — scheduled_agents is confirm-gated; round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 167)  # INTENTIONAL — SOCIAL Phase 1 (2026-11-13): 162 -> 163 — social_send is confirm-gated; GAPS-8 scheduled-agents pack (2026-11-13): 163 -> 164 — scheduled_agents is confirm-gated; round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
 
     def test_all_actions_are_free(self):
         from core.funnel.tools_gate import _needs_confirmation

@@ -366,7 +366,19 @@ def revoke_kind(tool_name: str, how: str = "Settings") -> bool:
     (including when it never had it); False only when the
     write itself failed. Records the §4.8 revocation
     receipt (event + Activity line with Undo = re-grant)
-    when a stored kind is actually forgotten."""
+    when a stored kind is actually forgotten.
+
+    F-F403: when a stored kind is actually forgotten, the
+    in-memory taint batch for that kind is invalidated too
+    (clear_batch_for_kind in confirm_gate) — otherwise an
+    identical tainted repeat inside the 10 s window would
+    replay the approval made while the grant stood, and the
+    revoke would not take effect until the window expired.
+    The clear never blocks the revoke: the file write already
+    succeeded, and a failed clear is logged, not raised.
+    A revoke of a kind that was never stored changes nothing,
+    so it clears nothing either (a pure popup approval's
+    batch is not a grant and stays replayable)."""
     kinds = _load_allowlist()
     had = tool_name in kinds
     kinds.discard(tool_name)
@@ -376,6 +388,14 @@ def revoke_kind(tool_name: str, how: str = "Settings") -> bool:
         _record_grant_receipt(
             f"kind:{tool_name}", "revoked", how,
             undo=lambda: allow_kind(tool_name, how="Activity"))
+        try:
+            from .confirm_gate import (  # noqa: F401 — lazy: the
+                clear_batch_for_kind as _clear_batch)
+            _clear_batch(tool_name)
+        except Exception as e:  # noqa: BLE001 — revoke stands;
+            # the batch clear is best-effort, logged, never raised
+            log.warning("confirm_gate batch clear failed for %s "
+                        "(%s: %s)", tool_name, type(e).__name__, e)
     return True
 
 

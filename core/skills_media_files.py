@@ -188,7 +188,11 @@ def batch_rename(folder: str, find: str, replace: str, confirm: bool = False,
         return "Batch rename needs a folder path."
     base = Path(str(folder)).expanduser()
     if not base.exists():
-        return f"Folder not found: {base}"
+        # F-F501: no rename ran, so the verdict is failed, not a
+        # plain string the receipts would read "succeeded".
+        from . import tool_outcome as _outcome  # R1b: seam wiring
+        return _outcome.failed(
+            f"Folder not found: {base}", "folder missing")
     if not base.is_dir():
         return f"That's a file, not a folder: {base}"
     needle = find or ""

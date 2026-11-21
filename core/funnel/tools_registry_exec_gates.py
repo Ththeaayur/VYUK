@@ -404,6 +404,31 @@ class ToolRegistryExecGatesMixin:
                   "browser": "Browser",
                   "files": "Files",
                   "home_devices": "Home devices"}.get(pid, str(pid))
+        # F-F301: the refusal must name the real state. A permission
+        # never decided is off by default — the user never touched
+        # the switch — so it reads "has never been granted", not
+        # "is switched off". permission_never_decided() distinguishes
+        # the two (no store file, or a readable store with no record
+        # for the id); the denied-by-user wording below is unchanged.
+        # The grants module imports stdlib only and never raises, so
+        # no try/except here, same as check_tool above.
+        if _pg.permission_never_decided(pid):
+            if pid == "browser":
+                # Never connected, not switched off: the way back is
+                # the one-tap connect, same as the denied case minus
+                # the "back on" that implies it was on before.
+                _how_back = ("tap 'Connect my browser' — it turns "
+                             "this on in one tap.")
+            else:
+                _how_back = (f"switch {_label.lower()} on in "
+                             "Settings.")
+            return ctx._audited({
+                "status": "error", "kind": "refused",
+                "permission_id": pid,
+                "message": (
+                    f"{_label} has never been granted, so this "
+                    f"capability was refused — nothing was run. To use "
+                    f"it, {_how_back}")})
         if pid == "browser":
             # Field-check fix #16 (T8 #27): the refusal named
             # only Settings, never the one-tap way back the
@@ -536,6 +561,39 @@ class ToolRegistryExecGatesMixin:
         # only — so no try/except here, same as _exec_permission.
         hit = _folder_scope_hit(ctx.name, ctx.args)
         if hit is not None:
+            # F-F302: scope judges the RAW values, so a mistyped arg
+            # reads as an out-of-scope path — but the real defect is
+            # the type (a path of 12345 is not a path outside the
+            # allowed folders, it is not a path at all; and a
+            # mistyped JSON payload is not the filler output path
+            # scope fired on). When validation ALSO refuses this
+            # call, its reason names the defect, so the refusal
+            # carries the validation reason instead. This changes
+            # nothing else: genuinely out-of-scope VALID paths keep
+            # the scope refusal exactly as before, and calls with
+            # no scope hit never reach this branch (the validate
+            # stage judges them in its own turn). Native calls
+            # only — MCP validation lives in _exec_validate, after
+            # route. Any consult failure falls through to the scope
+            # refusal (fail-closed, today's behaviour).
+            if ctx._mcp_entry is None:
+                try:
+                    _problem = self.validate_args(ctx.name, ctx.args)
+                except Exception:  # noqa: BLE001 — scope refusal stands
+                    _problem = None
+                if _problem is not None:
+                    self._log_activity(ctx.name, f"error: {_problem}")
+                    ctx._audit_gate["value"] = "refused:validation"
+                    _tool = self._tools[ctx.name]
+                    return ctx._audited({
+                        "status": "error", "kind": "validation",
+                        "message": _problem,
+                        "validation_error": True,
+                        "schema": {
+                            "name": ctx.name,
+                            "description": _tool["description"],
+                            "parameters": _tool["parameters"],
+                        }})
             self._log_activity(
                 ctx.name, "error: refused (folder scope)")
             ctx._audit_gate["value"] = "refused:folder-scope"

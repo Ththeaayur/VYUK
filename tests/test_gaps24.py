@@ -583,7 +583,7 @@ class CensusTests(unittest.TestCase):
         from core import catalogue_groups_data as cat
         grouped = sum(len(m) for m in cat.GROUP_MEMBERS.values())
         self.assertEqual(grouped, 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 166)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 167)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
 
     def test_reconciliation_tool_still_owed(self):
         # No new tool in this batch: the reconciliation mechanism
