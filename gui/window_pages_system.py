@@ -125,6 +125,13 @@ class PagesSystemMixin:
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidget(page)
         page.setAutoFillBackground(False)
+        # E-F209: the page is built with the house tokens — apply
+        # the saved theme now (the load-time _apply_appearance may
+        # have run before this page existed).
+        try:
+            self._apply_theme_to_painted_pages()
+        except Exception:  # noqa: BLE001 — Pulse must still build
+            pass
         return scroll
 
     # ------------------------------------------------------- senses
@@ -207,6 +214,14 @@ class PagesSystemMixin:
                 providers=providers,
                 on_open_permissions=self._open_senses_permissions)
             layout.addWidget(self.senses_page, stretch=1)
+            # E-F209: the page is built with the house tokens —
+            # apply the saved theme now (the load-time
+            # _apply_appearance may have run before this page
+            # existed).
+            try:
+                self._apply_theme_to_painted_pages()
+            except Exception:  # noqa: BLE001 — Senses must still build
+                pass
         except Exception as e:  # noqa: BLE001 — the page must still build
             print(f"[VYUK] Senses page unavailable: {e}")
             unavailable = QLabel("Senses is unavailable on this machine.")

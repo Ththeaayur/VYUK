@@ -121,6 +121,19 @@ class PagesMixin:
         layout.setContentsMargins(0, 0, 0, 0)
         orb = OrbVisualizer()
         orb.setMinimumSize(170, 170)
+        # E-F301: the orb's shared sizeHint is 320x320 (the Home
+        # hero's hint, gui/visualizer_paint.py) — uncapped it
+        # pushes the "Meet VYUK" title below the scroll viewport's
+        # fold at the default 780x560 dialog (sliced mid-glyph),
+        # and entirely off-screen at 760 wide, where the nav hint
+        # wraps taller and the viewport shrinks to 319. Cap this
+        # instance at 240: 240 + spacing + title block (68) = 314
+        # fits the 336 viewport at 780 and the 319 viewport at
+        # 760, title and body both above the fold. A maximum, not
+        # a fixed size, so the orb can still shrink on a smaller
+        # resized dialog. The Home hero orb is a separate instance,
+        # untouched.
+        orb.setMaximumSize(240, 240)
         orb.set_state("IDLE")
         layout.addWidget(orb, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._title_block(
@@ -245,12 +258,9 @@ class PagesMixin:
              "Needs internet for the sharpest brain"],
             recommended=True), stretch=1)
         layout.addLayout(cards, stretch=1)
-        note = QLabel("You can switch any time in Settings — "
-                      "nothing here is locked in.")
-        note.setObjectName("muted")
-        note.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        note.setStyleSheet("background: transparent; border: none;")
-        layout.addWidget(note)
+        # E-F302 option D: the switch note moved to the dialog
+        # chrome (see _switch_note in onboarding.py) — it sat
+        # below the fold at the bottom of this scrolling page.
         return page
 
     def _profile_card(self, profile: str, title: str, tagline: str,
@@ -346,12 +356,9 @@ class PagesMixin:
              "Heaviest start of the three"]),
             stretch=1)
         layout.addLayout(cards, stretch=1)
-        note = QLabel("You can switch any time in Settings — "
-                      "nothing here is locked in.")
-        note.setObjectName("muted")
-        note.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        note.setStyleSheet("background: transparent; border: none;")
-        layout.addWidget(note)
+        # E-F302 option D: the switch note moved to the dialog
+        # chrome (see _switch_note in onboarding.py) — it sat
+        # below the fold at the bottom of this scrolling page.
         self._select_profile(self.profile_choice)
         return page
 
@@ -509,6 +516,13 @@ class PagesMixin:
         layout.addWidget(tier_hint)
         self.ob_key_status = QLabel("")
         self.ob_key_status.setObjectName("muted")
+        # E-F303: the warning this label carries is a long single
+        # line (~200 chars); without wrapping its sizeHint blows
+        # out the shared QStackedWidget's minimum width and every
+        # later wizard page renders cut off at the right edge. The
+        # neighbouring labels on this page all wrap — this one does
+        # too.
+        self.ob_key_status.setWordWrap(True)
         layout.addWidget(self.ob_key_status)
         self.ob_btn_save_key = QPushButton("Save key")
         self.ob_btn_save_key.setObjectName("primaryBtn")

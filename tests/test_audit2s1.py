@@ -121,13 +121,15 @@ class TestSlice1StaticPins(unittest.TestCase):
         # backup_release_v630_pre gui/window_shell_assistant.py:304
         # (self.chat_panel.setMinimumWidth(300)); the live tree
         # has the same call at window_shell_assistant.py:392.
-        # _DOCK_NARROW_WIDTH stays 380 — that is the dock
-        # screen-share rule, not the chat floor.
+        # _DOCK_NARROW_WIDTH is 420 (E-F103, 2026-11-20 — was 380:
+        # screen-share hides below the 400 px default panel now,
+        # so the composer input keeps room for the placeholder) —
+        # that is the dock screen-share rule, not the chat floor.
         for pin in ("setFixedWidth(220)",
                     "setMinimumSize(*WINDOW_MINIMUM)",
                     "setMinimumWidth(420)",
                     "setMinimumWidth(300)",
-                    "_DOCK_NARROW_WIDTH = 380",
+                    "_DOCK_NARROW_WIDTH = 420",
                     "setFixedSize(44, 44)",
                     "setFixedSize(56, 56)",
                     "setFixedSize(42, 42)"):
@@ -399,10 +401,15 @@ class TestSlice1StaticPins(unittest.TestCase):
 
     def test_composer_floor_arithmetic(self):
         # S5 dock constants, re-pinned: full dock 294, narrow dock
-        # (screen-share hidden below a 380 panel) 240, silent 124.
+        # (screen-share hidden below a 420 panel — E-F103,
+        # 2026-11-20, was 380) 240, silent 124.
         # At the 300 panel floor: sounding input 60, silent 176.
         # 60 px is the FLOOR, not a usability claim (UI-02): at
         # 13 px text it shows ~9 characters, ~7-8 at 120%.
+        # (E-F103 also hides Dictate entirely below a 380 panel,
+        # so the real 300-floor dock is input + send + mic only —
+        # the sums above never included Dictate's 48 px, so they
+        # stand unchanged.)
         self.assertEqual(44 + 56 + 42 + 104 + 4 * 12, 294)
         self.assertEqual(44 + 56 + 104 + 3 * 12, 240)
         self.assertEqual(44 + 56 + 2 * 12, 124)

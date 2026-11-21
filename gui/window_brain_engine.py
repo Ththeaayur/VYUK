@@ -6,7 +6,7 @@ methods moved verbatim from there.
 
 import logging
 from voice_assistant.core.gui_facade import config
-from voice_assistant.core.gui_facade import qsettings_set
+from voice_assistant.core.gui_facade import qsettings_set, qsettings_set_noted
 
 
 class BrainEngineMixin:
@@ -97,11 +97,23 @@ class BrainEngineMixin:
         # the pack is wanted so provisioning is allowed (see
         # _local_pack_wanted). Switching to cloud leaves the flag
         # alone: a "both" user's pack stays wanted.
+        # Round-3 item 14: a write that never persists means the
+        # pack never downloads after an explicit Local pick — say
+        # so in the open, the same shape as the .env failure above
+        # (the log line + feed marker from the noted call stand
+        # either way).
         if engine == "local":
-            try:
-                qsettings_set("setup/local_pack_wanted", True, settings=self.settings)
-            except Exception:  # noqa: BLE001
-                pass
+            if not qsettings_set_noted(
+                    "setup/local_pack_wanted", True,
+                    settings=self.settings):
+                try:
+                    self._notify(
+                        "I couldn't save that local-brain choice — "
+                        "the on-PC pack won't download until it's "
+                        "saved. Check that the settings file isn't "
+                        "read-only, then pick Local again.")
+                except Exception:  # noqa: BLE001 — the log line above stands
+                    pass
         # v3.2: switching to the on-PC brain starts its pack download
         # right away (same rule as app launch), and the setup banner
         # follows the engine either way.

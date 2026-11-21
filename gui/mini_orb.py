@@ -52,7 +52,7 @@ from .visualizer_glass import (
     glass_contour_path,
     paint_glass_layers,
 )
-from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_get, qsettings_set_noted
 
 try:  # The palette only — shared theme source, no visualizer widget.
     from .visualizer import THEMES
@@ -529,10 +529,10 @@ class MiniOrb(QWidget):
             event.accept()
             if was_drag:
                 # Persist where the user left it (move end).
-                try:
-                    qsettings_set("mini_orb/pos", self.pos())
-                except Exception:  # noqa: BLE001
-                    pass
+                # Round-3 item 14: a position that never persists
+                # jumps the orb back to its default spot at the
+                # next launch. Noted on failure, never swallowed.
+                qsettings_set_noted("mini_orb/pos", self.pos())
             elif self.on_click is not None:
                 self.on_click()
             return

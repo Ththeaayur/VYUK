@@ -103,6 +103,26 @@ def _clean_source(source) -> str:
     return text if text in FACT_SOURCES else "unknown"
 
 
+# Section D fix D-F1 (2026-11-20): the 100-fact memory cap is a
+# bound on the USER's facts, not on one path to them. The learn
+# path (core/memory/learning.py) capped only category "learned",
+# while the funnel tool remember_user_fact wrote any category with
+# no check at all — a capped-out fact landed anyway, and the same
+# fact could sit in two categories at once (the live model files
+# what it hears under "preferences" while the learn path files the
+# same utterance under "learned"). The cap therefore counts rows
+# across the user-fact categories together: "learned" (the learn
+# path), "general" (the tool's default category and the GUI import
+# path) and "preferences" (where the live model files what it
+# hears). The number stays 100. Internal skill categories
+# (flashcards, habit logs, budgets, reading lists, …) are app state
+# written by code, not user facts, and are NOT counted — save_fact
+# itself stays uncapped on purpose, so no skill store is affected
+# by this bound.
+USER_FACT_CATEGORIES = frozenset({"learned", "general", "preferences"})
+MAX_USER_FACTS = 100
+
+
 class MemoryStoreUnavailableError(RuntimeError):
     """The store file could not be opened AND could not be moved
     aside, so no memory is available at all. Raised by _execute
@@ -476,6 +496,26 @@ class MemoryStore:
 
     def get_all_facts(self) -> list[dict[str, Any]]:
         return self._read_facts("SELECT id, category, key, value, source, updated_at FROM facts ORDER BY category, key")
+
+    def count_facts(self, categories=None) -> int:
+        """Rows in `categories` (or every row when None). The cap
+        counts via count_facts(USER_FACT_CATEGORIES); a plain
+        COUNT(*) is cheaper than loading every row, and no source
+        column is named, so the legacy-table fallback in
+        _read_facts is not needed here."""
+        if categories is None:
+            row = self._execute(
+                "SELECT COUNT(*) AS n FROM facts", (), fetch_one=True)
+        else:
+            cats = sorted({str(c).strip().lower() for c in categories})
+            marks = ", ".join("?" for _ in cats)
+            row = self._execute(
+                "SELECT COUNT(*) AS n FROM facts "
+                f"WHERE category IN ({marks})",
+                tuple(cats), fetch_one=True)
+        if row is None:
+            return 0
+        return int(dict(row).get("n", 0))
 
     def search_facts(self, query: str) -> list[dict[str, Any]]:
         pattern = f"%{query}%"

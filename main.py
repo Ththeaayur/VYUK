@@ -391,7 +391,7 @@ def main():
                 from voice_assistant.core import w10_wiring as _w10
                 from voice_assistant.core.config_spec import (
                     qsettings_get,
-                    qsettings_set,
+                    qsettings_set_noted,
                 )
                 from voice_assistant.core.version import VERSION as _VER
                 from voice_assistant.gui.changelog_widget import (
@@ -411,8 +411,13 @@ def main():
                 _lay = QVBoxLayout(_dlg)
                 _lay.addWidget(_ChangelogWidget(_act["entries"], _dlg))
                 _dlg.exec()
-                qsettings_set("changelog/last_seen_version", _VER,
-                              settings=window.settings)
+                # Round-3 item 14: a mark-seen write that never
+                # persists shows the same "What's new" entries at
+                # the next launch. Noted on failure (log line +
+                # feed marker) instead of swallowed — the changelog
+                # still never breaks the launch.
+                qsettings_set_noted("changelog/last_seen_version", _VER,
+                                    settings=window.settings)
             except Exception:  # noqa: BLE001 — changelog never breaks launch
                 pass
 

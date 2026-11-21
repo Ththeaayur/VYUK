@@ -255,7 +255,10 @@ class SensesPage(QWidget):
             self._state_cards[key] = card
             self.state_labels[key] = card.value_label
             self._state_subs[key] = card.sub_label
-        self.state_labels["quality"].setText("Not measured")
+        # E-F210: "No reading" (102 px at the 18 px value face) fits
+        # the ~115 px value label at the 908 px minimum window;
+        # "Not measured" (130 px) wrapped to two lines there.
+        self.state_labels["quality"].setText("No reading")
 
         self.measure_button = QPushButton("Measure")
         self.measure_button.clicked.connect(self._start_quality)
@@ -371,14 +374,17 @@ class SensesPage(QWidget):
 
     def set_palette(self, highlight: str, accent: str):
         """Recolour the accents from a theme pair: section titles
-        take the highlight (PulsePage puts the highlight on its
-        primary dial); the state titles keep the muted ink."""
+        take the highlight; the Last-24-hours bars take the accent
+        (E-F209 — they painted the house ACCENT whatever the theme
+        was). The state titles keep the muted ink."""
         self._highlight = highlight
         self._accent = accent
         for label in (self._wifi_title, self._room_title,
                       self._timeline_title):
             label.setStyleSheet(
                 f"color: {highlight}; font-size: {TYPE_CARD_TITLE}px; font-weight: 600;")
+        for chart in (self.noise_chart, self.light_chart):
+            chart.set_bar_color(accent)
         self.update()
 
     def refresh_state(self):
@@ -825,11 +831,20 @@ class _TrendChart(QWidget):
         super().__init__(parent)
         self._title = title
         self._series: list = [None] * 24
+        # E-F209: the bar colour follows the theme accent (set by
+        # SensesPage.set_palette); the default is the house ACCENT,
+        # so Cyan is unchanged.
+        self._bar_color = ACCENT
         self.setMinimumHeight(self._H + 30)
         self.setToolTip(title)
 
     def set_series(self, series: list):
         self._series = list(series)[:24]
+        self.update()
+
+    def set_bar_color(self, color: str):
+        """Recolour the bars from a theme accent (E-F209)."""
+        self._bar_color = color
         self.update()
 
     def paintEvent(self, event):  # noqa: N802 (Qt naming)
@@ -857,7 +872,7 @@ class _TrendChart(QWidget):
                 "readings appear here as they're noticed.")
             painter.end()
             return
-        painter.setBrush(QColor(ACCENT))
+        painter.setBrush(QColor(self._bar_color))
         painter.setPen(Qt.PenStyle.NoPen)
         for i, value in enumerate(self._series):
             if value is None:

@@ -13,6 +13,7 @@ from PySide6.QtGui import (
 from PySide6.QtCore import (
     QEvent,
     QObject,
+    QRect,
     QRectF,
     QSettings,
     QSize,
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QFileDialog,
     QMenu,
@@ -36,6 +38,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizeGrip,
+    QSizePolicy,
     QSplitter,
     QSplitterHandle,
     QStackedLayout,
@@ -67,17 +70,194 @@ _CHIP_BORDER = 1
 
 
 
+class _ChipFlowLayout(QLayout):
+    """E-F101: the chip strip wraps onto a second line instead
+    of running past the panel edge.
+
+    The strip was a QHBoxLayout sized to the chips' true total
+    (508 px for three chips, 664 for four), so in a 300–400 px
+    panel the later chips were cut mid-word at the right edge at
+    every width, day and night, on both pages — with no visible
+    affordance that anything was hidden. This layout places the
+    chips left to right and wraps onto a second line when the
+    next chip would pass the row width, so every chip is fully
+    readable at rest. Each line is centred in the row — the
+    pre-fix look (the strip's stretch spacers centred the single
+    line) kept per line.
+
+    It reads each chip's own sizeHint, which is correct
+    synchronously for freshly rebuilt chips (fix #8: the layout
+    minimum lags one event-loop pass behind). The row's centring
+    spacers are QSpacerItems, not widgets — a flow layout cannot
+    place them on a line — so addItem drops them (the row
+    recentres each line itself in _do_layout).
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._items = []
+
+    def addItem(self, item):
+        if item.widget() is not None:
+            self._items.append(item)
+
+    def addStretch(self, stretch=0):
+        # E-F101: a no-op — spacers are dropped (see addItem),
+        # the row recentres each line itself. Kept so
+        # _refresh_chip_row (which brackets the chips with
+        # stretches for the old QHBoxLayout) works unchanged;
+        # QLayout itself has no addStretch (QBoxLayout only).
+        return None
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRect(0, 0, width, 0), True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        # One line tall, widest chip wide — the official flow
+        # example's shape. The height for a given width comes
+        # from heightForWidth, not from here.
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        size += QSize(margins.left() + margins.right(),
+                      margins.top() + margins.bottom())
+        return size
+
+    def _do_layout(self, rect, test_only):
+        margins = self.contentsMargins()
+        left = rect.x() + margins.left()
+        top = rect.y() + margins.top()
+        avail = max(rect.width() - margins.left()
+                    - margins.right(), 0)
+        spacing = max(self.spacing(), 0)
+        x = left
+        y = top
+        line_height = 0
+        line = []
+
+        def _flush(items, cy, lh):
+            if not items:
+                return cy
+            total = sum(it.sizeHint().width() for it in items)
+            total += spacing * (len(items) - 1)
+            cx = left + max(0, (avail - total) // 2)
+            for it in items:
+                if not test_only:
+                    it.setGeometry(QRect(cx, cy,
+                                         it.sizeHint().width(), lh))
+                cx += it.sizeHint().width() + spacing
+            return cy + lh + spacing
+
+        for item in self._items:
+            if item.widget() is None:
+                continue
+            iw = item.sizeHint().width()
+            ih = item.sizeHint().height()
+            if line and x + iw > left + avail:
+                y = _flush(line, y, line_height)
+                line = []
+                x = left
+                line_height = 0
+            line.append(item)
+            x += iw + spacing
+            line_height = max(line_height, ih)
+        if line:
+            y = _flush(line, y, line_height)
+            y -= spacing
+        return y - rect.y() + margins.bottom()
+
+
+class _ChipScrollArea(QScrollArea):
+    """E-F101: the chip strip's scroll area, sized to the
+    wrapped row instead of the fixed 42 px single line.
+
+    A plain QScrollArea reports the row's sizeHint height —
+    the fully stacked height (every chip on its own line) —
+    so the strip would stand 125–168 px tall with a band of
+    dead space under one or two lines of chips. This subclass
+    is a heightForWidth widget: its height for a given width
+    is the row's wrapped height at the viewport width plus
+    the frame, so the panel layout sizes the strip to exactly
+    the lines the chips need — one line where they fit, two
+    where they wrap. The wheel filter (fix #8) stays
+    installed; with nothing to scroll (bar maximum 0) it
+    passes the wheel through to the transcript.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        policy = self.sizePolicy()
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def hasHeightForWidth(self):
+        row = self.widget()
+        return row is not None and row.layout() is not None
+
+    def heightForWidth(self, width):
+        row = self.widget()
+        if row is None or row.layout() is None:
+            return super().heightForWidth(width)
+        avail = max(width - 2 * self.frameWidth(), 0)
+        return (row.layout().heightForWidth(avail)
+                + 2 * self.frameWidth())
+
+
 class _ChipRow(QWidget):
     """The suggestion-chip strip inside _chip_scroll."""
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # E-F101: the row reports its wrapped height for a
+        # given width, so the scroll area (widgetResizable)
+        # sizes the strip to the wrapped content.
+        policy = self.sizePolicy()
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
     def fit_chips(self):
-        """(Re)apply per-chip minimum widths from live metrics
-        and size the row to the layout's true total."""
+        """(Re)apply per-chip minimum widths from live metrics.
+
+        E-F101: the row no longer sizes itself to the chips'
+        total — it wraps (see _ChipFlowLayout), so the old
+        minimum-width forcing (508 px for three chips, 664
+        for four) is what pushed the later chips past the
+        panel edge, and it is gone. The per-chip minimum
+        widths stay: a chip must never squeeze mid-word,
+        whatever the panel width. The wrapped height follows
+        from the layout's heightForWidth; updateGeometry()
+        tells the scroll area to re-ask for it.
+        """
         layout = self.layout()
         if layout is None:
             return
-        widths = []
-        heights = []
         for i in range(layout.count()):
             wdg = layout.itemAt(i).widget()
             if wdg is None or wdg.objectName() != "chipSuggest":
@@ -86,65 +266,24 @@ class _ChipRow(QWidget):
             need = (fm.horizontalAdvance(wdg.text())
                     + 2 * (_CHIP_PAD_X + _CHIP_BORDER))
             wdg.setMinimumWidth(max(need, wdg.sizeHint().width()))
-            widths.append(wdg.minimumWidth())
-            heights.append(wdg.sizeHint().height())
-        # Round-3 fix #8 (A-UI5): the total comes from the chips'
-        # own minimum widths, NOT from layout.minimumSize().
-        # Freshly rebuilt chips report a stale layout minimum
-        # synchronously (8 px — margins only — until the event
-        # loop's first layout pass), so the old code froze the row
-        # at the previous state's width with minimumWidth 8: in
-        # the 4-chip state the row stayed 508 px, the scroll
-        # maximum stayed 208, and the last chip (right edge 550)
-        # could never be scrolled into view at all. The chips'
-        # minimum widths above are set from live font metrics, so
-        # their sum plus the layout's own margins and spacing is
-        # the true total now — 508 px for three chips, 664 for
-        # four — with no wait for a layout pass.
-        if widths:
-            margins = layout.contentsMargins()
-            total = (margins.left() + margins.right()
-                     + sum(widths)
-                     + max(layout.spacing(), 0) * (len(widths) - 1))
-        else:
-            total = layout.minimumSize().width()
-        if total > 0:
-            # A plain resize() is not enough: the scroll area's
-            # own layout pass re-applies the row's (lagging)
-            # sizeHint afterwards. The floor has to be a minimum
-            # width — every later pass honours it.
-            self.setMinimumWidth(total)
-            # Chat pass (2026-11-17): the height here must come
-            # from the layout's sizeHint, NOT from self.height().
-            # At construction the row has no geometry yet, so
-            # height() is the bare margins (4 px) — and this
-            # resize froze the row at 4 px tall forever, so the
-            # chips (35 px tall) never painted: the strip above
-            # the composer showed as 42 px of dead space. The
-            # same line shipped in v6.3.0 (see the backup) — the
-            # starters were invisible there too. The sizeHint
-            # height is the layout's true height (39 px); fall
-            # back to the current height only if it says 0.
-            # Round-3 fix #8 (A-UI5): the same stale-layout trap
-            # fires on EVERY rebuild, not just construction —
-            # freshly rebuilt chips report a 4 px layout sizeHint
-            # synchronously, so the old line froze the row at 4 px
-            # tall and the chips at 0 px (invisible) in the
-            # 4-chip state, and nothing ever re-ran it. The
-            # chips' own sizeHints are correct synchronously
-            # (35 px each), so the height comes from them plus
-            # the layout's own top/bottom margins — 39 px —
-            # with the sizeHint path kept only for the no-chips
-            # case.
-            if heights:
-                margins = layout.contentsMargins()
-                _want_h = (max(heights) + margins.top()
-                           + margins.bottom())
-            else:
-                _want_h = self.sizeHint().height()
-                if _want_h <= 0:
-                    _want_h = self.height()
-            self.resize(max(total, self.width()), _want_h)
+        self.updateGeometry()
+        # E-F101: the row's parent is the scroll area's viewport,
+        # which has no layout — so the row's own updateGeometry()
+        # dies there and the panel layout never re-asks the strip
+        # for its wrapped height. The strip then keeps the
+        # previous set's height: after a 4-line set shrinks to 3
+        # lines the strip stands 168 px tall with a band of dead
+        # space under the chips (the suite caught it: 168 !=
+        # 125). Tell the scroll area too, so the panel layout
+        # re-queries heightForWidth on the next event-loop pass.
+        try:
+            viewport = self.parentWidget()
+            scroll = (viewport.parentWidget()
+                      if viewport is not None else None)
+            if isinstance(scroll, QScrollArea):
+                scroll.updateGeometry()
+        except Exception:  # noqa: BLE001 — cosmetics never break chat
+            pass
 
     def changeEvent(self, event):  # noqa: N802 (Qt naming)
         super().changeEvent(event)

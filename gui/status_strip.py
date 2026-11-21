@@ -40,8 +40,11 @@ error (disk ≥95%, battery ≤10% unplugged) and the session's own
 "Problem" → red; metric warning (CPU / memory / disk ≥90%,
 battery ≤20% unplugged) and "Setup needed" → amber; mic muted
 while a live turn is running (Listening / Responding / Thinking)
-→ amber "Mic off"; otherwise the session's own word while it is
-in an active state, else "Ready". There is NO counted "N errors"
+→ amber "Mic off"; a disconnected session → amber "Offline"
+(E-F102 — it is not "Ready"); otherwise the session's own word
+while it is in an active state, or any other real session word
+("Local core") as-is, else "Ready" when there is no session word
+at all. There is NO counted "N errors"
 word: the tree has no app-wide error count to read (no
 ``error_count`` source exists), so none is invented — the strip
 names the worst real state it can see.
@@ -128,15 +131,24 @@ def derive_strip_state(sample, session_word, mic_muted):
     ``mic_muted`` is the mic's muted state. Worst first: a metric
     error or the session's own "Problem" is red; a metric warning,
     "Setup needed", or a muted mic during a live turn is amber;
-    otherwise the session's own word while active, else "Ready".
+    otherwise the session's own word while active, else the word
+    itself when it names a real session state ("Offline" is amber —
+    a degraded session, not a fault — "Local core" is ok), and
+    "Ready" only when there is no session word at all.
     """
     disk = sample.get("disk")
     battery = sample.get("battery_pct")
     plugged = bool(sample.get("battery_plugged"))
     if _is_at_least(disk, STRIP_ERROR_DISK_PCT):
-        return ("error", "Disk almost full")
+        # E-F104: an error must read as an error in WORDS, not
+        # just in dot colour — "Disk almost full" is the warning
+        # word; at >=95% the disk is critically full.
+        return ("error", "Disk critically full")
     if not plugged and _is_at_most(battery, STRIP_ERROR_BATTERY_PCT):
-        return ("error", "Battery low")
+        # E-F104: same shape as the disk error — "Battery low"
+        # is the warning word; at <=10% unplugged it is
+        # critically low.
+        return ("error", "Battery critically low")
     if session_word == "Problem":
         return ("error", "Problem")
     if _is_at_least(sample.get("cpu"), STRIP_WARN_CPU_PCT):
@@ -152,6 +164,20 @@ def derive_strip_state(sample, session_word, mic_muted):
     if mic_muted and session_word in _LIVE_WORDS:
         return ("warning", "Mic off")
     if session_word in _ACTIVE_WORDS:
+        return ("ok", session_word)
+    if session_word == "Offline":
+        # E-F102: a disconnected session is not "Ready" — the
+        # pill read Offline while the strip claimed all good.
+        # Offline is a degraded session (the user cannot talk),
+        # not a fault (nothing broke) and not "all good": amber.
+        return ("warning", "Offline")
+    if session_word:
+        # E-F102: any other session word the pill shows must
+        # appear as-is on the strip — "Ready" is only honest
+        # when there is no session word at all. This covers
+        # "Local core" (the on-device brain is live) and any
+        # future word, so the fall-through can never again
+        # swallow a real session state into "Ready".
         return ("ok", session_word)
     return ("ok", "Ready")
 

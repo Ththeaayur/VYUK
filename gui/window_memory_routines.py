@@ -11,7 +11,7 @@ import threading
 from pathlib import Path
 from PySide6.QtWidgets import QLabel
 from voice_assistant.core.gui_facade import live_session
-from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_get, qsettings_set_noted
 
 
 def _polish_row_labels(row_widget):
@@ -228,7 +228,12 @@ class MemoryRoutinesMixin:
             if not live_session.is_connected:
                 return  # skip silently — try again next minute/day
             self._briefing_fired_date = today
-            qsettings_set("presence/briefing_last_date", today, settings=self.settings)
+            # Round-3 item 14: the in-memory flag stops a second
+            # firing this session, but only the stored date stops
+            # one at the next launch today — a write that never
+            # persists plays the briefing twice in one day. Noted
+            # on failure, never swallowed.
+            qsettings_set_noted("presence/briefing_last_date", today, settings=self.settings)
             self._play_briefing()
         except Exception:  # noqa: BLE001
             pass

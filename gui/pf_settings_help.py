@@ -321,8 +321,8 @@ HELP_INDEX = (
         "microphone, screen, files, browser, and home "
         "devices each have their own permission. If one "
         "is missing or unknown, she says so instead of "
-        "guessing. Next step: open Settings → More "
-        "settings → Permissions to see each permission "
+        "guessing. Next step: open Settings → Privacy & "
+        "permissions → Permissions to see each permission "
         "and what it is used for.",
         ("refuse", "permission", "access", "why", "denied")),
     HelpTopic(
@@ -363,8 +363,8 @@ HELP_INDEX = (
         "mention, and promises you make — stored on this "
         "PC. Opinions she forms are labelled as opinions, "
         "never as facts, and inferred traits expire after "
-        "90 days. Next step: open Settings → More "
-        "settings → Your stored facts to see everything "
+        "90 days. Next step: open Settings → Privacy & "
+        "permissions → Your stored facts to see everything "
         "she stores, delete one fact, or wipe them all.",
         ("memory", "remember", "facts", "stored", "privacy")),
     HelpTopic(

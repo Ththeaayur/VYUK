@@ -158,18 +158,25 @@ class TestChatPassChatGeometrySource(unittest.TestCase):
                          "the Build 1 compact-tier helper survives")
 
     def test_chip_row_sizes_from_its_layout(self):
-        # Regression pin for the freeze: fit_chips must size the
-        # row from the layout's sizeHint, never from self.height()
-        # (at construction the row has no geometry yet, so
-        # height() is the bare margins — 4 px — and the row froze
-        # there forever, hiding the starter chips).
+        # E-F101 supersedes the fix-#8 shape this pin was written
+        # for: the row no longer sizes itself to the chips' total
+        # (that forcing — 508/664 px — is what cut the later
+        # chips at the panel edge). The row wraps now, and its
+        # height comes from the flow layout's heightForWidth.
+        # fit_chips must not size the row at all: no resize, no
+        # minimum width forced on the row, and no self.height()
+        # read at construction (the freeze this pin was written
+        # for — at construction the row has no geometry yet, so
+        # height() is the bare margins, 4 px).
         src = _gui_source("window_shell_assistant_widgets.py")
         tree = ast.parse(src)
         func = _func(tree, "fit_chips")
         segment = ast.get_source_segment(src, func)
-        self.assertIn("self.sizeHint().height()", segment)
-        self.assertNotIn("self.resize(max(total, self.width()), "
-                         "self.height())", segment)
+        self.assertNotIn("self.resize(", segment)
+        self.assertNotIn("setMinimumWidth(total)", segment)
+        self.assertNotIn("self.height()", segment)
+        self.assertIn("class _ChipFlowLayout", src)
+        self.assertIn("def heightForWidth", src)
 
 
 @unittest.skipUnless(_QT, "Qt unavailable")

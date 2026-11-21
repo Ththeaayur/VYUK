@@ -53,7 +53,7 @@ from PySide6.QtCore import (
     QTime,
     QTimer,
 )
-from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_set, qsettings_store
+from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_set, qsettings_set_noted, qsettings_store
 
 
 
@@ -75,10 +75,10 @@ class SettingsAppearanceMixin:
             pass
 
     def _on_glass_toggled(self, checked: bool):
-        try:
-            qsettings_set("appearance/glass", bool(checked), settings=self.settings)
-        except Exception:  # noqa: BLE001
-            pass
+        # Round-3 item 14: a glass choice that never persists
+        # reverts at the next launch (the apply below re-reads the
+        # stored value). Noted on failure, never swallowed.
+        qsettings_set_noted("appearance/glass", bool(checked), settings=self.settings)
         self._apply_saved_glass()
 
 
@@ -114,10 +114,10 @@ class SettingsAppearanceMixin:
             pass
 
     def _on_particles_toggled(self, checked: bool):
-        try:
-            qsettings_set("appearance/particles", bool(checked), settings=self.settings)
-        except Exception:  # noqa: BLE001
-            pass
+        # Round-3 item 14: same as the glass toggle above — a
+        # particles choice that never persists reverts at the next
+        # launch. Noted on failure, never swallowed.
+        qsettings_set_noted("appearance/particles", bool(checked), settings=self.settings)
         self._apply_ambience()
 
     def _apply_saved_settings(self):
@@ -280,9 +280,62 @@ class SettingsAppearanceMixin:
                 self._w9_backdrop = apply_window_backdrop(self)
             except Exception:  # noqa: BLE001
                 pass
+            # E-F209: the custom-painted pages do not follow the QSS —
+            # recolour their meters, bars and plot line from the
+            # same resolved theme the chrome just took.
+            try:
+                self._apply_theme_to_painted_pages(theme_arg)
+            except Exception:  # noqa: BLE001 — appearance never breaks boot
+                pass
         except Exception:  # noqa: BLE001 — appearance must never break boot
             pass
         self._sync_appearance_controls()
+
+    def _apply_theme_to_painted_pages(self, theme_arg=None):
+        """Recolour the custom-painted pages from a theme (E-F209).
+
+        The theme system only regenerates the QSS, so the Pulse
+        meters, the Overview plot line and the Senses 24 h bars —
+        all painted from the fixed house tokens — never followed
+        the theme. This drives their existing set_palette hooks
+        from the same resolved theme the chrome uses: the
+        (accent, accent_2) pair for Pulse/Overview, the
+        (highlight, accent) pair for Senses. Under Cyan the pairs
+        are the house tokens, so nothing changes. Defensive
+        throughout: pages may not exist yet when the theme loads,
+        and appearance must never break boot.
+        """
+        try:
+            theme = None
+            if isinstance(theme_arg, dict):
+                theme = theme_arg
+            elif isinstance(theme_arg, str) and theme_arg in STYLE_THEMES:
+                theme = STYLE_THEMES[theme_arg]
+            if theme is None:
+                name = migrate_theme_name(
+                    str(qsettings_get("theme", settings=self.settings)))
+                if name == "Custom":
+                    hexv = gate_custom_accent(str(qsettings_get(
+                        "appearance/custom_hex", settings=self.settings)))
+                    theme = derive_theme(hexv) or STYLE_THEMES["Cyan"]
+                else:
+                    theme = STYLE_THEMES.get(name) or STYLE_THEMES["Cyan"]
+            accent = theme.get("accent") or STYLE_THEMES["Cyan"]["accent"]
+            accent_2 = (theme.get("accent_2")
+                        or STYLE_THEMES["Cyan"]["accent_2"])
+            highlight = (theme.get("highlight")
+                         or STYLE_THEMES["Cyan"]["highlight"])
+            pulse = getattr(self, "pulse_page", None)
+            if pulse is not None:
+                pulse.set_palette(accent, accent_2)
+            overview = getattr(self, "_w9_overview_panel", None)
+            if overview is not None:
+                overview.set_palette(accent, accent_2)
+            senses = getattr(self, "senses_page", None)
+            if senses is not None:
+                senses.set_palette(highlight, accent)
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
 
     def _sync_appearance_controls(self):
         try:
@@ -396,11 +449,12 @@ class SettingsAppearanceMixin:
         new reduction to the orb + particle field."""
         if level not in self.MOTION_LEVELS:
             return
-        try:
-            qsettings_set("motion/level", level, settings=self.settings)
-            qsettings_set("motion/reduced", level in ("subtle", "off"), settings=self.settings)
-        except Exception:  # noqa: BLE001
-            pass
+        # Round-3 item 14: the user's explicit motion choice must
+        # persist — a write that never lands reverts the motion
+        # level at the next launch. Noted on failure, never
+        # swallowed.
+        qsettings_set_noted("motion/level", level, settings=self.settings)
+        qsettings_set_noted("motion/reduced", level in ("subtle", "off"), settings=self.settings)
         self._sync_motion_controls(level)
         try:
             self._apply_ambience()

@@ -34,6 +34,20 @@ from PySide6.QtCore import (
     QTimer,
 )
 from voice_assistant.core.gui_facade import VERSION
+from .design_system.flowlayout import FlowLayout
+from .style import (
+    # E-F201: the Theme-packs box is a QPlainTextEdit, and the app
+    # sheet styles the QLineEdit family only — the same tokens the
+    # Voice card's hand-fix uses (gui/window_settings_voice.py),
+    # so the two boxes match.
+    TEXT,
+    INPUT_BG,
+    INPUT_BG_FOCUS,
+    LINE_SUBTLE,
+    FOCUS_BORDER,
+    SELECTION_BG,
+    RADIUS_BTN,
+)
 
 
 
@@ -114,6 +128,20 @@ class SettingsAdvCardsMixin:
                 _w9.saved_theme_pack_names(self.settings))
             _pack_card.addWidget(self._w9_pack_combo)
             self._w9_pack_input = QPlainTextEdit()
+            # E-F201: the app sheet styles the QLineEdit family
+            # only; a bare QPlainTextEdit would render as a white
+            # box on the dark theme, so it carries the same well
+            # by hand — byte-identical to the Voice card's
+            # pronunciations box (gui/window_settings_voice.py),
+            # values mirror the sheet's input rule.
+            self._w9_pack_input.setStyleSheet(
+                f"QPlainTextEdit {{ background-color: {INPUT_BG};"
+                f" border: 1px solid {LINE_SUBTLE};"
+                f" border-radius: {RADIUS_BTN}px; padding: 8px 12px; color: {TEXT};"
+                f" selection-background-color: {SELECTION_BG};"
+                f" selection-color: {TEXT}; }}"
+                f"QPlainTextEdit:focus {{ border: {FOCUS_BORDER};"
+                f" background-color: {INPUT_BG_FOCUS}; }}")
             self._w9_pack_input.setPlaceholderText(
                 'Paste theme-pack JSON here…')
             self._w9_pack_input.setMaximumHeight(90)
@@ -257,7 +285,14 @@ class SettingsAdvCardsMixin:
         # Activity feed — same read-only dialogs, same lazy-open
         # discipline. A second row: six buttons in one row would
         # crowd the card.
-        trust_row2 = QHBoxLayout()
+        # E-F205: this row wraps (FlowLayout) instead of forcing
+        # five buttons onto one line — at 908 the row's 666 px
+        # minimum drove the System status card (698) past the
+        # 624 px viewport, so opening Advanced put a horizontal
+        # scrollbar under the Settings page. Single-row
+        # equivalent at wide widths (same 6 px spacing, same
+        # order, same buttons).
+        trust_row2 = FlowLayout(spacing=6)
         self.btn_unified_activity = QPushButton("All activity…")
         self.btn_unified_activity.clicked.connect(
             self._open_unified_activity)
@@ -274,7 +309,6 @@ class SettingsAdvCardsMixin:
         self.btn_memory_panel = QPushButton("What I remember…")
         self.btn_memory_panel.clicked.connect(self._open_memory_panel)
         trust_row2.addWidget(self.btn_memory_panel)
-        trust_row2.addStretch(1)
         trust.addLayout(trust_row2)
 
         # v5.57 owner override (2026-10-24 18:20 IST): Doctor

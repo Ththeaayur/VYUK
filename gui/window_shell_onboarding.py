@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 from voice_assistant.core.gui_facade import VERSION
 from voice_assistant.core.gui_facade import config
 import datetime
-from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_set, qsettings_set_noted
 
 
 class ShellOnboardingMixin:
@@ -109,19 +109,19 @@ class ShellOnboardingMixin:
         if choice_only:
             # Offered once, whatever the user did with it — the
             # Settings button can reopen the choice any time.
-            try:
-                qsettings_set("setup/choice_prompt_seen_v525", True, settings=self.settings)
-            except Exception:  # noqa: BLE001
-                pass
+            # Round-3 item 14: a mark that never persists offers
+            # the choice again at the next launch. Noted on
+            # failure, never swallowed.
+            qsettings_set_noted("setup/choice_prompt_seen_v525", True, settings=self.settings)
         else:
             qsettings_set("onboarded", True, settings=self.settings)
             # v5.65 (Wave 10 — PF-6): a fresh install baselines the
             # changelog here, so the startup "What's new" dialog
             # never spams a new user with the backlog.
-            try:
-                qsettings_set("changelog/last_seen_version", VERSION, settings=self.settings)
-            except Exception:  # noqa: BLE001
-                pass
+            # Round-3 item 14: a baseline that never persists
+            # shows the backlog at the next launch. Noted on
+            # failure, never swallowed.
+            qsettings_set_noted("changelog/last_seen_version", VERSION, settings=self.settings)
             # First-open continuous choice (identity-gap queue):
             # asked once, in plain language, at the end of a
             # full first run — never on the choice-only upgrade
@@ -225,7 +225,11 @@ class ShellOnboardingMixin:
             now_iso = datetime.now().isoformat(timespec="seconds")
             updated = _fos.apply_choice(stored, allowed, now_iso)
             for key, value in updated.items():
-                qsettings_set(key, value, settings=self.settings)
+                # Round-3 item 14: the first-open choice must
+                # persist — a write that never lands asks again
+                # at the next launch. Noted on failure; the
+                # surrounding try still guards the rest.
+                qsettings_set_noted(key, value, settings=self.settings)
         except Exception:  # noqa: BLE001 — never break startup
             pass
 
@@ -244,7 +248,12 @@ class ShellOnboardingMixin:
             # default ever passed is False = the spec table's
             # default, so the `d` parameter is carried, not used.
             lambda k, d=False: bool(qsettings_get(k, settings=self.settings)),
-            lambda k, v: qsettings_set(k, v, settings=self.settings))
+            # Round-3 item 14: the coach-shown flag is the
+            # "don't repeat" marker — a write that never persists
+            # replays the coach marks at the next launch. The
+            # noted write logs + records the failure (feed
+            # marker) instead of swallowing it in firstrun_g.
+            lambda k, v: qsettings_set_noted(k, v, settings=self.settings))
 
     # ------------------------------------------------------------ UI build
     def _greeting(self) -> str:

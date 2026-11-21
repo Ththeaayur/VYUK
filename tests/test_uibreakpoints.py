@@ -18,11 +18,15 @@ the audit slice 1 measurements (not taste):
 - Composer floors (UI rethink Build 1 + Chat UI Dictate): input
   min 120 px, Dictate collapses to icon-only below 420 px panel
   width, the dock waveform only shows when it fits, the screen
-  button hides below 380 px panel width. At the 300 floor the
-  sounding dock needs 304 (Dictate icon-only, no screen, no
-  waveform) — the 4 px overflow sits inside the 28 px page
-  margin, so the mic stays fully visible. Palette cap/clamp and
-  the Doctor scroll wrapper are re-pinned, not redone.
+  button hides below 420 px panel width (E-F103, 2026-11-20 —
+  was 380: at the 400 px default panel it took the room the
+  shortened placeholder needs), and Dictate hides entirely below
+  380 px (E-F103: at the 300 floor even its 48 px icon-only form
+  leaves the input at its minimum). At the 300 floor the dock
+  needs 244 (input min + send + mic + two gaps, no screen, no
+  Dictate, no waveform) — it fits with 56 px to spare, so the
+  mic stays fully visible. Palette cap/clamp and the Doctor
+  scroll wrapper are re-pinned, not redone.
 
 Lab honesty: the shell imports frozen voice_assistant.* names and
 cannot be imported here, so tiers + wiring are proved by AST over
@@ -183,21 +187,23 @@ class TestTierArithmetic(unittest.TestCase):
         # waveform 104, gaps 12.
         self.assertEqual(44 + 56 + 42 + 104, 246)
         # Input minimum 120: at the 400 px open width (screen
-        # shown, Dictate icon-only below 420) the sounding dock
-        # without the waveform leaves 162 px for the input.
-        self.assertEqual(400 - (44 + 56 + 42 + 48 + 4 * 12), 162)
+        # hidden below 420 — E-F103, 2026-11-20, was shown — and
+        # Dictate icon-only below 420) the dock without the
+        # waveform leaves 216 px for the input.
+        self.assertEqual(400 - (44 + 56 + 48 + 3 * 12), 216)
         # With the waveform at 512: 206 px for input + Dictate
         # together — the waveform only shows when the input keeps
         # its 120 (the gate is computed from live widths, see
         # _apply_dock_narrow_rule).
         self.assertEqual(512 - (44 + 56 + 42 + 104 + 5 * 12), 206)
-        # At the 300 floor (screen hidden, Dictate icon-only):
-        # the sounding dock needs 304 — the 4 px overflow sits
-        # inside the 28 px page margin, so the mic stays fully
-        # visible. Dictate icon-only is 48 (16 px icon + the
-        # generic QPushButton sheet's 16 px horizontal padding
-        # each side); three gaps, no screen, no waveform.
-        self.assertEqual(120 + 44 + 48 + 56 + 3 * 12, 304)
+        # At the 300 floor (screen hidden, Dictate hidden below
+        # 380 — E-F103, 2026-11-20, was icon-only): the dock needs
+        # 244 — it fits with 56 px to spare, so the mic stays fully
+        # visible and the input grows past its 120 minimum.
+        # Dictate icon-only is 48 (16 px icon + the generic
+        # QPushButton sheet's 16 px horizontal padding each side);
+        # two gaps, no screen, no waveform.
+        self.assertEqual(120 + 44 + 56 + 2 * 12, 244)
 
 
 # ---------------------------------------------------------------- AST
@@ -241,7 +247,11 @@ class TestBreakpointsWiring(unittest.TestCase):
         self.assertIn("setMinimumWidth(420)", shell)
         self.assertIn("setMinimumWidth(300)", shell)
         self.assertIn("setHandleWidth(12)", shell)
-        self.assertIn("_DOCK_NARROW_WIDTH = 380", shell)
+        # E-F103 (2026-11-20): the narrow threshold is 420 now
+        # (was 380) — screen-share hides below the 400 px default
+        # panel, so the composer input keeps room for the
+        # placeholder. The Dictate collapse (420) stays.
+        self.assertIn("_DOCK_NARROW_WIDTH = 420", shell)
         self.assertIn("_DICTATE_TEXT_WIDTH = 420", shell)
         self.assertNotIn("chat_floor_for", shell)
         self.assertIn("input_cmd.setMinimumWidth(120)", shell)

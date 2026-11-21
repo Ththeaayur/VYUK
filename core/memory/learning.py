@@ -67,11 +67,18 @@ morning" vs "black coffee in the evening" — maps to the same key
 and is treated as a correction of that like; hashing the whole
 value instead would file genuine corrections as duplicates.
 
-CATEGORY is "learned"; MAX_LEARNED caps the category at 100 facts
-(replacements of an existing key still work at the cap). A brand-new
-fact skipped at the cap is recorded for take_dropped_at_cap() so the
-chat layer can announce it — nothing the user taught vanishes
-silently (field-check fix #14, T9).
+CATEGORY is "learned"; MAX_LEARNED caps the user's facts at 100
+— counted across the user-fact categories together (learning
+MAX_USER_FACTS), not "learned" alone: the funnel tool
+remember_user_fact used to write any category with no check, so
+a capped-out fact landed anyway and the same fact could sit in
+two categories at once. Replacements of an existing key still
+work at the cap. A brand-new fact skipped at the cap is recorded
+for take_dropped_at_cap() so the chat layer can announce it —
+nothing the user taught vanishes silently (field-check fix #14,
+T9) — unless the same key is already kept in another user-fact
+category, in which case there is nothing to announce: the fact
+was kept, just elsewhere.
 
 The GUI calls learn_from_text() on user transcripts, announces what
 was stored ("Noted — …"), and shows every learned fact on the Memory
@@ -82,10 +89,20 @@ store failures degrade to "nothing learned".
 
 import re
 
-from .memory import as_user_note, instruction_shaped, memory_store  # Phase 3 M2h: memory.py moved to core/memory/memory.py
+from .memory import (  # Phase 3 M2h: memory.py moved to core/memory/memory.py
+    MAX_USER_FACTS,
+    USER_FACT_CATEGORIES,
+    as_user_note,
+    instruction_shaped,
+    memory_store,
+)
 
 CATEGORY = "learned"
-MAX_LEARNED = 100
+# One source of truth with the store's cap (memory.MAX_USER_FACTS):
+# the chat layer reads MAX_LEARNED for the "Memory is full (N
+# facts)" line, and the learn path counts across the user-fact
+# categories together (D-F1), not "learned" alone.
+MAX_LEARNED = MAX_USER_FACTS
 
 # Facts dropped at the cap, pending announcement (field-check fix
 # #14, T9): learn_from_text() returns only what was stored, so a
@@ -121,6 +138,26 @@ def take_dropped_at_cap() -> list[dict]:
     dropped = list(_DROPPED_AT_CAP)
     del _DROPPED_AT_CAP[:]
     return dropped
+
+
+def _kept_in_other_user_category(key) -> bool:
+    """True when `key` already sits in a user-fact category other
+    than "learned" (the tool path may have filed the same fact
+    under "general" or "preferences"). A fact kept anywhere is
+    not a loss: the learn path skips storing the second copy and
+    records NO drop, so the "Memory is full" announcement never
+    fires for a fact the user can still recall. Any read failure
+    answers False — the drop is recorded instead (a possibly
+    misleading announcement beats a silent loss)."""
+    for cat in USER_FACT_CATEGORIES:
+        if cat == CATEGORY:
+            continue
+        try:
+            if memory_store.get_fact(cat, key) is not None:
+                return True
+        except Exception:  # noqa: BLE001
+            return False
+    return False
 
 # ---------------------------------------------------------------------------
 # Stoplists / guards
@@ -546,11 +583,15 @@ def learn_from_text(text) -> list[dict]:
     Returns ONLY the facts actually stored by this call (the candidate
     dict plus the store "id" when retrievable): identical facts are
     skipped, a changed value for an existing key replaces it (and
-    counts), and at MAX_LEARNED stored facts brand-new keys are
-    skipped while replacements still go through. A brand-new fact
-    skipped at the cap is recorded for take_dropped_at_cap() (the
-    chat layer announces it) — the return still lists only what
-    was stored.
+    counts), and at MAX_LEARNED stored user facts brand-new keys are
+    skipped while replacements still go through. The cap counts
+    across the user-fact categories together (D-F1) — a store
+    already full of tool-filed facts refuses new learned ones too.
+    A brand-new fact skipped at the cap is recorded for
+    take_dropped_at_cap() (the chat layer announces it) — the return
+    still lists only what was stored — unless the same key is
+    already kept in another user-fact category, in which case
+    there is nothing to announce.
     """
     try:
         candidates = extract_candidates(text)
@@ -559,6 +600,11 @@ def learn_from_text(text) -> list[dict]:
         existing = {r["key"]: r for r in _learned_rows()}
     except Exception:  # noqa: BLE001 — learning must never break a conversation
         return []
+    try:
+        capped_total = memory_store.count_facts(USER_FACT_CATEGORIES)
+    except Exception:  # noqa: BLE001 — a broken count falls back to
+        # the old learned-only count; learning never raises.
+        capped_total = len(existing)
 
     stored: list[dict] = []
     for cand in candidates:
@@ -576,7 +622,9 @@ def learn_from_text(text) -> list[dict]:
         current = existing.get(key)
         if current is not None and _norm(str(current.get("value", ""))) == _norm(value):
             continue  # identical — already known
-        if current is None and len(existing) >= MAX_LEARNED:
+        if current is None and capped_total >= MAX_LEARNED:
+            if _kept_in_other_user_category(key):
+                continue  # kept elsewhere — not a loss, no announcement
             _record_dropped_at_cap(key, value, cand)
             continue  # at cap: only replacements get through
         try:
@@ -587,6 +635,8 @@ def learn_from_text(text) -> list[dict]:
         entry["id"] = current.get("id") if current is not None else None
         stored.append(entry)
         existing[key] = {"key": key, "value": value, "id": entry["id"]}
+        if current is None:
+            capped_total += 1  # brand-new learned fact: the cap total grows
 
     if any(e["id"] is None for e in stored):
         # Resolve ids of brand-new rows with one re-read.

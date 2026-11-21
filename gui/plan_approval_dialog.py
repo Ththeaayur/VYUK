@@ -93,7 +93,6 @@ def build_plan_approval_dialog(window, task_title, preview):
         run_label.setStyleSheet("font-size: 13px; font-weight: 600;")
         layout.addWidget(run_label)
         plan_list = QListWidget()
-        plan_list.setMaximumHeight(160)
         for entry in approvable:
             label = str(entry.get("label") or entry.get("tool") or "")
             summary = str(entry.get("summary") or "")
@@ -107,6 +106,16 @@ def build_plan_approval_dialog(window, task_title, preview):
             item.setData(Qt.ItemDataRole.UserRole,
                          int(entry.get("index")))
             plan_list.addItem(item)
+        # E-F305: size the list to its content (capped at the old
+        # 160 px) instead of a fixed 160 px box — a 2-step plan
+        # left ~124 px of dead space inside the box. Row height
+        # is 17 px, so content is 17n + 2 (frame); long plans
+        # keep the 160 px cap and scroll exactly as before.
+        content_h = sum(
+            plan_list.sizeHintForRow(i)
+            for i in range(plan_list.count())
+        ) + 2 * plan_list.frameWidth()
+        plan_list.setFixedHeight(min(160, content_h))
         layout.addWidget(plan_list)
     else:
         plan_list = None

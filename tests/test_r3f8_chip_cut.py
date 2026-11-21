@@ -28,6 +28,20 @@ The fix (three parts, all in the chip strip):
    swallowed, so it keeps propagating to the chat transcript
    (the _SettingsWheelFilter rule).
 
+E-F101 (2026-11-20) supersedes the scroll mechanism this file
+pinned: the strip no longer slides — it WRAPS. The 508/664 px
+row, the positive scroll maximum and the wheel-slide behaviour
+were the defect itself (the later chips were cut at the panel
+edge at every width), so the behaviour pins below now assert
+the wrap shape instead: the row takes the viewport width, its
+height is the wrapped height for that width, the bar maximum is
+0, and a wheel over a chip leaves the bar at 0. The wheel
+filter itself is unchanged and stays installed and wired (its
+pins below still pass), and the first/last-chip visibility pin
+still passes — every chip is visible at rest now, so the bar
+never needs to move. The fix-#8 history above is kept: it is
+why the filter exists.
+
 GUI tests are Qt-only (the test_chat_ui WindowBase shape: the real
 MainWindow offscreen); the source-shape pins run on both
 interpreters.
@@ -83,6 +97,15 @@ class ChipCutGuiTests(WindowBase):
         self.window.resize(width, height)
         self.window._show_page(0)
         _pump(self.app)
+        # E-F101: pin the docked panel to its 400 px default —
+        # the line count the wrap pins assert (two lines at
+        # 1280) is a function of the panel width, and the
+        # splitter's unpinned default squeezes the panel to
+        # ~300 px, where the same chips take three/four lines.
+        split = getattr(self.window, "_chat_splitter", None)
+        if split is not None:
+            split.setSizes([max(320, width - 412), 400])
+        _pump(self.app)
         self.window._chat_has_messages = has_messages
         self.window._refresh_chip_row()
         _pump(self.app)
@@ -94,38 +117,46 @@ class ChipCutGuiTests(WindowBase):
             if w.objectName() == "chipSuggest" and w.isVisible()]
 
     @unittest.skipIf(not _QT, "Qt only")
-    def test_row_height_after_rebuild_empty(self):
+    def test_row_height_is_wrapped_height_empty(self):
+        # E-F101: the row no longer stands one chip tall — at
+        # 1280 the three starters wrap to two lines, and the
+        # strip stands exactly as tall as the wrapped content.
         self._show_chips(False)
         row = self.window._suggest_row
         chips = self._chips()
         self.assertEqual(len(chips), 3)
-        margins = row.layout().contentsMargins()
-        want_h = (max(c.sizeHint().height() for c in chips)
-                  + margins.top() + margins.bottom())
-        self.assertEqual(row.height(), want_h)
+        vp_w = self.window._chip_scroll.viewport().width()
+        self.assertEqual(row.height(),
+                         row.layout().heightForWidth(vp_w))
         self.assertTrue(all(
-            c.geometry().height() == c.sizeHint().height()
+            c.geometry().bottom() <= row.height()
             for c in chips))
+        lines = len({c.geometry().top() for c in chips})
+        self.assertEqual(lines, 2)
 
     @unittest.skipIf(not _QT, "Qt only")
-    def test_row_height_after_rebuild_msgs(self):
+    def test_row_height_is_wrapped_height_msgs(self):
+        # E-F101: same, for the four suggestions — two lines at
+        # 1280, strip exactly two lines tall.
         self._show_chips(True)
         row = self.window._suggest_row
         chips = self._chips()
         self.assertEqual(len(chips), 4)
-        margins = row.layout().contentsMargins()
-        want_h = (max(c.sizeHint().height() for c in chips)
-                  + margins.top() + margins.bottom())
-        self.assertEqual(row.height(), want_h)
+        vp_w = self.window._chip_scroll.viewport().width()
+        self.assertEqual(row.height(),
+                         row.layout().heightForWidth(vp_w))
         self.assertTrue(all(
-            c.geometry().height() == c.sizeHint().height()
+            c.geometry().bottom() <= row.height()
             for c in chips))
+        lines = len({c.geometry().top() for c in chips})
+        self.assertEqual(lines, 2)
 
     @unittest.skipIf(not _QT, "Qt only")
-    def test_row_width_true_total_immediately(self):
-        # No pump between the rebuild and the read: the row must
-        # already be the true total (664 px for 4 chips), not the
-        # previous state's width (508 px) the stale layout gave.
+    def test_row_width_is_viewport_immediately(self):
+        # E-F101: no pump between the rebuild and the read — the
+        # row must already be the viewport width (not the chips'
+        # true total of 664 px for 4 chips), and there must be
+        # nothing to scroll.
         self.window.resize(1280, 800)
         self.window._show_page(0)
         _pump(self.app)
@@ -143,24 +174,24 @@ class ChipCutGuiTests(WindowBase):
             if wdg is not None and wdg.objectName() == "chipSuggest":
                 chips.append(wdg)
         self.assertEqual(len(chips), 4)
-        margins = layout.contentsMargins()
-        want = (margins.left() + margins.right()
-                + sum(c.minimumWidth() for c in chips)
-                + max(layout.spacing(), 0) * (len(chips) - 1))
-        self.assertEqual(row.width(), want)
-        self.assertEqual(row.minimumWidth(), want)
+        vp_w = self.window._chip_scroll.viewport().width()
+        self.assertEqual(row.width(), vp_w)
+        bar = self.window._chip_scroll.horizontalScrollBar()
+        self.assertEqual(bar.maximum(), 0)
 
     @unittest.skipIf(not _QT, "Qt only")
-    def test_wheel_down_slides_right_and_up_back(self):
+    def test_nothing_to_scroll_at_rest(self):
+        # E-F101: with the row wrapped there is nothing to
+        # scroll — the bar maximum is 0, and a wheel over a chip
+        # leaves the bar at 0 (the event keeps propagating to
+        # the transcript, the at-limit rule).
         self._show_chips(False)
         bar = self.window._chip_scroll.horizontalScrollBar()
-        chips = self._chips()
-        self.assertGreater(bar.maximum(), 0)
-        _wheel_over(self.app, chips[1], -120)
-        self.assertGreater(bar.value(), 0)
-        down = bar.value()
-        _wheel_over(self.app, chips[1], 120)
-        self.assertLess(bar.value(), down)
+        self.assertEqual(bar.maximum(), 0)
+        _wheel_over(self.app, self._chips()[1], -120)
+        self.assertEqual(bar.value(), 0)
+        _wheel_over(self.app, self._chips()[1], 120)
+        self.assertEqual(bar.value(), 0)
 
     @unittest.skipIf(not _QT, "Qt only")
     def test_first_and_last_chip_fully_visible(self):
@@ -184,15 +215,12 @@ class ChipCutGuiTests(WindowBase):
                     last.geometry().right() - bar.value(), vp_w)
 
     @unittest.skipIf(not _QT, "Qt only")
-    def test_wheel_to_the_end_reaches_maximum(self):
-        # Repair round (parent-proven): the wheel must drive the
-        # bar to its MAXIMUM, not stall a few px short. The first
-        # build rejected an overshooting step outright, so a
-        # notched wheel stalled at 200 of max 208 (empty state)
-        # and the last chip stayed 3 px cut. Drive the wheel
-        # until it stops moving and assert the bar is at the
-        # maximum AND the last chip is fully visible — in both
-        # states, at 1280x800.
+    def test_all_chips_visible_at_rest_both_sets(self):
+        # E-F101: the old test drove the wheel to the scroll
+        # maximum so the last chip came into view — there is no
+        # maximum any more. The end state the old test pinned
+        # (every chip fully visible) now holds at rest, in both
+        # states, at 1280x800, with the bar at 0 throughout.
         for has_messages in (False, True):
             with self.subTest(has_messages=has_messages):
                 self._show_chips(has_messages)
@@ -200,21 +228,13 @@ class ChipCutGuiTests(WindowBase):
                 bar = scroll.horizontalScrollBar()
                 vp_w = scroll.viewport().width()
                 chips = self._chips()
-                self.assertGreater(bar.maximum(), 0)
-                bar.setValue(0)
-                _pump(self.app)
-                mid = chips[1] if len(chips) > 1 else chips[0]
-                for _ in range(40):
-                    before = bar.value()
-                    _wheel_over(self.app, mid, -120)
-                    if bar.value() == before:
-                        break
-                self.assertEqual(bar.value(), bar.maximum())
-                last = chips[-1]
-                self.assertGreaterEqual(
-                    last.geometry().left() - bar.value(), 0)
-                self.assertLessEqual(
-                    last.geometry().right() - bar.value(), vp_w)
+                self.assertEqual(bar.maximum(), 0)
+                self.assertEqual(bar.value(), 0)
+                for c in chips:
+                    self.assertGreaterEqual(
+                        c.geometry().left(), 0, c.text())
+                    self.assertLessEqual(
+                        c.geometry().right(), vp_w, c.text())
 
     @unittest.skipIf(not _QT, "Qt only")
     def test_wheel_at_limit_does_not_move_bar(self):

@@ -14,6 +14,17 @@ opens. The header already counted the right set (every fact in the
 store — the hand-saved list shows them all, unfiltered, learned ones
 included); only the refresh was missing.
 
+E-F204 (round-3 section E finding): the header STILL understated
+the page — "14 facts remembered" while 22 facts were on it (14
+hand-saved in the list + 8 learned in the card above it), and
+"14" while 114 were shown in the 100-fact stress. The header
+counted only the store total, but the page renders the learned
+facts twice — once in the card, once in the list — so the header
+must count the facts actually ON the page: list rows + card rows.
+The expectations below pin that rule (1 learned fact reads
+"2 facts remembered": 1 list row + 1 card row); the old
+distinct-fact numbers were the E-F204 bug, not the rule.
+
 Two halves:
   * HeaderViewTests (pure, both interpreters): memory_facts_view
     counts every fact in the store, whatever its category.
@@ -153,7 +164,13 @@ class HeaderWindowTests(WindowBase):
         return stored[0]
 
     def _show_memory(self):
+        # Force List view: the "memory/view" QSettings key persists
+        # across tests in one process (the QSettings path is cached
+        # per process), so a test run after any web-switching test
+        # would otherwise build the page in Web view and read the
+        # web header here. Same shape as the E-F204 suite's helper.
         self.window._show_page(2)
+        self.window._set_memory_view("list")
         self.app.processEvents()
 
     def _header(self):
@@ -195,7 +212,10 @@ class HeaderWindowTests(WindowBase):
     def test_one_learned_fact_header_counts_it(self):
         self._teach("remember that my dentist is Dr. Rao")
         self._show_memory()
-        self.assertEqual(self._header(), "1 fact remembered")
+        # E-F204: the header counts the facts ON the page — the
+        # fact's list row AND its card row — so one learned fact
+        # reads 2, not 1.
+        self.assertEqual(self._header(), "2 facts remembered")
         rows, texts = self._card_rows()
         self.assertEqual(rows, 1)
         self.assertTrue(any("Dr. Rao" in t for t in texts))
@@ -207,7 +227,8 @@ class HeaderWindowTests(WindowBase):
         self._teach("remember that my dog is called Biscuit")
         self._store.save_fact("general", "Favourite drink", "Masala tea")
         self._show_memory()
-        self.assertEqual(self._header(), "4 facts remembered")
+        # E-F204: 4 list rows + 3 card rows = 7 facts on the page.
+        self.assertEqual(self._header(), "7 facts remembered")
         rows, _texts = self._card_rows()
         self.assertEqual(rows, 3)
         self.assertEqual(self._fact_rows(), 4)
@@ -230,7 +251,8 @@ class HeaderWindowTests(WindowBase):
         self.app.processEvents()
         self._teach("remember that my dentist is Dr. Rao")
         self._show_memory()
-        self.assertEqual(self._header(), "1 fact remembered")
+        # E-F204: 1 list row + 1 card row.
+        self.assertEqual(self._header(), "2 facts remembered")
         rows, texts = self._card_rows()
         self.assertEqual(rows, 1)
         self.assertTrue(any("Dr. Rao" in t for t in texts))
@@ -239,12 +261,14 @@ class HeaderWindowTests(WindowBase):
         self._teach("remember that my dentist is Dr. Rao")
         self._teach("remember that my favourite colour is azure")
         self._show_memory()
-        self.assertEqual(self._header(), "2 facts remembered")
+        # E-F204: 2 list rows + 2 card rows.
+        self.assertEqual(self._header(), "4 facts remembered")
         facts = self._learn.get_learned_facts()
         self.assertTrue(
             self._learn.forget_learned_fact(facts[0]["id"]))
         self._show_memory()
-        self.assertEqual(self._header(), "1 fact remembered")
+        # E-F204: 1 list row + 1 card row.
+        self.assertEqual(self._header(), "2 facts remembered")
         rows, _texts = self._card_rows()
         self.assertEqual(rows, 1)
 

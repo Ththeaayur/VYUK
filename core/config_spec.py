@@ -77,6 +77,7 @@ import dataclasses
 import datetime
 import logging
 import os
+import time
 import typing
 from dataclasses import dataclass, field, fields
 from typing import Any, Callable, Mapping
@@ -1362,3 +1363,90 @@ def qsettings_remove(key: str, settings=None) -> None:
     store.remove(key)
     _qsettings_sync_or_raise(store, key, "remove", old,
                              _QSETTINGS_ABSENT)
+
+
+# ---------------------------------------------------------------------------
+# Round-3 section C fix queue item 14: settings-write degradation record.
+#
+# C3-F4 made qsettings_set/remove LOUD (RuntimeError on a genuine write
+# failure), but ~50 call sites sat inside broad `except Exception: pass`
+# guards, so the loud failure was swallowed one layer up and the setting
+# still silently lost. The fix is per-site (see the call sites), and
+# every fixed site funnels through the helpers below, which share one
+# shape with the cost-ledger degraded record (core/cost_ledger.py):
+# a log line naming the key, plus a sticky per-key record the Activity
+# feed renders as a "Settings degraded" marker — so a settings write
+# that could not persist is never silent again, and the user learns
+# in one place that their changes in this session may not survive a
+# restart. The record is process-local (a read-only HOME is a property
+# of this launch, not of the settings file) and is never written to
+# disk — a degraded record must not itself need the broken store.
+# ---------------------------------------------------------------------------
+_SETTINGS_WRITE_FAILURES: dict[str, dict[str, Any]] = {}
+
+
+def note_qsettings_write_failure(key: str, exc: BaseException) -> None:
+    """Record one settings write that could not persist. Never raises:
+    the note itself must not break the caller (it runs inside UI
+    handlers and migrations). Logs the key + cause and keeps a sticky
+    per-key count, so the Activity feed can say how much was lost."""
+    try:
+        now = time.time()
+        rec = _SETTINGS_WRITE_FAILURES.get(key)
+        if rec is None:
+            rec = {"count": 0, "last_error": "", "first_at": now,
+                   "last_at": now}
+            _SETTINGS_WRITE_FAILURES[key] = rec
+        rec["count"] += 1
+        rec["last_error"] = str(exc)[:200]
+        rec["last_at"] = now
+        print(f"[settings] could not save {key!r}: {exc}")
+    except Exception:  # noqa: BLE001 - the note must never raise
+        pass
+
+
+def qsettings_write_degraded_state() -> dict[str, dict[str, Any]]:
+    """A COPY of the sticky failed-write record, keyed by settings
+    key. Empty when no settings write has ever failed in this
+    process — the Activity feed reads this. Never raises."""
+    try:
+        return {key: dict(rec)
+                for key, rec in _SETTINGS_WRITE_FAILURES.items()}
+    except Exception:  # noqa: BLE001 - the feed must never break
+        return {}
+
+
+def reset_qsettings_write_degraded() -> None:
+    """Clear the sticky failed-write record. Tests only: production
+    code never resets it (a lost write stays lost)."""
+    _SETTINGS_WRITE_FAILURES.clear()
+
+
+def qsettings_set_noted(key: str, value, settings=None) -> bool:
+    """Best-effort qsettings_set that never hides a write failure:
+    returns True when the value persisted, and on a genuine write
+    failure (the C3-F4 RuntimeError) logs the key + cause, records
+    the sticky degraded state, and returns False. A KeyError for
+    an unknown key, and any other programmer error (a bad value),
+    still propagates — a bug must stay loud, only a failed write
+    is degraded. Use at call sites whose old `except: pass` guard
+    swallowed the C3-F4 raise."""
+    try:
+        qsettings_set(key, value, settings=settings)
+        return True
+    except RuntimeError as exc:
+        note_qsettings_write_failure(key, exc)
+        return False
+
+
+def qsettings_remove_noted(key: str, settings=None) -> bool:
+    """Best-effort qsettings_remove, same contract as
+    qsettings_set_noted: True when the removal persisted, False +
+    logged + recorded on a genuine write failure. Unknown keys
+    still raise KeyError."""
+    try:
+        qsettings_remove(key, settings=settings)
+        return True
+    except RuntimeError as exc:
+        note_qsettings_write_failure(key, exc)
+        return False

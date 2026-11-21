@@ -30,7 +30,7 @@ Deck colour guard scans gui/*.py); every colour comes from
 gui/style.py tokens, and every corner uses a radius token.
 """
 
-from PySide6.QtCore import QEvent, QTimer, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QDialog,
@@ -320,6 +320,24 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         nav_hint.setObjectName("muted")
         nav_hint.setWordWrap(True)
         root.addWidget(nav_hint)
+
+        # E-F302 option D (user ruling 2026-11-20): the "You can
+        # switch any time" note lives in the dialog chrome, not
+        # inside the scrolling card pages — on the choice/profile
+        # pages it sat below the fold, so the reassurance was
+        # invisible exactly where it matters. It shows only on
+        # those two pages (see _sync_nav); the pages themselves
+        # still scroll by design.
+        self._switch_note = QLabel(
+            "You can switch any time in Settings — "
+            "nothing here is locked in.")
+        self._switch_note.setObjectName("muted")
+        self._switch_note.setWordWrap(True)
+        self._switch_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._switch_note.setStyleSheet(
+            "background: transparent; border: none;")
+        self._switch_note.setVisible(False)
+        root.addWidget(self._switch_note)
 
         nav = QHBoxLayout()
         self.btn_skip = QPushButton("Skip setup")

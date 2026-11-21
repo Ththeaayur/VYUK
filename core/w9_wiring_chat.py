@@ -9,7 +9,9 @@ from .config_spec import (  # GAPS-11: the spec helpers own every QSettings read
     qsettings_contains,
     qsettings_get,
     qsettings_remove,
+    qsettings_remove_noted,
     qsettings_set,
+    qsettings_set_noted,
 )
 
 # ------------------------------------------------------------------ #
@@ -165,10 +167,12 @@ def reset_settings_row(store, name: str):
     row = _schema.reset_row(store, name)
     legacy_key = _LEGACY_SETTINGS_KEYS.get(name)
     if legacy_key:
-        try:
-            qsettings_remove(legacy_key, settings=store.settings)
-        except Exception:  # noqa: BLE001
-            pass
+        # Round-3 item 14: a failed legacy remove is NOT harmless —
+        # the migration copies legacy -> canonical whenever the
+        # canonical key is absent, so a remove that never persisted
+        # resurrects the reset value at the next boot. A failure is
+        # logged + recorded (feed marker), never swallowed.
+        qsettings_remove_noted(legacy_key, settings=store.settings)
     return row
 
 
@@ -204,19 +208,20 @@ def apply_theme_pack_text(text: str, settings=None):
     tokens = _packs.apply_pack(pack)
     accent = tokens.get("accent")
     if settings is not None:
-        try:
-            import json as _json
+        # Round-3 item 14: a valid pack that applies in-session but
+        # never persists is a silent loss — the theme is back to the
+        # old one at the next launch. Each write is noted on failure
+        # (log line + feed marker), never swallowed.
+        import json as _json
 
-            qsettings_set("theme_pack/name", pack.get("name", ""),
-                          settings=settings)
-            qsettings_set("theme_pack/tokens", _json.dumps(tokens),
-                          settings=settings)
-            if accent:
-                qsettings_set("theme", "Custom", settings=settings)
-                qsettings_set("appearance/custom_hex", accent,
-                              settings=settings)
-        except Exception:  # noqa: BLE001 — pack still validates
-            pass
+        qsettings_set_noted("theme_pack/name", pack.get("name", ""),
+                            settings=settings)
+        qsettings_set_noted("theme_pack/tokens", _json.dumps(tokens),
+                            settings=settings)
+        if accent:
+            qsettings_set_noted("theme", "Custom", settings=settings)
+            qsettings_set_noted("appearance/custom_hex", accent,
+                                settings=settings)
     return {"name": pack.get("name", ""), "tokens": tokens,
             "accent": accent}
 

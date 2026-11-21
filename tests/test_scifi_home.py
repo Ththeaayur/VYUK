@@ -574,8 +574,11 @@ class RoomWindowTests(WindowBase):
 
     def test_transcript_did_not_regress(self):
         self.assertIsNotNone(self.window.chat_panel)
+        # E-F103 (2026-11-20): the copy shortened from "Type, or
+        # hold the mic to speak" — see test_chat_ui's placeholder
+        # test for the measurements.
         self.assertEqual(self.window.input_cmd.placeholderText(),
-                         "Type, or hold the mic to speak")
+                         "Type, or hold mic")
 
     def test_render_grabs(self):
         """Save the grabs the build report judges from."""

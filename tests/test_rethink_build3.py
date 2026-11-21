@@ -47,13 +47,20 @@ class TestStripDerivation(unittest.TestCase):
 
         self._derive = derive_strip_state
 
-    def test_ready_when_idle_and_unknown(self):
+    def test_ready_only_when_idle(self):
+        # E-F102 (2026-11-20) supersedes the old pin below: a
+        # disconnected session is not "Ready" — the pill read
+        # Offline while the strip claimed all good. Offline is
+        # amber (a degraded session, not a fault); Local core
+        # shows as-is (the on-device brain is live) instead of
+        # being swallowed into "Ready". "Ready" is honest only
+        # when there is no session word at all.
         self.assertEqual(self._derive(_blank_sample(), "", False),
                          ("ok", "Ready"))
         self.assertEqual(self._derive(_blank_sample(), "Offline", False),
-                         ("ok", "Ready"))
+                         ("warning", "Offline"))
         self.assertEqual(self._derive(_blank_sample(), "Local core", False),
-                         ("ok", "Ready"))
+                         ("ok", "Local core"))
 
     def test_session_word_while_active(self):
         for word in ("Listening", "Responding", "Thinking",
@@ -81,15 +88,19 @@ class TestStripDerivation(unittest.TestCase):
                          ("warning", "Battery low"))
 
     def test_metric_errors(self):
+        # E-F104 (2026-11-20): an error must read as an error in
+        # words, not just dot colour — "Disk almost full" /
+        # "Battery low" are the warning words; the error words are
+        # "Disk critically full" / "Battery critically low".
         sample = _blank_sample()
         sample["disk"] = 95.0
         self.assertEqual(self._derive(sample, "", False),
-                         ("error", "Disk almost full"))
+                         ("error", "Disk critically full"))
         sample = _blank_sample()
         sample["battery_pct"] = 10.0
         sample["battery_plugged"] = False
         self.assertEqual(self._derive(sample, "", False),
-                         ("error", "Battery low"))
+                         ("error", "Battery critically low"))
 
     def test_battery_plugged_never_warns(self):
         sample = _blank_sample()
@@ -124,8 +135,10 @@ class TestStripDerivation(unittest.TestCase):
         sample = _blank_sample()
         sample["cpu"] = 95.0
         sample["disk"] = 96.0
+        # E-F104: the winning metric error now reads
+        # "Disk critically full", not the warning word.
         self.assertEqual(self._derive(sample, "", False),
-                         ("error", "Disk almost full"))
+                         ("error", "Disk critically full"))
         sample = _blank_sample()
         sample["cpu"] = 95.0
         self.assertEqual(self._derive(sample, "Listening", True),

@@ -408,6 +408,14 @@ class TextRepliesSessionTests(unittest.TestCase):
         # the 9-line try/except around memory_store.log_message
         # (no other line differs). The test still guards every
         # other line of send_text against future drift.
+        # INTENTIONAL RE-BASELINE (round-3 section C item 13,
+        # 2026-11-20, parent-ruled): the fixture was re-baselined
+        # again to the authorised Q8 lines ONLY — verified by
+        # diff, exactly the 13-line _last_text_at stamp + comment
+        # in send_text (no other line differs). Q8 itself was
+        # parent-verified in section B; the re-baseline blesses
+        # nothing new. The test still guards every other line of
+        # send_text against future drift.
         self.assertEqual(
             _send_text_source_text(
                 (ROOT / "core" / "voice" / "live_client.py").read_text(encoding="utf-8")  # Phase 3 V1b INTENTIONAL: moved to core/voice/

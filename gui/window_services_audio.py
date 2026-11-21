@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QSlider
 from voice_assistant.core.gui_facade import config
 from voice_assistant.core.gui_facade import audio_manager
 from voice_assistant.core.gui_facade import wake_word_detector
-from voice_assistant.core.gui_facade import qsettings_get, qsettings_remove, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_get, qsettings_remove, qsettings_remove_noted, qsettings_set, qsettings_set_noted
 
 
 class ServicesAudioMixin:
@@ -238,18 +238,22 @@ class ServicesAudioMixin:
             if data is None:
                 audio_manager.output_device = None
                 audio_manager.output_device_name = None
-                qsettings_remove(
+                # Round-3 item 14: the user's explicit speaker
+                # choice (and its clearing) must persist — a
+                # removal that never lands leaves the old speaker
+                # in place at the next launch. Noted on failure.
+                qsettings_remove_noted(
                     "audio/output_device", settings=self.settings)
-                qsettings_remove(
+                qsettings_remove_noted(
                     "audio/output_device_name", settings=self.settings)
             else:
                 audio_manager.output_device = int(data)
                 name = combo.currentText()
                 audio_manager.output_device_name = name
-                qsettings_set(
+                qsettings_set_noted(
                     "audio/output_device", int(data),
                     settings=self.settings)
-                qsettings_set(
+                qsettings_set_noted(
                     "audio/output_device_name", name,
                     settings=self.settings)
             self._refresh_output_device_label()
@@ -265,9 +269,13 @@ class ServicesAudioMixin:
                 # old pick keys go, and the manager is handed the
                 # resolved default for display.
                 audio_manager.input_mode = "auto"
-                qsettings_set("audio/input_mode", "auto", settings=self.settings)
-                qsettings_remove("audio/input_device", settings=self.settings)
-                qsettings_remove("audio/input_device_name", settings=self.settings)
+                # Round-3 item 14: the user's explicit mic choice
+                # (Automatic, or a manual pin below) must persist
+                # — a write that never lands reverts the mic at the
+                # next launch. Noted on failure, never swallowed.
+                qsettings_set_noted("audio/input_mode", "auto", settings=self.settings)
+                qsettings_remove_noted("audio/input_device", settings=self.settings)
+                qsettings_remove_noted("audio/input_device_name", settings=self.settings)
                 index, name, _note = audio_manager.resolve_saved_input(
                     None, None)
                 audio_manager.input_device = index
@@ -283,9 +291,9 @@ class ServicesAudioMixin:
                 audio_manager.input_device = int(data)
                 name = self.combo_in_dev.currentText()
                 audio_manager.input_device_name = name
-                qsettings_set("audio/input_mode", "manual", settings=self.settings)
-                qsettings_set("audio/input_device", int(data), settings=self.settings)
-                qsettings_set("audio/input_device_name", name, settings=self.settings)
+                qsettings_set_noted("audio/input_mode", "manual", settings=self.settings)
+                qsettings_set_noted("audio/input_device", int(data), settings=self.settings)
+                qsettings_set_noted("audio/input_device_name", name, settings=self.settings)
             self._refresh_input_device_label()
         except Exception:  # noqa: BLE001
             pass

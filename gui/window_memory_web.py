@@ -20,7 +20,8 @@ from PySide6.QtWidgets import (
 )
 from voice_assistant.core.gui_facade import config
 from voice_assistant.core.gui_facade import memory_store  # Phase 3 M2h: memory.py moved to core/memory/memory.py
-from .memory_view import memory_facts_view
+from .memory_view import memory_facts_view, memory_header_text
+from .memory_view import memory_web_header_text
 from .memory_web_graph import _fact_epoch
 from .style import ACCENT_2, TEXT_MUTED, first_font_family, MONO_FONT_STACK
 from .memory_web import (
@@ -188,17 +189,58 @@ class MemoryWebMixin:
         if hasattr(self, "mem_art"):
             self.mem_art.setVisible(not shown)
         # S12 (M1): the count, always visible in list view.
-        if hasattr(self, "mem_count_label"):
-            if len(shown) == total:
-                self.mem_count_label.setText(
-                    f"{total} fact{'s' if total != 1 else ''} "
-                    f"remembered")
-            else:
-                self.mem_count_label.setText(
-                    f"{len(shown)} of {total} facts shown")
         self._refresh_memory_web()
+        # E-F204 + follow-up: the count names the facts actually
+        # on the page FOR THE CURRENT VIEW — see
+        # _set_mem_count_label. Set AFTER the web refresh: in Web
+        # view the header counts the graph's fact nodes, and the
+        # graph is rebuilt just above; setting it before would
+        # read the previous facts and leave the header stale for
+        # a whole show whenever the store changed under Web view.
+        self._set_mem_count_label(len(shown), total)
         self._sync_mem_filter_button()
         self._on_mem_selection_changed()
+
+    def _web_fact_count(self):
+        """Fact nodes the web graph shows right now (E-F204
+        follow-up): the kept store facts, post-cap (the graph caps
+        each category at 40 nodes). None when the web widget has
+        never been built, so the caller falls back to the store
+        total. Reads the 2D canvas directly — it is always built
+        and always holds the graph, whatever the 2D/3D mode."""
+        widget = getattr(self, "memory_web", None)
+        if widget is None:
+            return None
+        try:
+            graph = widget.canvas2d.graph
+        except Exception:  # noqa: BLE001 — no graph, no count
+            return None
+        if graph is None:
+            return None
+        return sum(1 for n in graph.nodes
+                   if getattr(n, "kind", "") == "fact")
+
+    def _set_mem_count_label(self, shown, total):
+        """Set the header count line for the current view (E-F204 +
+        follow-up). List view: the list rows shown/total PLUS the
+        Learned-card rows (memory_header_text). Web view: the web's
+        fact nodes (memory_web_header_text) — the card and list are
+        hidden there, so their rows never count, and the plain form
+        holds whatever the List search/category filter says (in Web
+        view the search only dims non-matches). Called from
+        _refresh_memories on every refresh and from _set_memory_view
+        on every switch, so the header follows the view."""
+        if not hasattr(self, "mem_count_label"):
+            return
+        if getattr(self, "_mem_view", "list") == "web":
+            n = self._web_fact_count()
+            if n is None:
+                n = total
+            self.mem_count_label.setText(memory_web_header_text(n))
+            return
+        learned_n = self._learned_fact_count()
+        self.mem_count_label.setText(
+            memory_header_text(shown, total, learned_n))
 
     def _on_mem_selection_changed(self):
         """The selection bar appears only while something is
@@ -324,6 +366,14 @@ class MemoryWebMixin:
             widget.set_search_highlight(self.mem_search.text())
             self._sync_mem_web_tools(facts)
             self._on_mem_search_changed(self.mem_search.text())
+            # E-F204 follow-up: the switch itself must move the
+            # header — _refresh_memories is not called on the way
+            # into Web view, so without this the header keeps its
+            # last List-view value over the web. (facts is the whole
+            # store here; the web branch of _set_mem_count_label
+            # counts the graph's fact nodes and only falls back to
+            # this total when the widget has never been built.)
+            self._set_mem_count_label(len(facts), len(facts))
         else:
             widget = getattr(self, "memory_web", None)
             if widget is not None:
@@ -372,8 +422,13 @@ class MemoryWebMixin:
             show = dict(getattr(self, "_mem_web_show", None) or {})
             for cat in cats:
                 show.setdefault(cat, True)
+            # E-F204 follow-up: this was `del show[c]` — a NameError
+            # (the comprehension's `c` never leaks) that fired
+            # whenever a category vanished while the web widget
+            # existed, aborting the refresh mid-way. The loop
+            # variable is `cat`.
             for cat in [c for c in show if c not in cats]:
-                del show[c]
+                del show[cat]
             self._mem_web_show = show
         epochs = [e for e in (_fact_epoch(f) for f in facts or [])
                   if e is not None]

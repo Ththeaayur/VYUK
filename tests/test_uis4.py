@@ -275,6 +275,24 @@ class TestS4Search(unittest.TestCase):
         for line in _ws_text(WS).splitlines():
             if "More settings" in line:
                 self.assertTrue(line.strip().startswith("#"), line)
+        # E-F207: the raw-text check above is blind to the phrase split
+        # across adjacent string literals ("Settings → More " +
+        # "settings → ...") — two FAQ entries in pf_settings_help.py
+        # shipped exactly that split while this test passed. The
+        # parser folds implicit concatenation, so a string constant IS
+        # the rendered text: check every constant in every guarded
+        # module. Comments are not constants, so the one historical
+        # rename comment in window_settings_groups.py still passes.
+        for _path in [(TREE / "gui" / _m) for _m in (
+                "pf_surfaces.py", "pf_surfaces_helpers.py", "pf_proof.py",
+                "pf_settings_help.py", "pf_permissions.py",
+                "pf_citizenship.py", "pf_privacy.py")] + list(WS):
+            _tree = ast.parse(_path.read_text(encoding="utf-8"))
+            for _node in ast.walk(_tree):
+                if isinstance(_node, ast.Constant) \
+                        and isinstance(_node.value, str):
+                    self.assertNotIn("More settings", _node.value,
+                                     str(_path))
 
     def test_deep_link_titles_survive(self):
         # Doctor + palette callers jump to these titles; a rename

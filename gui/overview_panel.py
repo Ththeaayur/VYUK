@@ -123,10 +123,19 @@ class FallbackPlotWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.series: list[PlotSeries] = []
+        # E-F209: the first series follows the theme accent_2 (set
+        # by OverviewPanel.set_palette); the default is the colour
+        # it paints today, so Cyan is unchanged.
+        self._series_color = ACCENT_2
         self.setMinimumHeight(140)
 
     def set_series(self, series: list[PlotSeries]) -> None:
         self.series = list(series)
+        self.update()
+
+    def set_series_color(self, color: str):
+        """Recolour the first series from a theme accent_2 (E-F209)."""
+        self._series_color = color
         self.update()
 
     def paintEvent(self, _event):  # noqa: N802 — Qt naming
@@ -148,7 +157,7 @@ class FallbackPlotWidget(QWidget):
         if y1 == y0:
             y1 = y0 + 1
         w, h = max(self.width() - 16, 1), max(self.height() - 16, 1)
-        colors = [ACCENT_2, AMBER, OK]
+        colors = [self._series_color, AMBER, OK]
         for i, s in enumerate(self.series):
             if len(s.xs) < 2:
                 continue
@@ -240,19 +249,41 @@ class OverviewPanel(QWidget):
         self._layout.addWidget(self.duration_strip)
         self.activity_list = QListWidget()
         self._layout.addWidget(self.activity_list)
+        # E-F209: the plotted series, kept so a recolour can re-plot
+        # them (pyqtgraph path); the first series follows the theme
+        # accent_2, the colour it paints today under Cyan.
+        self._series: list[PlotSeries] = []
+        self._series_color = ACCENT_2
+
+    def set_palette(self, accent: str, accent_2: str):
+        """Recolour the plot line from a theme pair (E-F209): the
+        first series takes accent_2. AMBER / OK keep their semantic
+        colours. (``accent`` is accepted for the shared pair shape
+        with PulsePage.set_palette; the plot has one theme-coloured
+        series.)"""
+        self._series_color = accent_2
+        if self.engine == "pyqtgraph":
+            self.set_series(self._series)
+        else:
+            self.plot_widget.set_series_color(accent_2)
 
     # -- data in -------------------------------------------------
     def set_series(self, series: list[PlotSeries]) -> None:
         """Replace the plotted series, keeping the same engine widget."""
+        self._series = list(series)
         if self.engine == "pyqtgraph":
             self.plot_widget.clear()
             import pyqtgraph as pg  # noqa: PLC0415 — lazy by design
 
-            for s in series:
-                self.plot_widget.plot(s.xs, s.ys, pen=pg.mkPen(width=2),
-                                      name=s.label)
+            palette = [self._series_color, AMBER, OK]
+            for i, s in enumerate(self._series):
+                self.plot_widget.plot(
+                    s.xs, s.ys,
+                    pen=pg.mkPen(QColor(palette[i % len(palette)]),
+                                 width=2),
+                    name=s.label)
         else:
-            self.plot_widget.set_series(series)
+            self.plot_widget.set_series(self._series)
 
     def set_durations(self, segments: list[DurationSegment]) -> None:
         self.duration_strip.set_segments(segments)

@@ -396,9 +396,15 @@ def _metric_word(sample: dict) -> tuple[str, str]:
     battery = sample.get("battery_pct")
     plugged = bool(sample.get("battery_plugged"))
     if _at_least(disk, STRIP_ERROR_DISK_PCT):
-        return ("Disk almost full", "error")
+        # E-F104: the error word must differ from the warning
+        # word — "Disk almost full" is the warning; at >=95%
+        # the disk is critically full (same vocabulary as the
+        # status strip's derive_strip_state).
+        return ("Disk critically full", "error")
     if not plugged and _at_most(battery, STRIP_ERROR_BATTERY_PCT):
-        return ("Battery low", "error")
+        # E-F104: same shape — "Battery low" is the warning;
+        # at <=10% unplugged it is critically low.
+        return ("Battery critically low", "error")
     if _at_least(sample.get("cpu"), STRIP_WARN_CPU_PCT):
         return ("CPU high", "warning")
     if _at_least(sample.get("mem"), STRIP_WARN_MEM_PCT):
@@ -469,6 +475,13 @@ class PulsePage(QWidget):
         self.bars_note = QLabel(
             "Live bars, sampled once a second while this page is visible. "
             "System probes only — no news or entity cards here.")
+        # E-F206: the footnote wraps instead of forcing the page
+        # wide — unwrapped, its 611 px sizeHint drove the shell's
+        # minimum to 683, and the vertical scrollbar (viewport 680
+        # at 908x600) left a 3 px horizontal scrollbar under the
+        # page. Wrapping drops the note's minimum to its widest
+        # word; at wide widths the line stays whole.
+        self.bars_note.setWordWrap(True)
         self.bars_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.bars_note.setStyleSheet(
             f"color: {TEXT_MUTED}; font-size: 11px;")
@@ -505,13 +518,21 @@ class PulsePage(QWidget):
         again; only the toggle itself clears it."""
         return self._user_paused
 
-    def set_palette(self, highlight: str, accent: str):
-        """Recolour the meters from a theme pair: CPU takes the
-        highlight, Memory/Network the accent; Disk and Battery keep
-        their identity colours (heat shift still applies on top)."""
-        self.dials["cpu"].set_base_color(highlight)
-        self.dials["mem"].set_base_color(accent)
-        self.dials["net"].set_base_color(accent)
+    def set_palette(self, accent: str, accent_2: str):
+        """Recolour the meters from a theme pair (E-F209): the
+        ACCENT family (CPU/Memory/Disk) takes accent, the ACCENT_2
+        family (Network/Battery) takes accent_2 — the v5.57 mockup
+        families. Under Cyan the pair is the house tokens, so
+        nothing changes. (The previous mapping — CPU -> highlight,
+        Memory/Network -> accent, Disk/Battery untouched — could not
+        fix E-F209: it would have moved CPU to the pale highlight
+        under Cyan and left Disk/Battery cyan under every theme.)
+        The per-reading colour override (disk heat shift) still
+        applies on top of the base colour."""
+        for key in ("cpu", "mem", "disk"):
+            self.dials[key].set_base_color(accent)
+        for key in ("net", "battery"):
+            self.dials[key].set_base_color(accent_2)
         for meter in self.dials.values():
             meter.update()
 

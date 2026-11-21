@@ -90,11 +90,25 @@ import threading
 from .design_system.palette import parse_color, with_alpha
 from .window_shell_boot import ShellBootMixin  # GAPS-28 (G-V7): boot group
 
-_DOCK_NARROW_WIDTH = 380
+# E-F103 (2026-11-20): screen-share hides below this panel
+# width (was 380) — at the 400 px default panel the button took
+# 54 px the composer input needs: the full placeholder is 195 px
+# in Sora 13 px and the input only shows ~106 px with the button
+# present, so the mic instruction never read. The action stays
+# reachable from the header overflow menu (same handler, same
+# menu entry — see _show_header_overflow_menu).
+_DOCK_NARROW_WIDTH = 420
 # UI rethink Build 1: below this panel width Dictate collapses to
 # icon-only (its label is what squeezed the input to "cta" on the
 # old 300 px panel). The width is a panel width, not a window width.
 _DICTATE_TEXT_WIDTH = 420
+# E-F103 (2026-11-20): below this panel width Dictate hides
+# entirely — at the 300 px panel floor even its 48 px icon-only
+# form leaves the input at its 120 px minimum and the shortened
+# placeholder (112 px) still wraps. Dictation stays reachable
+# via Ctrl+D (the tooltip says so); the mic button, the primary
+# voice control, stays visible.
+_DICTATE_HIDE_WIDTH = 380
 
 
 class ShellFrameMixin(ShellBootMixin):
@@ -608,14 +622,19 @@ class ShellFrameMixin(ShellBootMixin):
     def _apply_dock_narrow_rule(self) -> None:
         """UIS5 (composer narrow rule) + UI rethink Build 1: the dock
         fits the panel at every width, so the composer never clips
-        again. Three rules, all driven by the panel width:
-        - Screen-share hides below _DOCK_NARROW_WIDTH (380), so the
+        again. Four rules, all driven by the panel width:
+        - Screen-share hides below _DOCK_NARROW_WIDTH (420), so the
           composer input keeps a usable width. The action stays
           reachable from the header overflow menu.
         - Dictate collapses to icon-only below _DICTATE_TEXT_WIDTH
           (420): its label is what squeezed the input to "cta" on
           the old 300 px panel. The icon, tooltip and accessible
           name stay, so the action is unchanged — only its width.
+        - E-F103: Dictate hides entirely below _DICTATE_HIDE_WIDTH
+          (380) — at the 300 px panel floor even the 48 px
+          icon-only form leaves the input at its 120 px minimum
+          and the shortened placeholder still wraps. Dictation
+          stays reachable via Ctrl+D; the mic button stays visible.
         - The dock waveform only takes width when it fits: the
           telemetry tick reads _dock_waveform_allowed (see
           _sync_audio_telemetry) and never shows the ribbon while
@@ -631,7 +650,7 @@ class ShellFrameMixin(ShellBootMixin):
             if panel is None:
                 return
             panel_w = panel.width()
-            # Screen-share hides below _DOCK_NARROW_WIDTH (380).
+            # Screen-share hides below _DOCK_NARROW_WIDTH (420).
             screen = getattr(self, "btn_screen", None)
             screen_visible = panel_w >= _DOCK_NARROW_WIDTH
             if screen is not None:
@@ -643,6 +662,9 @@ class ShellFrameMixin(ShellBootMixin):
             if dictate is not None:
                 dictate.setText(
                     "Dictate" if panel_w >= _DICTATE_TEXT_WIDTH else "")
+                # E-F103: Dictate hides entirely below
+                # _DICTATE_HIDE_WIDTH (380) — see the constant above.
+                dictate.setVisible(panel_w >= _DICTATE_HIDE_WIDTH)
             # The waveform's fit, from live widths (never isVisible:
             # before first show every widget reads invisible, so the
             # visibility is computed from the panel width instead):

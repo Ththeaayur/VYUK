@@ -29,6 +29,7 @@ from PySide6.QtCore import (
     QTimer,
 )
 from voice_assistant.core.gui_facade import config
+from .design_system.flowlayout import FlowLayout
 from .style import THEMES as STYLE_THEMES
 from .style import (
     build_stylesheet,
@@ -45,7 +46,7 @@ from .style import (
     SELECTION_BG,
     RADIUS_BTN,
 )
-from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_remove, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_remove, qsettings_set, qsettings_set_noted
 
 
 
@@ -388,8 +389,13 @@ class SettingsVoiceMixin:
         aud_lbl.setObjectName("muted")
         aud_lbl.setWordWrap(True)
         sounds.addWidget(aud_lbl)
-        aud_row = QHBoxLayout()
-        aud_row.setSpacing(4)
+        # E-F205: the audition row wraps (FlowLayout) instead of
+        # forcing six buttons onto one line — at 908 the row's
+        # 600 px minimum drove the Sounds card (632) past the
+        # 624 px viewport and put a horizontal scrollbar under
+        # the whole Settings page. Single-row equivalent at wide
+        # widths (same 4 px spacing, same order, same buttons).
+        aud_row = FlowLayout(spacing=4)
         self.audition_buttons: dict[str, QPushButton] = {}
         from voice_assistant.gui.audition import AUDITION_SOUNDS as _AUDITION_SOUNDS
         for _name in _AUDITION_SOUNDS:
@@ -399,7 +405,6 @@ class SettingsVoiceMixin:
             _btn.clicked.connect(lambda _=False, n=_name: self._on_audition_kenney(n))
             self.audition_buttons[_name] = _btn
             aud_row.addWidget(_btn)
-        aud_row.addStretch()
         sounds.addLayout(aud_row)
         self.lbl_audition = QLabel("")
         self.lbl_audition.setObjectName("muted")
@@ -407,7 +412,14 @@ class SettingsVoiceMixin:
         sounds.addWidget(self.lbl_audition)
 
         appear = self._settings_card(_g_appearance, "Appearance", "Theme, text size, density, and motion. Applied instantly.")
-        swatch_row = QHBoxLayout()
+        # E-F205: the swatch row wraps (FlowLayout) instead of
+        # forcing 11 fixed swatches + Custom onto one line — at
+        # 908 the row's 660 px minimum drove the Appearance card
+        # (692) past the 624 px viewport and put a horizontal
+        # scrollbar under the whole Settings page. Single-row
+        # equivalent at wide widths (same 6 px spacing, same
+        # order, same buttons, same selection behaviour).
+        swatch_row = FlowLayout(spacing=6)
         self.theme_buttons: dict[str, QPushButton] = {}
         for theme_name, tdict in STYLE_THEMES.items():
             btn = QPushButton()
@@ -428,7 +440,6 @@ class SettingsVoiceMixin:
         custom_btn.clicked.connect(lambda _=False: self._on_custom_accent())
         self.theme_buttons["Custom"] = custom_btn
         swatch_row.addWidget(custom_btn)
-        swatch_row.addStretch()
         appear.addLayout(swatch_row)
         self.theme_name_label = QLabel("Cyan")
         self.theme_name_label.setObjectName("muted")
@@ -731,7 +742,11 @@ class SettingsVoiceMixin:
             now_iso = datetime.now().isoformat(timespec="seconds")
             updated = _fos.apply_choice(stored, bool(enabled), now_iso)
             for key, value in updated.items():
-                qsettings_set(key, value, settings=self.settings)
+                # Round-3 item 14: the user's first-open choice
+                # must persist — a write that never lands asks
+                # them again at the next launch. Noted on failure;
+                # the surrounding try still guards the rest.
+                qsettings_set_noted(key, value, settings=self.settings)
             # UI settings slice: the choice had no visible
             # feedback. The wording must not claim capture
             # starts — this only changes the gate (see the

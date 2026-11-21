@@ -31,6 +31,60 @@ from .tool_receipts_normalize import (
 )
 
 
+# Round-3 section D fix queue item D-F2: prune-with-archive.
+# _prune used to destroy every row past _MAX_LINES with no log
+# line and no marker anywhere — the audit trail for effectful
+# acts silently lost 95% of itself on a long-lived install. The
+# dropped rows are now written to a dated archive file first
+# (tool_receipts_archive/ next to the live file), and the event
+# is kept in sticky per-process state so the Activity feed can
+# say where the older rows went. If the archive write itself
+# fails, the load still succeeds and the prune still runs; the
+# failure is logged and recorded here too — the loss is
+# announced either way, never silent.
+_ARCHIVE_DIRNAME = "tool_receipts_archive"
+_PRUNE_ARCHIVE: dict[str, dict] = {}
+
+
+def _note_prune_archive(kind: str, *, count: int,
+                        archive_path: str | None = None,
+                        error: str | None = None) -> None:
+    """Sticky record of one prune event ("archived" or
+    "archive_failed"): row count + archive path (or error) +
+    first/last time. Never raises."""
+    try:
+        now = time.time()
+        key = archive_path if kind == "archived" and archive_path \
+            else kind
+        rec = _PRUNE_ARCHIVE.get(key)
+        if rec is None:
+            rec = {"count": 0, "archive_path": archive_path or "",
+                   "last_error": "", "first_at": now, "last_at": now}
+            _PRUNE_ARCHIVE[key] = rec
+        rec["count"] = int(rec.get("count", 0)) + int(count)
+        if archive_path:
+            rec["archive_path"] = archive_path
+        if error:
+            rec["last_error"] = str(error)
+        rec["last_at"] = now
+    except Exception:  # noqa: BLE001 — bookkeeping never breaks
+        pass
+
+
+def prune_archive_state() -> dict:
+    """Copies of the sticky prune-archive state: one record per
+    archive event (keyed by archive path) plus one accumulated
+    "archive_failed" record when an archive write has failed.
+    Empty dict means no prune has archived or failed yet."""
+    return {key: dict(rec) for key, rec in _PRUNE_ARCHIVE.items()}
+
+
+def reset_prune_archive_state() -> None:
+    """Clear the sticky prune-archive state. Tests only:
+    production never forgets a prune."""
+    _PRUNE_ARCHIVE.clear()
+
+
 class ReceiptStore:
     """Append-only JSONL receipt store."""
 
@@ -126,7 +180,21 @@ class ReceiptStore:
 
     def _prune(self, lines: list[str]) -> None:
         """Keep the most recent lines (atomic rewrite). Only
-        runs on load, never in the dispatch hot path."""
+        runs on load, never in the dispatch hot path.
+
+        D-F2: the dropped rows are archived first — written to
+        a dated file under tool_receipts_archive/ next to the
+        live file — so the audit trail survives the cap. The
+        live cap itself is unchanged: the live file still holds
+        only the newest _max_lines lines. If the archive write
+        fails, the prune still runs and the load still succeeds;
+        the failure is logged and recorded in the sticky
+        prune-archive state so the loss is announced, never
+        silent."""
+        dropped = lines[:-self._max_lines:] \
+            if len(lines) > self._max_lines else []
+        if dropped:
+            self._archive_dropped(dropped)
         keep = lines[-self._max_lines:]
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp_name = tempfile.mkstemp(prefix=self.path.name + ".",
@@ -143,6 +211,54 @@ class ReceiptStore:
             except OSError:
                 pass
             raise
+
+    def _archive_dropped(self, dropped: list[str]) -> None:
+        """Write the rows _prune is about to drop to a dated
+        archive file (temp file + os.replace, the same atomic
+        pattern as the prune itself). Never raises: a failure
+        is logged + recorded in the sticky prune-archive state,
+        and the caller still prunes."""
+        try:
+            archive_dir = self.path.parent / _ARCHIVE_DIRNAME
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%dT%H%M%S", time.localtime())
+            stem = self.path.stem
+            name = f"{stem}-{stamp}-{len(dropped)}.jsonl"
+            target = archive_dir / name
+            # Same-second second prune (two processes, or a
+            # reloaded store): never overwrite an existing
+            # archive — suffix until the name is free.
+            suffix = 1
+            while target.exists():
+                suffix += 1
+                target = archive_dir / (
+                    f"{stem}-{stamp}-{len(dropped)}-{suffix}.jsonl")
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=target.name + ".", dir=str(archive_dir))
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    handle.write("\n".join(dropped))
+                    if dropped:
+                        handle.write("\n")
+                os.replace(tmp_name, target)
+            except Exception:
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
+            _note_prune_archive("archived", count=len(dropped),
+                                archive_path=str(target))
+            print(f"[Receipts] archived {len(dropped)} receipt "
+                  f"rows pruned past the {self._max_lines}-line "
+                  f"cap to {target}")
+        except Exception as exc:  # noqa: BLE001 — an archive
+            # failure must never break a load; the loss is
+            # announced through the sticky state instead.
+            _note_prune_archive("archive_failed",
+                                count=len(dropped), error=str(exc))
+            print(f"[Receipts] could not archive {len(dropped)} "
+                  f"pruned receipt rows: {exc}")
 
     def _append(self, record: dict, *, fsync: bool = False) -> None:
         self._ensure_loaded()

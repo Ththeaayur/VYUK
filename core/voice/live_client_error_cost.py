@@ -128,10 +128,9 @@ def _log_line(message: str):
 # one, makes the row exact; without it the row is estimated
 # with NULL tokens/cost, never a fabricated number. Record-only:
 # a Live stream cannot be preflight-gated mid-audio, so cap
-# enforcement for Live is the ledger's preflight API (consulted
-# by the session owner) plus these rows feeding the cap totals
-# that gate the discrete cloud-text path. Guarded: a ledger
-# failure never breaks the receive loop.
+# enforcement for Live is the ledger's preflight API plus these
+# rows feeding the cap totals that gate the discrete cloud-text
+# path. Guarded: a ledger failure never breaks the receive loop.
 _COST_LEDGER: Any = None
 
 

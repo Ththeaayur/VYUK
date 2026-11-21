@@ -44,9 +44,12 @@ class DockChromeTests(unittest.TestCase):
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
         # Chat UI build (2026-11-16, move 6): the composer placeholder
         # invites typing or the mic in plain words now — "Type, or
-        # hold the mic to speak" replaces the ›_ prompt glyph.
+        # hold mic" replaces the ›_ prompt glyph. E-F103
+        # (2026-11-20): shortened from "Type, or hold the mic to
+        # speak" (195 px — it wrapped and read "Type, or" at every
+        # width); the mic instruction survives in "hold mic".
         shell = _src("gui/window_shell_assistant.py")
-        self.assertIn("Type, or hold the mic to speak", shell)
+        self.assertIn("Type, or hold mic", shell)
 
     def test_square_transport_buttons(self):
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.

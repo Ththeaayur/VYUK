@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_get, qsettings_set_noted
 from .style import (
     ACCENT,
     AMBER,
@@ -204,7 +204,9 @@ class _QSettingsStore:
             return default
 
     def __setitem__(self, key: str, value: str) -> None:
-        try:
-            qsettings_set(key, value, settings=self._settings)
-        except Exception:  # noqa: BLE001 — a broken store keeps memory only
-            pass
+        # Round-3 item 14: a first-run progress write that never
+        # persists re-shows a finished step at the next launch. The
+        # note never raises, so a broken store still keeps memory
+        # only for this walk — and the failure is logged + recorded
+        # instead of swallowed.
+        qsettings_set_noted(key, value, settings=self._settings)

@@ -418,7 +418,7 @@ def _read_devtools_active_port(profile_dir):
     return port if 1024 <= port <= 65535 else None
 
 
-def _is_browser_cmdline(cmdline) -> bool:
+def _is_browser_cmdline(cmdline, status=None) -> bool:
     """True when ``cmdline`` looks like a Chrome BROWSER process's
     launch — as opposed to a helper's, or a stray namesake's.
     A helper (renderer / gpu / zygote / network / utility / ...) is
@@ -436,10 +436,22 @@ def _is_browser_cmdline(cmdline) -> bool:
     rare, and the remedy the diagnosis prescribes (Enable browser
     control, which launches a fresh debug Chrome) still works
     either way.
+    R1 (2026-11-20): a process whose status is "zombie" is DEAD,
+    whatever its cmdline reads as. A SIGKILLed Chrome whose parent
+    never reaps it stays a zombie with cmdline None (measured: the
+    zombie reports cmdline None for at least 20 s), and the None
+    rule below would otherwise count it as a browser — the exact
+    misdiagnosis this function exists to prevent. The zombie case
+    is distinguished from the B7 seam case by STATUS, not by
+    cmdline: a seam/mock process carries no status info at all
+    (``status`` None), so the None rule still counts it as a
+    browser. An empty cmdline (a defunct process with no
+    arguments) is dead, not running.
     ``cmdline`` None (no cmdline info — a seam/mock, or psutil
     could not read it) counts as a browser: absence of evidence is
-    not evidence of being a helper. An empty cmdline is a
-    zombie/defunct process — dead, not running."""
+    not evidence of being a helper."""
+    if status == "zombie":
+        return False
     if cmdline is None:
         return True
     if not cmdline:
@@ -455,6 +467,45 @@ def _is_browser_cmdline(cmdline) -> bool:
             continue
         return False
     return True
+
+
+# R1 (2026-11-20): Popen handles of Chromes THIS app launched
+# (registered by browser_enable._launch_chrome). A launched Chrome
+# that is later killed or crashes stays a zombie child of this
+# process until somebody wait()s on it — _chrome_running() reaps
+# the registered handles before it scans, so a VYUK-launched
+# Chrome never leaves an unreaped zombie behind.
+_LAUNCHED_CHROME_PROCS: list = []
+
+
+def note_launched_chrome(proc) -> None:
+    """Register a Chrome Popen this app launched, so
+    _chrome_running() can reap it if it dies (R1). Never raises."""
+    try:
+        _LAUNCHED_CHROME_PROCS.append(proc)
+    except Exception:  # noqa: BLE001 — registration is best-effort
+        pass
+
+
+def _reap_launched_chrome() -> None:
+    """Reap registered launched-Chrome processes that have exited.
+    poll() alone does not reap; wait() does. Never raises."""
+    try:
+        alive = []
+        for proc in _LAUNCHED_CHROME_PROCS:
+            try:
+                if proc.poll() is None:
+                    alive.append(proc)
+                else:
+                    try:
+                        proc.wait(timeout=0)
+                    except Exception:  # noqa: BLE001 — already reaped
+                        pass
+            except Exception:  # noqa: BLE001 — one dead handle
+                continue
+        _LAUNCHED_CHROME_PROCS[:] = alive
+    except Exception:  # noqa: BLE001 — reaping never breaks a scan
+        pass
 
 
 def _chrome_running():
@@ -476,19 +527,33 @@ def _chrome_running():
     (Windows, psutil missing) can only see names, so it may still
     read True for leftover helpers — a known weak fallback, kept
     only so a psutil-less install degrades to the old answer
-    instead of no answer."""
+    instead of no answer.
+    R1: a SIGKILLed Chrome whose parent never reaps it stays a
+    zombie (status "zombie", cmdline None) indefinitely, and the
+    old scan counted it as a browser — the diagnosis still read
+    "running / 136 wall" for a dead browser. Two defences, in
+    order: (1) registered launched-Chrome handles are reaped
+    first (_reap_launched_chrome), so a VYUK-launched Chrome
+    never leaves a zombie behind; (2) any process whose status
+    is "zombie" is skipped outright (_is_browser_cmdline's
+    status rule), so an unreaped zombie from any parent reads
+    as dead. The B7 seam case (a name-only mock, no status
+    info) still counts as a browser — the zombie case is
+    distinguished by status, not by cmdline."""
+    _reap_launched_chrome()
     try:
         import psutil
 
-        for proc in psutil.process_iter(["name", "cmdline"]):
+        for proc in psutil.process_iter(["name", "cmdline", "status"]):
             try:
                 info = proc.info or {}
                 name = (info.get("name") or "").strip().lower()
                 cmdline = info.get("cmdline")
+                status = info.get("status")
             except Exception:  # noqa: BLE001 — one dead proc
                 continue
             if (name in _CHROME_PROC_NAMES
-                    and _is_browser_cmdline(cmdline)):
+                    and _is_browser_cmdline(cmdline, status)):
                 return True
         return False
     except ImportError:

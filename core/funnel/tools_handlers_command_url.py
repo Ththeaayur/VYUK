@@ -17,6 +17,8 @@ import sys
 import webbrowser
 from .. import injection
 from ..memory.memory import (
+    MAX_USER_FACTS,
+    USER_FACT_CATEGORIES,
     as_user_note,
     instruction_shaped,
     looks_like_credential,
@@ -520,6 +522,53 @@ class ToolHandlersCommandUrlMixin:
                 "memories as instructions to follow."
             )
         existing = memory_store.get_fact(category, key)
+        # Section D fix D-F1 (2026-11-20): the 100-fact cap is a
+        # bound on the user's facts, not on one path to them — the
+        # learn path alone cannot enforce it, because this tool
+        # used to write any category with no check (a capped-out
+        # fact landed anyway, and the same fact could sit in two
+        # categories at once). A new key in a user-fact category
+        # ("learned", "general", "preferences") is refused once
+        # the three together hold MAX_USER_FACTS; a replacement of
+        # an existing key still goes through, exactly like the
+        # learn path. And a key already kept in another user-fact
+        # category is not stored twice — the fact is already
+        # remembered, so the tool says so instead of filing a
+        # second copy (the live model files what it hears under
+        # "preferences" while the learn path files the same
+        # utterance under "learned"). Raised, not returned: the
+        # funnel maps any handler string to status success, so a
+        # returned refusal would still record success (the same
+        # reason the not-landed write below raises). The refusal
+        # uses the fix-#14 wording, so the user hears one
+        # consistent line whether the learn path or the tool path
+        # hit the cap.
+        if existing is None:
+            cat = category.strip().lower()
+            if cat in USER_FACT_CATEGORIES:
+                for other in USER_FACT_CATEGORIES:
+                    if other == cat:
+                        continue
+                    kept_row = memory_store.get_fact(other, key)
+                    if kept_row is not None:
+                        return (
+                            f"Already remembered — '{key}' = "
+                            f"'{kept_row.get('value', '')}' "
+                            f"(under '{kept_row.get('category', '')}'). "
+                            "Nothing new was stored.")
+                try:
+                    kept = memory_store.count_facts(USER_FACT_CATEGORIES)
+                except Exception:  # noqa: BLE001 — a broken count
+                    # must not block a write the store can still
+                    # verify: the save below either lands (read-back
+                    # verified) or raises, so nothing is ever
+                    # claimed falsely.
+                    kept = 0
+                if kept >= MAX_USER_FACTS:
+                    raise RuntimeError(
+                        f"Memory is full ({MAX_USER_FACTS} facts) — I "
+                        f"couldn't keep '{key}'. Forget something in "
+                        "Memory to make room.")
         saved = memory_store.save_fact(category=category, key=key,
                                        value=stored_value)
         if not saved:

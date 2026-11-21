@@ -89,6 +89,22 @@ class MemoryLearnedMixin:
         except Exception:  # noqa: BLE001
             pass
 
+    def _learned_fact_count(self) -> int:
+        """Rows the Learned card shows right now (E-F204): the
+        header counts them alongside the list rows. Guarded like
+        the card refresh itself — no module, or a failing read,
+        counts as zero — and it counts exactly what the card
+        renders (one row per dict fact), so the count cannot drift
+        from the rows."""
+        module = self._learning_module()
+        if module is None:
+            return 0
+        try:
+            facts = module.get_learned_facts() or []
+        except Exception:  # noqa: BLE001 — a broken read is zero rows
+            return 0
+        return sum(1 for f in facts if isinstance(f, dict))
+
     def _refresh_learned_facts(self, mark_seen: bool = False):
         """Rebuild the learned-fact rows. Facts not yet in
         learning/seen_ids render with a '• New' suffix; with
@@ -149,8 +165,6 @@ class MemoryLearnedMixin:
 
     def _learned_fact_row(self, fact: dict, is_new: bool) -> QWidget:
         display = str(fact.get("display", "") or "").strip()
-        key = str(fact.get("key", "") or "").strip()
-        value = str(fact.get("value", "") or "").strip()
         fact_id = fact.get("id")
         wrap = QWidget()
         v = QVBoxLayout(wrap)
@@ -173,15 +187,19 @@ class MemoryLearnedMixin:
             self._forget_learned_fact(fid, d))
         top.addWidget(btn_forget)
         v.addLayout(top)
-        # The raw stored pair, only when the display sentence doesn't
-        # already say it — otherwise the line is pure noise.
-        pair = f"{key}: {value}" if key and value else ""
-        if pair and pair.lower() not in display.lower() \
-                and display.lower() not in pair.lower():
-            sub = QLabel(pair)
-            sub.setObjectName("muted")
-            sub.setWordWrap(True)
-            v.addWidget(sub)
+        # E-F203: no raw `key: value` sub-line. The display sentence
+        # IS the fact — core.memory.learning.display_for derives it
+        # from the stored pair and always carries the value verbatim
+        # (every branch embeds it; the default branch IS
+        # "key: value"), so the pair can only restate the display.
+        # The old guard could not tell a restatement from new
+        # information: the ": " separator breaks the substring
+        # test, template keys are machine slugs
+        # (likes_black_coffee_in), and values are paraphrased in
+        # the display ("Mon/Wed/Fri" vs "Monday, Wednesday and
+        # Friday") — no string comparison judges that. The raw key
+        # adds nothing a user can read, so the line goes instead
+        # of being guarded.
         return wrap
 
     def _on_learning_toggled(self, enabled: bool):
@@ -198,6 +216,10 @@ class MemoryLearnedMixin:
             except Exception:  # noqa: BLE001
                 ok = False
         self._refresh_learned_facts(mark_seen=True)
+        # E-F204: the header counts the card rows (and the list
+        # still shows the forgotten fact until it is re-read), so
+        # forgetting from the card re-reads the list + header too.
+        self._refresh_memories()
         if ok:
             self._add_system(
                 f"Forgot — I'll no longer remember {display}.")
@@ -225,6 +247,8 @@ class MemoryLearnedMixin:
             except Exception:  # noqa: BLE001
                 count = 0
         self._refresh_learned_facts(mark_seen=True)
+        # E-F204: as above — the header (and list) follow the card.
+        self._refresh_memories()
         if count:
             self._add_system(
                 "Forgot everything VYUK learned from our conversations.")

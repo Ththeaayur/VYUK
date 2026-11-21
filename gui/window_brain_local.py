@@ -10,7 +10,7 @@ from PySide6.QtCore import (
     QTimer,
 )
 from voice_assistant.core.gui_facade import config
-from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_contains, qsettings_get, qsettings_set, qsettings_set_noted
 
 
 class BrainLocalMixin:
@@ -356,10 +356,10 @@ class BrainLocalMixin:
         # v5.23: an explicit removal is also a choice — don't let
         # auto-provisioning re-download what the user just freed.
         # (Picking Local again in the brain card re-arms it.)
-        try:
-            qsettings_set("setup/local_pack_wanted", False, settings=self.settings)
-        except Exception:  # noqa: BLE001
-            pass
+        # Round-3 item 14: a write that never persists re-downloads
+        # the freed pack at the next launch. Noted on failure,
+        # never swallowed.
+        qsettings_set_noted("setup/local_pack_wanted", False, settings=self.settings)
 
     def _disarm_remove_pack(self):
         if not getattr(self, "_pack_remove_armed", False):

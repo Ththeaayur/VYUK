@@ -84,6 +84,48 @@ def _confirm_target_phrase(summary: str) -> str | None:
     return f"the file {base or value}"
 
 
+def _mouse_headline(summary: str) -> str:
+    """Plain-language consequence line for mouse_control (E-F304):
+    the action plus the point, in the same voice as the other
+    branches ("This will ..."). mouse_control's x/y are true
+    screen pixels, so naming them is literally true. When the
+    call carries no point, the click lands where the pointer
+    already is; a scroll's direction comes from amount
+    (positive scrolls up) when it is present."""
+    action_found = _confirm_summary_value(summary, ("action",))
+    action = action_found[1].lower() if action_found is not None else ""
+    x_found = _confirm_summary_value(summary, ("x",))
+    y_found = _confirm_summary_value(summary, ("y",))
+    point = None
+    if x_found is not None and y_found is not None:
+        point = f"{x_found[1]}, {y_found[1]}"
+    if action == "click":
+        return (f"This will click at {point}." if point
+                else "This will click where the mouse pointer is.")
+    if action == "double_click":
+        return (f"This will double-click at {point}." if point
+                else "This will double-click where the mouse pointer is.")
+    if action == "right_click":
+        return (f"This will right-click at {point}." if point
+                else "This will right-click where the mouse pointer is.")
+    if action == "move":
+        return (f"This will move the mouse pointer to {point}." if point
+                else "This will move the mouse pointer.")
+    if action == "scroll":
+        amount_found = _confirm_summary_value(summary, ("amount",))
+        direction = ""
+        if amount_found is not None:
+            try:
+                n = int(amount_found[1])
+                direction = " up" if n > 0 else " down" if n < 0 else ""
+            except ValueError:
+                direction = ""
+        if point:
+            return f"This will scroll{direction} at {point}."
+        return f"This will scroll{direction}."
+    return "This will use the mouse."
+
+
 def _confirm_headline(tool_name: str, summary: str) -> str:
     """A plain-language consequence line for the popup's
     headline — derived from the tool's friendly name and the
@@ -97,6 +139,11 @@ def _confirm_headline(tool_name: str, summary: str) -> str:
     action_found = _confirm_summary_value(summary, ("action",))
     if action_found is not None:
         low = f"{low} {action_found[1].lower()}"
+    # E-F304: mouse_control gets its own branch FIRST -- the
+    # write branch below matches "move", so a mouse move would
+    # otherwise read "This will change things on this PC."
+    if "mouse_control" in low:
+        return _mouse_headline(summary)
     if any(w in low for w in ("delete", "remove", "shred",
                               "erase", "empty_recycle")):
         return (f"This will remove {target}." if target

@@ -388,6 +388,25 @@ class TestActivityGuards(unittest.TestCase):
         # with this test's own gui/*.py method: 162 on
         # backup_rethink_build6_pre, 172 on the live tree.
         # Same count as the audit2s1 pin, same delta.
+        # Round-3 section E fix E-F302 option D (2026-11-20):
+        # 172 -> 171. Net -1: the "You can switch any time"
+        # note moved out of the scrolling card pages into the
+        # dialog chrome — the two in-page note stylesheets
+        # (gui/onboarding_pages.py, choice + profile pages)
+        # are gone and one chrome-note stylesheet
+        # (gui/onboarding.py) is added. The audit2s1 ceiling
+        # pin (<= 172) still passes at 171.
+        # Round-3 section E fix E-F201 (2026-11-21):
+        # 171 -> 172. Net +1: the Theme-packs JSON box
+        # (gui/window_settings_advcards.py) carries the same
+        # hand-fix stylesheet as the Voice card's
+        # pronunciations box — a bare QPlainTextEdit renders
+        # as a white box on the dark theme without it. One
+        # site, one widget; proven with this test's own
+        # gui/*.py method: 171 on the backup, 172 on the
+        # live tree, the single added line being the pack
+        # input's setStyleSheet call. The audit2s1 ceiling
+        # pin (<= 172) still passes at 172.
         count = 0
         for path in (ROOT / "gui").glob("*.py"):
             count += path.read_text().count("setStyleSheet")

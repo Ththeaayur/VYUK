@@ -6,7 +6,7 @@ gui/onboarding.py as FlowMixin. No behaviour change.
 """
 
 from voice_assistant.core.gui_facade import config
-from voice_assistant.core.gui_facade import qsettings_set
+from voice_assistant.core.gui_facade import qsettings_set_noted
 from voice_assistant.core.gui_facade import set_preferred_language
 
 from .firstrun_g import FIRST_RUN_STAGES
@@ -189,12 +189,13 @@ class FlowMixin:
         choice = self.brain_choice
         if choice is None:
             return
-        try:
-            qsettings_set("setup/brain_choice", choice)
-            qsettings_set("setup/local_pack_wanted",
-                          choice in ("local", "both"))
-        except Exception:  # noqa: BLE001
-            pass
+        # Round-3 item 14: the launch gate reads these two keys — a
+        # write that never persists asks the user again at the next
+        # launch (or re-downloads the local pack). Each write is
+        # noted on failure (log line + feed marker), never swallowed.
+        qsettings_set_noted("setup/brain_choice", choice)
+        qsettings_set_noted("setup/local_pack_wanted",
+                            choice in ("local", "both"))
         engine = "local" if choice == "local" else "gemini"
         try:
             from voice_assistant.core.gui_facade import save_env_setting
@@ -211,12 +212,20 @@ class FlowMixin:
         checkbox = getattr(self, "_sound_checkbox", None)
         if checkbox is None:
             return
-        try:
-            qsettings_set("sounds_enabled", bool(checkbox.isChecked()))
-        except Exception:  # noqa: BLE001
-            pass
+        # Round-3 item 14: the user's explicit sound opt-in — a
+        # write that never persists starts the next launch silent
+        # despite the choice. Noted on failure, never swallowed.
+        qsettings_set_noted("sounds_enabled", bool(checkbox.isChecked()))
     def _sync_nav(self):
         current = self.pages.currentWidget()
+        # E-F302 option D: the switch note lives in the chrome and
+        # shows only on the two card pages it belongs to — the
+        # choice and profile pages. (getattr: _sync_nav also runs
+        # from paths that predate the label.)
+        _note = getattr(self, "_switch_note", None)
+        if _note is not None:
+            _note.setVisible(current is self._choice_page
+                             or current is self._profile_page)
         order = self._page_order
         idx = order.index(current)
         has_prev = any(self._page_applies(w) for w in order[:idx])

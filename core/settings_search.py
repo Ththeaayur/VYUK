@@ -168,7 +168,12 @@ CARD_SYNONYMS: dict[str, tuple[str, ...]] = {
 # card title -> (class, voice line). Cards not listed here fall
 # back to their class default (see card_voice_line).
 CARD_VOICE: dict[str, tuple[str, str]] = {
-    "Voice": (CLASS_B, "You can also say: “change her voice to …”."),
+    # E-F208: the example names a real offered voice (Aoede,
+    # config.available_voices) instead of trailing off with an
+    # ellipsis — "change her voice to Aoede" is a command the
+    # product honours (app_settings live_voice matches the
+    # spoken name against the offered list).
+    "Voice": (CLASS_B, "You can also say: “change her voice to Aoede”."),
     "Whisper hours": (
         CLASS_B, "You can also say: “speak softer at night”."),
     "Briefing voice": (

@@ -157,9 +157,13 @@ def note_browser_offer_shown() -> None:
     except Exception:  # noqa: BLE001 — the note never breaks a paint
         pass
     try:
-        from .config_spec import qsettings_set as _set
+        from .config_spec import qsettings_set_noted as _set_noted
 
-        _set("browser/connect_offer_shown", True)
+        # Round-3 item 14: a failed persist is logged + recorded
+        # (feed marker) — without it the offer repeats at the next
+        # launch with no trace of why. The note never raises, so
+        # the session flag above still stands either way.
+        _set_noted("browser/connect_offer_shown", True)
     except Exception:  # noqa: BLE001 — a failed persist keeps memory
         pass
 

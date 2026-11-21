@@ -16,7 +16,7 @@ from voice_assistant.core.gui_facade import live_session
 from voice_assistant.core.gui_facade import scheduler
 from voice_assistant.core.gui_facade import wake_word_detector
 from .window_session_status import _LIVENESS_TICK_S
-from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_get, qsettings_set_noted
 
 class ServicesTrustMixin:
     """Timers / plugin-trust / failsafe mixin (GUI split #10 batch 1).
@@ -94,11 +94,16 @@ class ServicesTrustMixin:
                     qsettings_get("presence/briefing_enabled",
                                   settings=self.settings)):
                 _hour, _minute = _migrated
-                qsettings_set("presence/briefing_enabled", True,
-                              settings=self.settings)
-                qsettings_set("presence/briefing_time",
-                              f"{_hour:02d}:{_minute:02d}",
-                              settings=self.settings)
+                # Round-3 item 14: the migration CONSUMES the legacy
+                # records (the reminders store is rewritten without
+                # them), so a write that never persists loses the
+                # user's briefing time for good — the migration
+                # never re-runs. Noted on failure, never swallowed.
+                qsettings_set_noted("presence/briefing_enabled", True,
+                                    settings=self.settings)
+                qsettings_set_noted("presence/briefing_time",
+                                    f"{_hour:02d}:{_minute:02d}",
+                                    settings=self.settings)
         except Exception as exc:  # noqa: BLE001 — migration must not break boot
             print(f"[BackgroundServices] briefing migration skipped: {exc}")
         # GAPS-28 (G-V3/G-V4): the window subscribes to the typed

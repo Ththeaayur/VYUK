@@ -567,7 +567,10 @@ def _attach_failure(port: int, cdp_url: str, exc: Exception) -> str:
     Chrome is listening and the failure is something else; when it
     does not answer, the (browser-shaped) process scan decides
     between the 136 wall (a browser running with no port) and a
-    dead browser — never "running" on a dead port."""
+    dead browser — never "running" on a dead port. R1: the scan
+    also treats a zombie (a SIGKILLed Chrome its parent never
+    reaped) as dead, so the "running" branch needs a live browser,
+    not a leftover process-table entry."""
     base = f"Couldn't attach to Chrome at {cdp_url} ({_short(exc)}). "
     try:
         port_answers = _cdp_port_answers(port)

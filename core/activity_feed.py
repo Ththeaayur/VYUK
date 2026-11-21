@@ -279,6 +279,132 @@ def _read_observability() -> list[dict]:
             })
     except Exception:  # noqa: BLE001 - a broken ledger read
         pass  # must never break the feed
+    try:
+        # Round-3 section C fix queue item 14: a settings write
+        # that could not persist is its own marker — the change
+        # works for this session (the in-memory value stands) but
+        # will not survive a restart, and the user should know
+        # that in one place instead of discovering it key by key.
+        from . import config_spec as _cs_mod
+
+        state = _cs_mod.qsettings_write_degraded_state()
+        if state:
+            total = sum(int(rec.get("count", 0))
+                        for rec in state.values())
+            last_key = ""
+            last_err = ""
+            last_at = 0.0
+            for _key, _rec in state.items():
+                if float(_rec.get("last_at", 0) or 0) >= last_at:
+                    last_at = float(_rec.get("last_at", 0) or 0)
+                    last_key = _key
+                    last_err = str(_rec.get("last_error") or "")[:80]
+            text = (f"Settings degraded: {total} write(s) to "
+                    f"{len(state)} setting(s) could not be saved"
+                    + (f" (last: {last_key}: {last_err})"
+                       if last_key else "")
+                    + " — changes in this session may not survive "
+                    "a restart.")
+            markers.append({
+                "source": "observability",
+                "ts": _iso_from_epoch(last_at),
+                "title": text,
+                "kind": "degraded",
+                "detail": text,
+            })
+    except Exception:  # noqa: BLE001 - a broken settings read
+        pass  # must never break the feed
+    try:
+        # Round-3 section D fix queue item D-F2: a receipts
+        # prune that archived rows is its own marker — the live
+        # file keeps only the newest 5,000 rows, and the older
+        # rows live in the named archive file instead of being
+        # destroyed. A failed archive is a degraded marker
+        # naming the lost rows instead.
+        from . import tool_receipts as _receipts_mod_prune
+
+        for _key, _rec in \
+                _receipts_mod_prune.prune_archive_state().items():
+            count = int(_rec.get("count", 0) or 0)
+            path = str(_rec.get("archive_path") or "")
+            err = str(_rec.get("last_error") or "")[:80]
+            if _key == "archive_failed":
+                text = (f"Receipts degraded: {count} older "
+                        "receipt row(s) could not be archived"
+                        + (f" (last: {err})" if err else "")
+                        + " — they were dropped from the live file.")
+                kind = "degraded"
+            else:
+                text = (f"Receipts archived: {count} older receipt "
+                        "row(s) moved to "
+                        f"{path or 'the receipts archive'}"
+                        " — the live file keeps the newest 5,000.")
+                kind = "archived"
+            markers.append({
+                "source": "observability",
+                "ts": _iso_from_epoch(_rec.get("last_at")),
+                "title": text,
+                "kind": kind,
+                "detail": text,
+            })
+    except Exception:  # noqa: BLE001 - a broken receipts read
+        pass  # must never break the feed
+    try:
+        # Round-3 section D fix queue item D-F3: a chain
+        # rotation archives the whole live file behind a
+        # checkpoint entry (kind "checkpoint", first entry of
+        # the fresh live file), and the Activity feed then
+        # shows only entries since the rotation — the older
+        # entries are still on disk, but the user is never
+        # told they moved. One marker per checkpoint in the
+        # live file (in practice one: each rotation archives
+        # the previous live file, checkpoint included, so the
+        # live file holds only the latest rotation's
+        # checkpoint). The marker names the archived file and
+        # how many entries moved; when that archive is no
+        # longer on disk the marker says so instead of
+        # pointing at a missing file. The checkpoint lives in
+        # the chain itself, so the marker survives restarts —
+        # unlike the per-process sticky states above, which
+        # only know about this session.
+        from . import audit_chain as _chain_mod
+
+        for _entry in _chain_mod.read(kind="checkpoint", limit=0):
+            _cdata = _entry.get("data") or {}
+            _arch_file = str(_cdata.get("archived_file") or "")
+            _arch_count = _cdata.get("archived_entries")
+            _arch_path = (str(_chain_mod.archive_dir() / _arch_file)
+                          if _arch_file else "")
+            _when = _iso_from_text(_entry.get("ts"))
+            _count_txt = (f"{int(_arch_count)} entries"
+                          if isinstance(_arch_count, int)
+                          else "entries")
+            if _arch_file and not (
+                    _chain_mod.archive_dir() / _arch_file).is_file():
+                text = (f"Older entries archived: {_count_txt} "
+                        "were moved to "
+                        f"{_arch_path or 'the records archive'}"
+                        ", but that archive is no longer on disk"
+                        " — those entries can no longer be "
+                        "verified.")
+                kind = "degraded"
+            else:
+                text = (f"Older entries archived: {_count_txt} "
+                        "moved to "
+                        f"{_arch_path or 'the records archive'}"
+                        + (f" on {_when}" if _when else "")
+                        + " — this feed shows entries since the "
+                        "rotation.")
+                kind = "archived"
+            markers.append({
+                "source": "observability",
+                "ts": _when,
+                "title": text,
+                "kind": kind,
+                "detail": text,
+            })
+    except Exception:  # noqa: BLE001 - a broken chain read
+        pass  # must never break the feed
     return markers
 
 

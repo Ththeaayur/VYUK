@@ -656,7 +656,15 @@ class MemoryWeb2DCanvas(QWidget):
             font = QFont()
             font.setPixelSize(_LABEL_HUB_PX if node.kind != "fact"
                               else _LABEL_FACT_PX)
-            text_w = float(QFontMetrics(font).horizontalAdvance(label))
+            # E-F202: measure the DRAWN ink, not the advance.
+            # drawText clips to the rect, and the ink overhangs
+            # the advance by ~1 px on the right (plus
+            # antialiasing), so an advance-wide rect cuts the
+            # last glyph's edge. boundingRect is the ink box;
+            # +4 px (2 each side) leaves the ink clear of the
+            # clip edge however drawText centres the advance.
+            ink_w = float(QFontMetrics(font).boundingRect(label).width())
+            text_w = ink_w + 4.0
             rect = QRectF(centre.x() - text_w / 2.0,
                           centre.y() + r + 3.0, text_w, 16.0)
             alt = QRectF(centre.x() - text_w / 2.0,

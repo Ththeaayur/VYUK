@@ -71,9 +71,12 @@ trigger the guard (re-running a read is always safe) and are
 recorded like any other dispatch.
 
 Size bound: the file is pruned on load to the most recent
-_MAX_LINES lines (atomic rewrite); the in-memory unknown set
-is the guard's working state, so the guard never scans the
-file per dispatch.
+_MAX_LINES lines (atomic rewrite) — but the dropped rows are
+first archived to a dated file under tool_receipts_archive/
+next to the live file (D-F2), and the prune event is kept in
+sticky state the Activity feed renders, so the loss is never
+silent; the in-memory unknown set is the guard's working
+state, so the guard never scans the file per dispatch.
 
 Stdlib-only, except the lazy config import for the default
 path and the lazy sanitizer import for args previews — both
@@ -124,7 +127,11 @@ from .tool_receipts_normalize import (
     _validate_compensations,
     _validate_manual_steps,
 )
-from .tool_receipts_store import ReceiptStore
+from .tool_receipts_store import (
+    ReceiptStore,
+    prune_archive_state,
+    reset_prune_archive_state,
+)
 
 # INTENTIONAL (skills split B17): the process-wide default-store state
 # section, VERBATIM from the old module (B2 seam rule). It MUST live
@@ -448,14 +455,21 @@ def receipt_outcome_for_result(result: Any, *,
     The outcome row records the ACT's outcome, not the dispatch:
     a failed act reads "failed" with the cause named, never
     "succeeded" with an empty summary. Non-success statuses use
-    the pinned funnel_status_to_receipt mapping. A "success"
-    status is refined by the act's own verdict: an explicit
-    Outcome.failed verdict -> "failed" (an unverified one stays
-    an honest success, B13 — the world was not re-read, so the
-    act is not a failure); a plain-string failure sentence ->
-    "failed"; anything else -> "succeeded". The summary is the
-    result's own message, or the act's report string for a
-    successful effectful call; a successful READ keeps an empty
+    the pinned funnel_status_to_receipt mapping, falling back to
+    the result text (or a dict payload's reason) when the message
+    is empty — a failed act never records an empty summary when
+    the cause is known (R2, 2026-11-20). A "success" status is
+    refined by the act's own verdict: an explicit Outcome.failed
+    verdict -> "failed" (an unverified one stays an honest
+    success, B13 — the world was not re-read, so the act is not
+    a failure); a dict payload whose own verdict is failure
+    (``ok`` False — e.g. a ``cdp-click-failed`` click, a
+    ``needs-observation`` pick-first, a route-death pause) ->
+    "failed" with the reason named (R2); a plain-string failure
+    sentence -> "failed"; anything else -> "succeeded". The
+    summary is the result's own message, or the act's report
+    string for a successful effectful call (a dict payload's
+    ``reason`` / ``report``); a successful READ keeps an empty
     summary — its result is data, not a description, and copying
     it into the receipts file would leak content there.
     """
@@ -465,11 +479,31 @@ def receipt_outcome_for_result(result: Any, *,
     kind = result.get("kind", "")
     message = result.get("message")
     message = message if isinstance(message, str) else ""
-    text = result.get("result")
-    text = text if isinstance(text, str) else ""
-    summary = message or text
+    payload = result.get("result")
+    if isinstance(payload, str):
+        text = payload
+        payload_dict = None
+    elif isinstance(payload, dict):
+        # A dict payload carries the act's own verdict and its own
+        # report: 'reason' names a failure, 'report' names a
+        # landed act (R2 — the classifier used to look only at
+        # string results, so a dict failure read "succeeded"
+        # with an empty summary).
+        text = ""
+        payload_dict = payload
+    else:
+        text = ""
+        payload_dict = None
+    dict_report = ""
+    if payload_dict is not None:
+        for _key in ("reason", "report"):
+            _value = payload_dict.get(_key)
+            if isinstance(_value, str) and _value.strip():
+                dict_report = _value
+                break
+    summary = message or text or dict_report
     if status != "success":
-        return funnel_status_to_receipt(status, kind), message
+        return funnel_status_to_receipt(status, kind), summary
     verified = result.get("outcome_verified")
     if verified is not None:
         # An explicit Outcome verdict already said exactly what
@@ -478,6 +512,19 @@ def receipt_outcome_for_result(result: Any, *,
         if verified is False and result.get("outcome_kind") == "failed":
             return "failed", summary
         return "succeeded", "" if is_read else summary
+    if payload_dict is not None:
+        # The act's own verdict, not the dispatch: ok False
+        # means the act did not land (a killed-mid-click
+        # cdp-click-failed, a needs-observation pick-first, a
+        # route-death pause), and a needs-observation status
+        # means the same even without an ok flag. The summary
+        # names the reason; a pause reads "failed" because the
+        # act definitively did not happen and the attempt must
+        # resolve (so the guard allows a later re-run), with the
+        # pause reason visible in the summary.
+        if payload_dict.get("ok") is False or payload_dict.get(
+                "status") == "needs-observation":
+            return "failed", dict_report
     if text and _tool_result.is_failure_text(text):
         return "failed", text
     return "succeeded", "" if is_read else summary

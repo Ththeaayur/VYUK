@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 
 from voice_assistant.core.gui_facade import live_session
 from voice_assistant.core.gui_facade import memory_store
-from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
+from voice_assistant.core.gui_facade import qsettings_get, qsettings_set, qsettings_set_noted
 
 from .window_chat_conversations import ConversationsDialog
 
@@ -761,8 +761,12 @@ class ChatThreadMixin:
         try:
             text = self.input_cmd.text() if hasattr(
                 self, "input_cmd") else ""
-            qsettings_set("chat/composer_draft", text or "",
-                          settings=self.settings)
+            # Round-3 item 14: a draft that never persists is gone
+            # at the next launch with no trace. The noted write
+            # logs the failure + records it (feed marker); the
+            # text() read above keeps its own guard.
+            qsettings_set_noted("chat/composer_draft", text or "",
+                                settings=self.settings)
         except Exception:  # noqa: BLE001
             pass
 
@@ -1098,8 +1102,12 @@ class ChatThreadMixin:
         try:
             leaf = self._chat_thread().leaf()
             if leaf is not None and leaf.id:
-                qsettings_set("chat/last_seen_id", int(leaf.id),
-                              settings=self.settings)
+                # Round-3 item 14: the read position is the user's
+                # place in the conversation — a mark that never
+                # persists forgets where they were at the next
+                # launch. Noted on failure, never swallowed.
+                qsettings_set_noted("chat/last_seen_id", int(leaf.id),
+                                    settings=self.settings)
             store_mark = None
             if leaf is not None \
                     and getattr(leaf, "store_id", None) is not None:
@@ -1111,8 +1119,8 @@ class ChatThreadMixin:
                     if row_id is not None:
                         store_mark = int(row_id)
             if store_mark is not None:
-                qsettings_set("chat/last_seen_store_id", store_mark,
-                              settings=self.settings)
+                qsettings_set_noted("chat/last_seen_store_id", store_mark,
+                                    settings=self.settings)
         except Exception:  # noqa: BLE001
             pass
 

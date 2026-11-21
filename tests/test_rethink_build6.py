@@ -546,16 +546,21 @@ class PulseBuild6Tests(unittest.TestCase):
                                   "procs": "6"})
 
     def test_word_names_the_worst_metric(self):
+        # E-F104 (2026-11-20): the error words differ from the
+        # warning words — "Disk critically full" /
+        # "Battery critically low" — so an error reads as an
+        # error in words, not just dot colour.
         self.assertEqual(_metric_word(dict(self._SAMPLE)),
                          ("Ready", "ok"))
         hot = dict(self._SAMPLE, cpu=95.0)
         self.assertEqual(_metric_word(hot), ("CPU high", "warning"))
         full = dict(self._SAMPLE, disk=96.0)
         self.assertEqual(_metric_word(full),
-                         ("Disk almost full", "error"))
+                         ("Disk critically full", "error"))
         low = dict(self._SAMPLE, battery_pct=8.0,
                    battery_plugged=False)
-        self.assertEqual(_metric_word(low), ("Battery low", "error"))
+        self.assertEqual(_metric_word(low),
+                         ("Battery critically low", "error"))
         # A charging battery at 8% is not "Battery low".
         charging = dict(self._SAMPLE, battery_pct=8.0,
                         battery_plugged=True)

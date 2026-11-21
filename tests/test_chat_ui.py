@@ -1363,9 +1363,15 @@ class WindowComposerTests(WindowBase):
         self.assertEqual(len(self.window._chat_queue), 2)
 
     def test_composer_placeholder_invites_typing_or_the_mic(self):
+        # E-F103 (2026-11-20): the copy shortened from "Type, or
+        # hold the mic to speak" (195 px in Sora 13 px — it
+        # wrapped to a hidden second line and read "Type, or" at
+        # every width) to "Type, or hold mic" (112 px), which reads
+        # whole at every width once the narrow rule gives the input
+        # room. Both actions and the mic instruction survive.
         self.assertEqual(
             self.window.input_cmd.placeholderText(),
-            "Type, or hold the mic to speak")
+            "Type, or hold mic")
 
 
 # ------------------------------------------------------------------ Qt: find/history

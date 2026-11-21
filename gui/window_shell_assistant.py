@@ -81,7 +81,7 @@ import datetime
 from .icons import make_icon
 from .design_system.palette import parse_color, with_alpha
 from .room_home import RoomLight
-from .window_shell_assistant_widgets import _ChipRow, _ChipStripWheelFilter, _HeroWidget, _DotsSplitterHandle, _DotsSplitter
+from .window_shell_assistant_widgets import _ChipFlowLayout, _ChipRow, _ChipScrollArea, _ChipStripWheelFilter, _HeroWidget, _DotsSplitterHandle, _DotsSplitter
 
 
 class ShellAssistantMixin:
@@ -874,21 +874,26 @@ class ShellAssistantMixin:
         # empty, follow-ups once the conversation is going. It
         # never vanishes for good (see _refresh_chip_row).
         self._suggest_row = _ChipRow()
-        self._chip_layout = QHBoxLayout(self._suggest_row)
+        self._chip_layout = _ChipFlowLayout(self._suggest_row)
         self._chip_layout.setContentsMargins(4, 2, 4, 2)
         self._chip_layout.setSpacing(8)
-        # Split layout: in the 400 px panel the chip row is a
-        # horizontal scroll strip — chips keep their natural
-        # size and slide, instead of being squeezed mid-word
-        # the way the full-width row never had to.
-        self._chip_scroll = QScrollArea()
+        # E-F101: the chip row wraps onto a second line instead
+        # of running past the panel edge — the scroll strip
+        # (fix #8) kept the later chips cut mid-word at the
+        # right edge at every width, day and night, on both
+        # pages. The scroll area stays (it owns the strip's
+        # frame and the wheel filter below), but it now sizes
+        # the row to the panel width so the flow layout can
+        # wrap, and its height follows the wrapped content
+        # (see _ChipScrollArea) instead of the fixed 42 px
+        # single line.
+        self._chip_scroll = _ChipScrollArea()
         self._chip_scroll.setWidget(self._suggest_row)
         # Adopting the row into the scroll area flips its
         # auto-fill on with the (light) widget palette — kill
         # it, or the strip paints a pale band across the panel.
         self._suggest_row.setAutoFillBackground(False)
-        self._chip_scroll.setWidgetResizable(False)
-        self._chip_scroll.setFixedHeight(42)
+        self._chip_scroll.setWidgetResizable(True)
         self._chip_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._chip_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -952,7 +957,18 @@ class ShellAssistantMixin:
             "Type a message; Enter sends it, Up arrow recalls "
             "the last sent message")
         # Command Deck Phase E (§9.2 Dock): the ›_ prompt glyph.
-        self.input_cmd.setPlaceholderText("Type, or hold the mic to speak")
+        # E-F103 (2026-11-20): the placeholder was "Type, or hold
+        # the mic to speak" (195 px in Sora 13 px) but the input
+        # only shows ~106 px at the 400 px default panel and ~70 px
+        # at the 300 px floor, so it wrapped to a hidden second
+        # line and read "Type, or" at every width — the full copy
+        # cannot fit at 908, measured, not assumed. The shortened
+        # copy (112 px) keeps both actions and the mic instruction
+        # ("hold mic" is the mic's own hold-to-talk wording) and
+        # reads whole at every width once the narrow rule below
+        # gives the input room (screen-share hides below 420,
+        # Dictate hides below 380).
+        self.input_cmd.setPlaceholderText("Type, or hold mic")
         self.input_cmd.on_send = self._send_typed_message
         self.input_cmd.on_recall = self._composer_recall
         dock.addWidget(self.input_cmd, stretch=1)

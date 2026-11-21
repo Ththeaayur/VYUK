@@ -251,7 +251,8 @@ class GeminiLiveSessionReceiveMixin:
             else:
                 self._chunk_loss_noted = False
 
-    def _flush_output_transcript(self) -> None:
+    def _flush_output_transcript(
+            self, *, record_on_failure: bool = False) -> None:
         """Emit one accumulated assistant-transcription reply.
 
         Text-replies (v5.94): called when a transcribed reply
@@ -262,6 +263,15 @@ class GeminiLiveSessionReceiveMixin:
         transcript path, plus one memory-log entry — mirroring
         the model-turn text handling. Empty buffers emit
         nothing.
+
+        record_on_failure (round-3 section C fix queue item
+        13): a model_turn text part is a turn already spoken,
+        so a bubble that cannot be shown is still recorded to
+        memory and surfaced ("could not be shown in the
+        chat"), not kept for a retry — the field-check fix
+        #17 guarantee. The transcription path keeps the
+        default: a failed bubble stays in the buffer for the
+        next flush.
 
         Field-check fix #2 (T6): the buffer is cleared only
         once the text has actually been delivered. A failed
@@ -331,7 +341,26 @@ class GeminiLiveSessionReceiveMixin:
                 self.on_transcript("assistant", text)
         except Exception as exc:  # noqa: BLE001 - the reply
             # is kept for the next flush, and the loss is
-            # surfaced rather than swallowed
+            # surfaced rather than swallowed — unless the
+            # caller asked for record_on_failure (round-3
+            # section C fix queue item 13, field-check fix
+            # #17): a model_turn text part is a turn already
+            # spoken, so its memory row is still the record
+            # and the lost bubble is surfaced, not kept for
+            # a retry that may never come.
+            if record_on_failure:
+                try:
+                    memory_store.log_message("assistant", text)
+                except Exception as exc2:  # noqa: BLE001
+                    self._loss_note(
+                        "The assistant reply was shown but "
+                        "could not be saved to memory: %s"
+                        % _short_exc(exc2))
+                self._output_transcript_buf = ""
+                self._loss_note(
+                    "The assistant reply could not be shown "
+                    "in the chat: %s" % _short_exc(exc))
+                return
             self._loss_note(
                 "The assistant reply could not be shown and "
                 "was kept in the transcript buffer (%s); it "
@@ -954,6 +983,7 @@ class GeminiLiveSessionReceiveMixin:
                     if server_content is not None:
                         # Model turn
                         model_turn = server_content.model_turn
+                        _model_turn_text = False
                         if model_turn:
                             for part in model_turn.parts:
                                 # Audio playback
@@ -987,7 +1017,25 @@ class GeminiLiveSessionReceiveMixin:
                                     if _bridge is not None:
                                         _bridge.note_model_audio()
 
-                                # Text transcript
+                                # Text transcript — round-3
+                                # section C fix queue item 13: a
+                                # model_turn text part is a reply
+                                # like any other, so it goes
+                                # through the same buffer and
+                                # flush as the output
+                                # transcription (see
+                                # _flush_output_transcript)
+                                # instead of emitting directly —
+                                # the old direct call landed the
+                                # assistant bubble above its own
+                                # question whenever the user's
+                                # words had not flushed yet. The
+                                # part is only buffered here; the
+                                # flush runs below, AFTER the
+                                # input handler for this message,
+                                # so a message carrying both the
+                                # reply and the input's finish
+                                # still orders the question first.
                                 if part.text:
                                     # Chat UI (2026-11-16): a stop
                                     # drops the rest of this reply
@@ -998,42 +1046,9 @@ class GeminiLiveSessionReceiveMixin:
                                             "_reply_stop_requested",
                                             False):
                                         continue
-                                    try:
-                                        if self.on_transcript:
-                                            self.on_transcript(
-                                                "assistant", part.text)
-                                    except Exception as exc:  # noqa: BLE001
-                                        # Field-check fix #17 (F2
-                                        # follow-up): a raising
-                                        # transcript consumer must
-                                        # never kill a healthy
-                                        # session — the turn was
-                                        # already spoken, so the
-                                        # session continues, the
-                                        # memory row is still
-                                        # recorded below, and the
-                                        # lost bubble is surfaced
-                                        self._loss_note(
-                                            "The assistant reply "
-                                            "could not be shown in "
-                                            "the chat: %s"
-                                            % _short_exc(exc))
-                                    try:
-                                        memory_store.log_message(
-                                            "assistant", part.text)
-                                    except Exception as exc:  # noqa: BLE001
-                                        # Field-check fix #2 (T7 #16):
-                                        # a memory-write failure
-                                        # must never kill a healthy
-                                        # session — the turn was
-                                        # already spoken/shown, so
-                                        # the session continues and
-                                        # the lost row is surfaced
-                                        self._loss_note(
-                                            "The assistant reply was "
-                                            "shown but could not be "
-                                            "saved to memory: %s"
-                                            % _short_exc(exc))
+                                    self._output_transcript_buf += \
+                                        part.text
+                                    _model_turn_text = True
 
                         # User input transcription (round-3 fix
                         # #5, #56): accumulate the user's spoken
@@ -1056,6 +1071,27 @@ class GeminiLiveSessionReceiveMixin:
                         # reply (see _handle_output_transcription).
                         self._handle_output_transcription(
                             server_content)
+
+                        # Round-3 section C fix queue item 13:
+                        # the model_turn text parts buffered
+                        # above flush here — after the input
+                        # handler for this message, so the
+                        # question has had its chance to land
+                        # first. The flush is the one emission
+                        # point: while the input is still open
+                        # it defers (the input flush releases
+                        # it), and on a closed input the part
+                        # lands immediately, one bubble per
+                        # part, exactly as before.
+                        # record_on_failure carries the
+                        # field-check fix #17 guarantee: the
+                        # turn was already spoken, so a bubble
+                        # that cannot be shown is still
+                        # recorded to memory and surfaced, not
+                        # kept for a retry that may never come.
+                        if _model_turn_text:
+                            self._flush_output_transcript(
+                                record_on_failure=True)
 
                         # P2 speed pass: the turn ended — close
                         # the latency record (idempotent: the

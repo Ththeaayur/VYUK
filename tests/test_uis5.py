@@ -190,10 +190,13 @@ class TestGeometry(unittest.TestCase):
         self.assertEqual(full, 294)
         narrow = 44 + 56 + 104 + 3 * 12
         self.assertEqual(narrow, 240)
-        # Threshold 380: full dock leaves 86 px; at the 300 px
-        # panel floor with the screen button hidden: 60 px.
-        self.assertIn("_DOCK_NARROW_WIDTH = 380", self.text)
-        self.assertEqual(380 - full, 86)
+        # E-F103 (2026-11-20): threshold 420 (was 380) — the full
+        # dock leaves 126 px at it; at the 300 px panel floor with
+        # the screen button hidden: 60 px (unchanged — the narrow
+        # dock's widths did not move, only the threshold did, so
+        # the input keeps room for the shortened placeholder).
+        self.assertIn("_DOCK_NARROW_WIDTH = 420", self.text)
+        self.assertEqual(420 - full, 126)
         self.assertEqual(300 - narrow, 60)
 
     def test_narrow_rule_wiring(self):
@@ -211,6 +214,12 @@ class TestGeometry(unittest.TestCase):
         # The screen-share button is the local `screen` (renamed
         # from `btn` in the Build 1 rewrite — same hide).
         self.assertIn("screen.setVisible", rule)
+        # E-F103 (2026-11-20): Dictate hides entirely below
+        # _DICTATE_HIDE_WIDTH (380) — the rule sets its text
+        # (icon-only below 420) and its visibility, in that order.
+        self.assertIn("_DICTATE_HIDE_WIDTH = 380", self.text)
+        self.assertIn("dictate.setVisible", rule)
+        self.assertIn("panel_w >= _DICTATE_HIDE_WIDTH", rule)
         fix = self._fn_src("_fix_chat_width")
         self.assertIn("_apply_dock_narrow_rule()", fix)
         moved = self._fn_src("_on_chat_splitter_moved")
@@ -265,15 +274,46 @@ class TestScrollContainment(unittest.TestCase):
             evidence.append(rel + " scroll")
         # Home: chat transcript + chip strip scroll areas.
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
+        # E-F101: the chip strip is a _ChipScrollArea now — a
+        # QScrollArea subclass whose height follows the wrapped
+        # row — so the construction pin names the subclass.
         shell_text, _ = parse("window_shell_assistant.py")
         self.assertIn("self.chat_scroll = QScrollArea()", shell_text)
-        self.assertIn("self._chip_scroll = QScrollArea()", shell_text)
+        self.assertIn("self._chip_scroll = _ChipScrollArea()",
+                      shell_text)
+        widgets_text, _ = parse("window_shell_assistant_widgets.py")
+        self.assertIn("class _ChipScrollArea(QScrollArea)",
+                      widgets_text)
         evidence.append("Home scrolls")
-        # Pulse: grid reflows columns by width (5/3/2/1).
+        # Pulse: v5.57 replaced the column grid (5/3/2/1) with a
+        # vertical stack of bar meters — seven rows (five BarMeter
+        # rows + two number-only rows), each with a live value
+        # label whose width tracks the text so values never clip.
+        # The page keeps controls reachable by an outer QScrollArea
+        # (window_pages_system._build_pulse_page), and the footnote
+        # wraps (E-F206) so no horizontal scrollbar appears at 908.
         pulse_text, _ = parse("pulse_page.py")
-        for cols in ("columns = 5", "columns = 3", "columns = 1"):
-            self.assertIn(cols, pulse_text)
-        evidence.append("Pulse reflow")
+        for row in ('("cpu", "CPU", ACCENT)',
+                    '("mem", "Memory", ACCENT)',
+                    '("disk", "Disk", ACCENT)',
+                    '("net", "Network", ACCENT_2)',
+                    '("battery", "Battery", ACCENT_2)',
+                    '("uptime", "Uptime", None)',
+                    '("procs", "Processes", None)'):
+            self.assertIn(row, pulse_text)
+        self.assertIn("self.dials: dict[str, BarMeter]", pulse_text)
+        self.assertIn("self.value_label = QLabel", pulse_text)
+        self.assertIn("self.value_label.setMinimumWidth(",
+                      pulse_text)
+        self.assertIn("self.bars_note.setWordWrap(True)", pulse_text)
+        sys_text, sys_tree = parse("window_pages_system.py")
+        sys_fns = funcs(sys_tree)
+        pulse_fn = ast.get_source_segment(
+            sys_text, sys_fns["_build_pulse_page"][0])
+        self.assertIn("scroll = QScrollArea()", pulse_fn)
+        self.assertIn("scroll.setWidgetResizable(True)", pulse_fn)
+        self.assertIn("scroll.setWidget(page)", pulse_fn)
+        evidence.append("Pulse scroll")
         # First-open prompt + onboarding: scroll areas (re-pinned
         # from the first-open + safe batches, not redone here).
         fo_text, _ = parse("firstopen_prompt.py")

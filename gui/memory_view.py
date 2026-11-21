@@ -65,6 +65,36 @@ def memory_facts_view(query: str = "", category: str = ALL_CATEGORIES,
             "shown": len(shown)}
 
 
+def memory_header_text(shown: int, total: int, learned: int = 0) -> str:
+    """The Memory header count line (E-F204): the header names the
+    facts actually on the page — the list rows shown/total PLUS
+    the Learned-card rows. The card renders the learned facts a
+    second time (once in the card, once in the list) and is never
+    filtered by the search/category controls, so its rows count in
+    both the shown and the total. With no learned facts this is
+    exactly the old line (``total`` facts remembered / ``shown``
+    of ``total`` facts shown)."""
+    shown_all = shown + learned
+    total_all = total + learned
+    if shown == total:
+        return (f"{total_all} fact{'s' if total_all != 1 else ''} "
+                f"remembered")
+    return f"{shown_all} of {total_all} facts shown"
+
+
+def memory_web_header_text(fact_nodes: int) -> str:
+    """The Memory header count line in Web view (E-F204 follow-up):
+    the web shows one node per kept store fact (the graph caps each
+    category at 40 nodes — MAX_PER_CATEGORY — so this is the fact
+    nodes on the page, not the store total), and the Learned card
+    and list are hidden, so their rows never count here. Always the
+    plain form: the web's search only dims non-matches and the
+    List "X of Y" form belongs to the List search/category filter,
+    which does not apply in Web view."""
+    return (f"{fact_nodes} fact{'s' if fact_nodes != 1 else ''} "
+            f"remembered")
+
+
 def reminders_view(scheduler=None) -> dict:
     """The reminders the Learned page shows, plus the home line.
 

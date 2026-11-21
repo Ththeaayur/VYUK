@@ -146,7 +146,7 @@ from .browser_cdp import (_cdp_handshake, _cdp_port,
                          _chrome_running, _default_chrome_profile_dir,
                          _debug_profile_dir, _diagnose_profile_dir,
                          _read_devtools_active_port, _launch_argv,
-                         _CHROME_136_WALL)
+                         _CHROME_136_WALL, note_launched_chrome)
 
 _HANDSHAKE_WAIT_S = 15.0
 _HANDSHAKE_POLL_S = 0.5
@@ -265,7 +265,12 @@ def _launch_chrome(exe, port: int) -> bool:
     no console. True when the process started — NOT when it
     attached (L8): callers must still wait for the handshake and
     verify. The profile dir is resolved here, so a test that
-    patches _debug_profile_dir controls the argv."""
+    patches _debug_profile_dir controls the argv. R1: the Popen
+    is registered with browser_cdp.note_launched_chrome, so
+    _chrome_running() can reap it if the launched Chrome is
+    later killed or crashes — the handle used to be discarded,
+    leaving an unreaped zombie child that read as a running
+    browser."""
     profile_dir = _debug_profile_dir()
     try:
         kwargs: dict = {
@@ -279,8 +284,9 @@ def _launch_chrome(exe, port: int) -> bool:
                 subprocess, "DETACHED_PROCESS", 0)
         else:
             kwargs["start_new_session"] = True
-        subprocess.Popen(
+        proc = subprocess.Popen(
             _launch_argv(exe, port, profile_dir), **kwargs)
+        note_launched_chrome(proc)
         return True
     except Exception:  # noqa: BLE001 — launch failure is a state
         return False
