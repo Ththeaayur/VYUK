@@ -17,8 +17,7 @@ What this suite proves, on the real dialog offscreen:
   sizes (780x560 and 760x560).
 * The dialog size itself is unchanged.
 
-Discipline (mirrors tests/test_cloudkey_wizard.py and
-tests/test_r3ef303_wizard_wrap.py): the GUI reads
+Discipline (mirrors tests/test_r3oauth_build.py): the GUI reads
 permission_grants / config through the ``voice_assistant.core``
 alias, while the flat test world imports ``core.*`` — two module
 instances (the dual-import trap). These tests therefore drive the
@@ -243,7 +242,7 @@ class _EnvGuard:
 class _StoreMixin(unittest.TestCase):
     """Temp-dir grants store + data/ guard + settings_voice
     reset + progress reset + .env guard (mirrors
-    test_cloudkey_wizard's _StoreMixin)."""
+    test_r3oauth_build's _StoreMixin)."""
 
     def setUp(self):
         super().setUp()
@@ -294,8 +293,13 @@ class _StoreMixin(unittest.TestCase):
     def _welcome_parts(self, dlg):
         """(orb, title, body, viewport) on the welcome page."""
         page = dlg._welcome_page
+        if dlg.pages.currentWidget() is not page:
+            # Round-3 wizard expansion: the dialog opens on the
+            # language page now, so walk one step to welcome.
+            dlg._next()
+            self._pump()
         self.assertIs(dlg.pages.currentWidget(), page,
-                      "the dialog must open on the welcome page")
+                      "the walk must land on the welcome page")
         vp = dlg._pages_scroll.viewport()
         orb = None
         title = None

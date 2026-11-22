@@ -288,7 +288,16 @@ _MIGRATED = [
     # the literal carried, so the migration changes no rendering.
     # One row per (file, token); senses CARD_TITLE covers two sites.
     ("gui/pulse_page.py", "TYPE_CARD_TITLE", 13),
-    ("gui/pulse_page.py", "TYPE_TITLE", 20),
+    # INTENTIONAL (UI rethink Build 7, v5.57 redo): the Pulse
+    # page's TYPE_TITLE row is GONE — the card's big value
+    # (20px, font-weight 700) became a 48 px row's mono live
+    # value at 13px, so no 20px title-sized text remains on
+    # the page and there is no f-string left to pin. The row
+    # is removed, not re-pointed: re-adding a 20px title to
+    # satisfy the pin would undo a deliberate, parent-verified
+    # redesign. TYPE_TITLE == 20 stays pinned by
+    # test_scifi_home (TYPE_TITLE, 20) and the token is still
+    # used elsewhere (Activity headline, Build 2).
     ("gui/senses_page.py", "TYPE_CARD_TITLE", 13),
     ("gui/senses_page.py", "TYPE_BODY", 13),
     # GUI split #8 INTENTIONAL: the TYPE_CARD_TITLE f-string lives in _page_shell,
@@ -364,7 +373,30 @@ class Ui08Tests(unittest.TestCase):
         # migration (-1x11px) is already in the 56. Proven by a
         # per-file count diff v6.3 -> backup_chat_pass_pre:
         # 57 - 1 + 9 + 1 = 66.
-        self.assertEqual(len(_numeric_literals()), 66)
+        # UI rethink Build 7 (2026-11-17/18, visual review):
+        # 66 -> 74 — NO Build 7 change is reverted here. The pin
+        # went stale because Build 7 was never re-run against
+        # this suite (same shape as the Build 4 staleness above).
+        # Build 7's deltas are deliberate, parent-verified design
+        # decisions, proven by a per-file count diff
+        # backup_rethink_build6_pre -> backup_rethink_build7_pre:
+        # doctor_page.py 7 -> 8 (hero_title 16px -> 20px x4,
+        # a size decision, plus one new 13px title),
+        # onboarding_pages.py 0 -> 4 (new permission-row
+        # name/state labels, 13px x4), pulse_page.py 5 -> 7
+        # (v5.57 redo: the big mono value 20px token -> 13px
+        # literal, word label 11px -> 13px, _apply_word 13px),
+        # window_memory_web.py 0 -> 1 (new 13px label).
+        # Net: 11: 9 -> 8, 13: 11 -> 20, 16: 15 -> 11,
+        # 20: 0 -> 4; 66 + 1 + 4 + 2 + 1 = 74. The 13px/20px
+        # literals have exact tokens (TYPE_BODY 13, TYPE_TITLE
+        # 20) — migrating them is a separate optional follow-up,
+        # not this repair: Build 7 chose these sizes deliberately
+        # and this pin records the count, it does not mandate
+        # migration. The Pulse TYPE_TITLE migrated row is removed
+        # in the same repair (see _MIGRATED below) — its site
+        # was deliberately removed by the v5.57 redo.
+        self.assertEqual(len(_numeric_literals()), 74)
 
     def test_remaining_value_multiset(self):
         from collections import Counter
@@ -377,10 +409,13 @@ class Ui08Tests(unittest.TestCase):
         # Chat pass (2026-11-17): the Build 4 delta, proven by
         # the per-file count diff (see test_numeric_literal_count):
         # 11.5: 0 -> 1, 12: 27 -> 28, 13: 3 -> 11.
+        # UI rethink Build 7: the same per-file diff
+        # (backup_rethink_build6_pre -> backup_rethink_build7_pre):
+        # 11: 9 -> 8, 13: 11 -> 20, 16: 15 -> 11, 20: 0 -> 4.
         self.assertEqual(
             Counter(_numeric_literals()),
-            Counter({"11": 9, "11.5": 1, "12": 28, "13": 11,
-                     "14": 1, "16": 15, "18": 1}))
+            Counter({"11": 8, "11.5": 1, "12": 28, "13": 20,
+                     "14": 1, "16": 11, "18": 1, "20": 4}))
 
     def test_migrated_sites_use_tokens_at_original_size(self):
         for rel, token, size in _MIGRATED:

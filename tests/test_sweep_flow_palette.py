@@ -216,12 +216,13 @@ class LicenceAndWidgetSourceTests(unittest.TestCase):
     # S1, Skills gaining one in rethink Build 3 and losing it
     # again in the chat pass — the map is [0, 1, 2, 5, 6, 7, 4],
     # the v6.3 value, proven at backup_release_v630_pre
-    # gui/window_shell_sidebar.py:295).
+    # gui/window_shell_sidebar.py:295). Stage 0 features batch 1
+    # (Group D) adds the four views at stack 8–11.
     def test_wiring_sidebar_s1_remap_stack_unchanged(self):
         shell = _shell_source()
         self.assertIn('QKeySequence("Ctrl+K")', shell)
         self.assertIn("_show_command_palette", shell)
-        self.assertIn("_nav_page_indices = [0, 1, 2, 5, 6, 7, 4]",
+        self.assertIn("_nav_page_indices = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4]",
                       shell)
         # GUI split #9 INTENTIONAL: CommandPalette lives in the nav module now.
         chat = (_ROOT / "gui" / "window_chat_nav.py").read_text()

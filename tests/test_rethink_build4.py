@@ -236,6 +236,39 @@ class _DataGuard:
         return False
 
 
+def _set_provenance_user():
+    """Loophole batch 4: the speaker lock defaults ON, so a
+    session with no provenance ("unknown") now gates every
+    state-changing tool — the allowlist shortcut and the
+    spoken-yes path these legs measure would be defeated by
+    provenance, not by the mechanism under test. These legs
+    run in a user-started session (the shape where the
+    shortcut / the spoken yes applies as before). Set on BOTH
+    module identities: the allowlist shortcut reads the
+    ALIASED tools_gate under Qt and the flat one otherwise
+    (see _StoreMixin's docstring)."""
+    from core.funnel import tools_gate as _flat_gate
+    _flat_gate.set_session_provenance("user")
+    try:
+        from voice_assistant.core.funnel import (  # noqa: E402
+            tools_gate as _va_gate)
+    except ImportError:
+        return
+    _va_gate.set_session_provenance("user")
+
+
+def _reset_provenance():
+    """Undo _set_provenance_user on both identities."""
+    from core.funnel import tools_gate as _flat_gate
+    _flat_gate.set_session_provenance("unknown")
+    try:
+        from voice_assistant.core.funnel import (  # noqa: E402
+            tools_gate as _va_gate)
+    except ImportError:
+        return
+    _va_gate.set_session_provenance("unknown")
+
+
 class _StoreMixin(unittest.TestCase):
     """Temp-dir stores (allowlist + grants + events) + the
     data/ guard + taint cleared, per test. The allowlist and
@@ -245,6 +278,7 @@ class _StoreMixin(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        _set_provenance_user()
         self._tmp = tempfile.TemporaryDirectory()
         tmp = pathlib.Path(self._tmp.name)
         self._allowlist = tmp / "confirm_allowlist.json"
@@ -280,6 +314,7 @@ class _StoreMixin(unittest.TestCase):
         for patch in reversed(self._patches):
             patch.stop()
         self._tmp.cleanup()
+        _reset_provenance()
         super().tearDown()
 
     def _allow(self, tool):

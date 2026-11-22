@@ -24,7 +24,7 @@ The card pages themselves still scroll by design — this suite
 does NOT assert they fit (see the E-F302 investigation report:
 full fit is geometrically impossible at 780x560).
 
-Discipline (mirrors tests/test_cloudkey_wizard.py and
+Discipline (mirrors tests/test_r3oauth_build.py and
 tests/test_r3ef301_wizard_title.py): the GUI reads
 permission_grants / config through the ``voice_assistant.core``
 alias, while the flat test world imports ``core.*`` — two module
@@ -246,7 +246,7 @@ class _EnvGuard:
 class _StoreMixin(unittest.TestCase):
     """Temp-dir grants store + data/ guard + settings_voice
     reset + progress reset + .env guard (mirrors
-    test_cloudkey_wizard's _StoreMixin)."""
+    test_r3oauth_build's _StoreMixin)."""
 
     def setUp(self):
         super().setUp()
@@ -295,20 +295,32 @@ class _StoreMixin(unittest.TestCase):
         return dlg
 
     def _goto_choice(self, dlg):
+        # Round-3 wizard expansion: language is first and name +
+        # voice joined the main flow, so the walk to choice is
+        # five steps now (was welcome -> mic -> choice).
+        dlg._next()  # language -> welcome
+        self._pump()
         dlg._next()  # welcome -> mic
         self._pump()
-        dlg._next()  # mic -> choice
+        dlg._next()  # mic -> name
+        self._pump()
+        dlg._next()  # name -> voice
+        self._pump()
+        dlg._next()  # voice -> choice
         self._pump()
         self.assertIs(dlg.pages.currentWidget(), dlg._choice_page,
                       "the walk must land on the choice page")
 
     def _goto_profile(self, dlg):
         self._goto_choice(dlg)
-        dlg._toggle_advanced()  # detour -> voice
+        # Round-3 wizard expansion: the profile page is main
+        # flow now, right after choice — no detour toggle. The
+        # choice gate still applies, so a choice must be picked
+        # before Continue leaves the choice page (the old detour
+        # bypassed the gate, which is why no pick was needed).
+        dlg._select_choice("local")
         self._pump()
-        dlg._next()  # voice -> language
-        self._pump()
-        dlg._next()  # language -> profile
+        dlg._next()  # choice -> profile
         self._pump()
         self.assertIs(dlg.pages.currentWidget(), dlg._profile_page,
                       "the walk must land on the profile page")
@@ -386,18 +398,24 @@ class WizardNoteTests(_StoreMixin):
         self._goto_profile(dlg)
         self._assert_note_in_chrome(dlg)
 
-    def test_note_hidden_on_welcome_and_key(self):
+    def test_note_hidden_on_welcome_and_signin(self):
         dlg = self._dialog(780, 560)
+        # Round-3 wizard expansion: the dialog opens on the
+        # language page now — walk one step to welcome.
+        dlg._next()  # language -> welcome
+        self._pump()
         self.assertIs(dlg.pages.currentWidget(), dlg._welcome_page,
-                      "the dialog must open on the welcome page")
+                      "the walk must land on the welcome page")
         self._assert_note_hidden(dlg)
         self._goto_choice(dlg)
         dlg._select_choice("cloud")
         self._pump()
-        dlg._next()  # choice -> key (no download for cloud)
+        dlg._next()  # choice -> profile
         self._pump()
-        self.assertIs(dlg.pages.currentWidget(), dlg._key_page,
-                      "the walk must land on the key page")
+        dlg._next()  # profile -> sign-in (no download for cloud)
+        self._pump()
+        self.assertIs(dlg.pages.currentWidget(), dlg._signin_page,
+                      "the walk must land on the sign-in page")
         self._assert_note_hidden(dlg)
 
     def test_note_in_chrome_choice_only(self):

@@ -552,8 +552,10 @@ class RoomWindowTests(WindowBase):
         self.assertIsNotNone(card)
         texts = {lbl.text() for lbl in card.findChildren(QLabel)}
         self.assertIn("Private by design", texts)
-        self.assertIn("Memory stays on this device. The mic is off "
-                      "until you talk to VYUK", texts)
+        # Loophole batch 8 (L-31): the body is the shared
+        # sentence from core/privacy_copy.py (PRIVACY_PROMISE).
+        import core.privacy_copy as _pc  # noqa: E402
+        self.assertIn(_pc.PRIVACY_PROMISE, texts)
         self.assertIsNone(getattr(self.window, "privacy_lock", None))
 
     def test_briefing_card_expands_and_collapses(self):

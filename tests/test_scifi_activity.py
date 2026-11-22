@@ -340,7 +340,7 @@ class TestActivityGuards(unittest.TestCase):
         self.assertNotIn("activityHeadlineLabel", src)
         self.assertNotIn("activityHeadlineCompare", src)
 
-    def test_setstylesheet_count_still_172(self):
+    def test_setstylesheet_count_still_183(self):
         # UI rethink Build 3 (2026-11-16): 144 -> 150. The docked
         # status strip adds 4 call sites (row sheet, dot, word,
         # popover + its line labels) and the Settings search
@@ -407,10 +407,63 @@ class TestActivityGuards(unittest.TestCase):
         # live tree, the single added line being the pack
         # input's setStyleSheet call. The audit2s1 ceiling
         # pin (<= 172) still passes at 172.
+        # Wizard polish (2026-11-21): 172 -> 173. Net +1: the
+        # Done page's brain line (gui/onboarding_pages.py)
+        # moves from setObjectName("muted") to its own
+        # setStyleSheet — full text colour, semibold, so the
+        # recap reads as the point of the page instead of a
+        # third muted line. One site, one widget; proven with
+        # this test's own gui/*.py method: 172 on
+        # backup_r3wizard_polish_pre, 173 on the live tree,
+        # the single added line being the brain line's
+        # setStyleSheet call. The audit2s1 ceiling pin moves
+        # with it (<= 172 -> <= 173).
+        # Round-3 OAuth build (2026-11-21): 173 -> 175. Net
+        # +2: gui/onboarding_pages.py +3 (the key page's 3
+        # status sites go with the page; the sign-in page's
+        # handlers add 6 — the status label's OK, muted
+        # not-signed-in, muted waiting-for-browser, DANGER
+        # failed-validation, and muted signed-out states, plus
+        # the test label's OK-or-DANGER state — all states of
+        # two labels, zero literals) and
+        # gui/onboarding_flow.py -1 (the key advance's 2 sites
+        # go with the page; the sign-in advance's amber
+        # no-sign-in warning adds 1). Proven with this test's
+        # own gui/*.py method: 173 on
+        # backup_r3oauth_build_pre, 175 on the live tree. The
+        # audit2s1 ceiling pin moves with it (<= 173 -> <= 175).
+        # Round-3 wizard expansion (2026-11-21): 175 -> 176. Net
+        # +1: the Done page's greeting line
+        # (gui/onboarding_pages.py) gains its own setStyleSheet
+        # — the localized hello + name reads in the full text
+        # colour like the brain line above it. One site, one
+        # widget; proven with this test's own gui/*.py method:
+        # 175 on backup_r3wizard_expand_pre, 176 on the live
+        # tree, the single added line being the greeting line's
+        # setStyleSheet call. The audit2s1 ceiling pin moves
+        # with it (<= 175 -> <= 176).
+        # Stage 0 features batch 1 (2026-11-22): 176 -> 183.
+        # Net +7, all in the new views mixin
+        # (gui/window_pages_views.py): the calendar widget's
+        # dark sheet, the "Next 7 days" title, the day-detail
+        # title, the inbox body, the contacts body, the calls
+        # table, and the calls status line — 7 sites, each one
+        # widget, all token-based ({TYPE_CARD_TITLE}px /
+        # {TEXT_MUTED} / token colours), zero literals. A bare
+        # QCalendarWidget/QTextBrowser/QTableWidget renders in
+        # Qt's default light palette on the dark theme without
+        # them (the eye-check caught white grids and unreadable
+        # rows). Proven with this test's own gui/*.py method:
+        # 176 on stage0f1_work/prescratch, 183 on the live
+        # tree. The neighbour run measured 179 because its
+        # workers rsynced before the 4 render-fix sheets
+        # (calendar, inbox body, contacts body, calls table)
+        # landed — the pre-launch mixin had only 3 sites. The
+        # audit2s1 ceiling pin moves with it (<= 176 -> <= 183).
         count = 0
         for path in (ROOT / "gui").glob("*.py"):
             count += path.read_text().count("setStyleSheet")
-        self.assertEqual(count, 172)
+        self.assertEqual(count, 183)
 
     def test_error_paths_never_touch_the_orb(self):
         for path in ("gui/window_memory_activity.py",

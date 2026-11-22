@@ -120,14 +120,14 @@ class RunPlanToolTests(unittest.TestCase):
         self.assertIs(
             decl["parameters"].get("additionalProperties"), False)
 
-    def test_census_moved_to_758_tools(self):
-        self.assertEqual(len(TOOLS.get_declarations()), 758)
+    def test_census_moved_to_764_tools(self):  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(TOOLS.get_declarations()), 764)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
 
     def test_desktop_profile_offers_run_plan(self):
         decls = desktop_declarations(TOOLS)
         names = [d["name"] for d in decls]
         self.assertIn("run_plan", names)
-        self.assertEqual(len(names), 65)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing joins the desktop profile; round-3 fix Q5+Q7 (2026-11-19): 60 -> 65 — remember_user_fact, recall_memories, quick_math, run_routine, save_routine join the desktop profile
+        self.assertEqual(len(names), 71)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing joins the desktop profile; round-3 fix Q5+Q7 (2026-11-19): 60 -> 65 — remember_user_fact, recall_memories, quick_math, run_routine, save_routine join the desktop profile; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
         self.assertIn("run_plan", DESKTOP_TOOL_PRIORITY)
         self.assertIn("run_plan", CORE_TOOL_PRIORITY)
 

@@ -109,6 +109,13 @@ EXPECTED_DEFS = [("Home", "spark", 0),
                  ("System Pulse", "pulse", 5),
                  ("Senses", "senses", 6),
                  ("Doctor", "check", 7),
+                 # Stage 0 features batch 1 (Group D): the views —
+                 # Calendar / Inbox / Contacts / Calls (stack 8–11),
+                 # before the footer Settings.
+                 ("Calendar", "grid", 8),
+                 ("Inbox", "send", 9),
+                 ("Contacts", "square", 10),
+                 ("Calls", "mic", 11),
                  ("Settings", "sliders", 4)]
 
 
@@ -125,12 +132,15 @@ class TestSidebarStructure(unittest.TestCase):
         raw = _assign_value(func, "_nav_page_indices")
         indices = [e.value for e in raw.elts
                    if isinstance(e, ast.Constant)]
-        self.assertEqual(indices, [0, 1, 2, 5, 6, 7, 4])
+        # Stage 0 features batch 1 (Group D): the four views take
+        # stack 8–11; the frozen 0–7 map is unchanged.
+        self.assertEqual(indices, [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4])
         icons = _assign_value(func, "_nav_icon_names")
         icon_vals = [e.value for e in icons.elts
                      if isinstance(e, ast.Constant)]
         self.assertEqual(icon_vals, ["spark", "clock", "database",
                                      "pulse", "senses", "check",
+                                     "grid", "send", "square", "mic",
                                      "sliders"])
         self.assertEqual(len(indices), len(icon_vals))
         self.assertEqual(len(indices), len(EXPECTED_DEFS))
@@ -158,13 +168,17 @@ class TestSidebarStructure(unittest.TestCase):
                  "layout.addWidget(self.nav_buttons[2])",
                  '_system_label = QLabel("SYSTEM")',
                  "for btn in self.nav_buttons[3:6]:",
+                 # Stage 0 features batch 1 (Group D): the VIEWS
+                 # section sits between SYSTEM and the stretch.
+                 '_views_label = QLabel("VIEWS")',
+                 "for btn in self.nav_buttons[6:10]:",
                  "layout.addStretch()",
-                 "layout.addWidget(self.nav_buttons[6])"]
+                 "layout.addWidget(self.nav_buttons[10])"]
         positions = [segment.index(marker) for marker in order]
         self.assertEqual(positions, sorted(positions),
                          "sidebar layout order is not CORE -> "
-                         "MISSION -> ARCHIVE -> SYSTEM -> stretch -> "
-                         "footer Settings")
+                         "MISSION -> ARCHIVE -> SYSTEM -> VIEWS -> "
+                         "stretch -> footer Settings")
         self.assertNotIn('QLabel("Advanced / Explore")', segment,
                          "the old Advanced / Explore label survives")
         self.assertNotIn("_adv_label", segment,
@@ -206,6 +220,11 @@ class TestSidebarStructure(unittest.TestCase):
 class TestStackUnchanged(unittest.TestCase):
     def test_stack_order_unchanged(self):
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
+        # INTENTIONAL UPDATE (Stage 0 features batch 1, 2026-11-22):
+        # the four views pages join the stack at indices 8-11
+        # (calendar, inbox, contacts, calls) — indices 0-7 are
+        # FROZEN (Home, Activity, Memory, Skills, Settings,
+        # System Pulse, Senses, Doctor), in the same order.
         func = _func(_tree("window_shell_sidebar.py"), "_build_ui")
         builders = []
         for call in _calls(func):
@@ -224,7 +243,11 @@ class TestStackUnchanged(unittest.TestCase):
                           "_build_settings_page",
                           "_build_pulse_page",
                           "_build_senses_page",
-                          "_build_doctor_page"])
+                          "_build_doctor_page",
+                          "_build_calendar_page",
+                          "_build_inbox_page",
+                          "_build_contacts_page",
+                          "_build_calls_page"])
 
     def test_skills_page_not_deleted(self):
         # GUI split #8 INTENTIONAL: _build_skills_page moved verbatim to
@@ -330,7 +353,10 @@ class TestRoutesPreserved(unittest.TestCase):
         for expected in ((0, "Go to Home"), (0, "Go to Assistant"),
                          (1, "Go to Activity"), (3, "Go to Skills"),
                          (4, "Go to Settings"), (5, "Go to Pulse"),
-                         (6, "Go to Senses"), (7, "Go to Doctor")):
+                         (6, "Go to Senses"), (7, "Go to Doctor"),
+                         # Stage 0 features batch 1 (Group D).
+                         (8, "Go to Calendar"), (9, "Go to Inbox"),
+                         (10, "Go to Contacts"), (11, "Go to Calls")):
             self.assertIn(expected, rows, f"palette row {expected} missing")
         dump = ast.dump(func)
         self.assertIn("Go to Reminders", dump)

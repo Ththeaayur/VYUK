@@ -167,14 +167,20 @@ class TestBuild3Window(WindowBase):
         self.app.processEvents()
 
     # ------------------------------------------------------------ sidebar
-    def test_seven_nav_buttons_in_v63_order_with_labels(self):
+    def test_eleven_nav_buttons_in_v63_order_with_labels(self):
         # Chat pass (2026-11-17): the sidebar is v6.3 again — seven
         # buttons in v6.3 order, section labels back, the Build 3
         # Skills button gone (Skills is Ctrl+K-only, as in v6.3).
+        # INTENTIONAL UPDATE (Stage 0 features batch 1, 2026-11-22):
+        # eleven buttons — the four views (Calendar, Inbox,
+        # Contacts, Calls) join before Settings under a new
+        # VIEWS section label; the v6.3 seven keep their order
+        # and Settings stays last. Skills is still Ctrl+K-only.
         labels = [b.text() for b in self.window.nav_buttons]
         self.assertEqual(labels, ["Home", "Activity", "Memory",
                                   "System Pulse", "Senses", "Doctor",
-                                  "Settings"])
+                                  "Calendar", "Inbox", "Contacts",
+                                  "Calls", "Settings"])
         self.assertEqual(self.window.nav_buttons[-1].text(), "Settings")
         from PySide6.QtWidgets import QLabel
 
@@ -183,7 +189,7 @@ class TestBuild3Window(WindowBase):
         # the privacy card title.
         inner = self.window.nav_buttons[0].parentWidget()
         seen = {lbl.text() for lbl in inner.findChildren(QLabel)}
-        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM"):
+        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM", "VIEWS"):
             self.assertIn(label, seen,
                           "a v6.3 section label is missing")
         self.assertNotIn("Skills", labels)
@@ -195,6 +201,10 @@ class TestBuild3Window(WindowBase):
                     "Show the System Pulse page",
                     "Show the Senses page",
                     "Show the Doctor page",
+                    "Show the Calendar page",
+                    "Show the Inbox page",
+                    "Show the Contacts page",
+                    "Show the Calls page",
                     "Show the Settings page"]
         got = [b.accessibleDescription()
                for b in self.window.nav_buttons]
@@ -247,9 +257,22 @@ class TestBuild3Window(WindowBase):
         self.assertLess(idx_header, idx_group,
                         "summary header must sit above the groups")
 
-    def test_card_count_33_explained_card_gone(self):
+    def test_card_count_35_explained_card_gone(self):
+        # INTENTIONAL UPDATE (Stage 0 features batch 1, 2026-11-22):
+        # 35, not 33. The count was already 35 before this batch —
+        # the pin went stale because no neighbour run between
+        # loophole batch 3 and stage0f1 included this suite
+        # (proven: 35 on stage0f1_work/prescratch too). The two
+        # additions are deliberate: +1 "Backup passphrase"
+        # (loophole batch 3, #10 encrypted backup) and +1
+        # "Feedback & crash reports" (loophole batch 7, #6).
+        # Proven by title-literal count: 33 on
+        # backup_release_v630_pre, 34 on backup_loophole_batch5_pre
+        # through backup_loophole_batch7_pre, 35 on
+        # backup_loophole_batch8_pre and the live tree; the live
+        # window's sectionTitle labels list all 35.
         self._show_settings()
-        self.assertEqual(len(self.window._settings_card_texts), 33)
+        self.assertEqual(len(self.window._settings_card_texts), 35)
         from PySide6.QtWidgets import QLabel
 
         titles = {lbl.text() for lbl in

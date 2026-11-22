@@ -15,11 +15,11 @@ and run_anticipation_routine in fix #32).
 This suite pins the fix, so it can never regress silently:
 
 - The five tools are resident in the desktop profile (48 -> 53);
-  the desktop offered set is 65 (53 resident + 11 routers +
+  the desktop offered set is 71 (59 resident + 11 routers +
   use_toolbox). The four already-core tools keep their core home
-  (60, unmoved); save_routine's home is desktop-only — its Mind
+  (61, +find_free_slots); save_routine's home is desktop-only — its Mind
   siblings split the same way (run/list in core, save/delete in
-  neither), so the assistant offered set stays 61. No confirm
+  neither), so the assistant offered set moves 61 -> 62. No confirm
   gate is added or removed: save_routine stays gated, run_routine
   stays ungated.
 - The lite router sends the spoken asks to the right tool:
@@ -67,6 +67,7 @@ from core.funnel.toolbox_tokens import (  # noqa: E402
     CORE_TOOL_PRIORITY,
     rank_tools_keyword,
 )
+from core.funnel import tools_gate as _tools_gate  # noqa: E402
 from core.funnel.tools_registry import tools  # noqa: E402
 from core.memory.memory import MemoryStore  # noqa: E402
 from core.skills_smart import quick_math  # noqa: E402
@@ -81,9 +82,9 @@ class TestDesktopResidency(unittest.TestCase):
         for tool in FIVE:
             self.assertIn(tool, DESKTOP_TOOL_PRIORITY, tool)
 
-    def test_desktop_resident_count_is_53(self):
+    def test_desktop_resident_count_is_59(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
         self.assertEqual(
-            len(DESKTOP_TOOL_PRIORITY), 53,
+            len(DESKTOP_TOOL_PRIORITY), 59,  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
             "round-3 fix Q5+Q7 (2026-11-19): 48 -> 53 — the five "
             "memory/routine tools join the desktop profile")
 
@@ -97,37 +98,37 @@ class TestDesktopResidency(unittest.TestCase):
         # core, save/delete in neither); no new rule invented.
         self.assertNotIn("save_routine", CORE_TOOL_PRIORITY)
 
-    def test_core_resident_count_unmoved(self):
-        self.assertEqual(len(CORE_TOOL_PRIORITY), 60)
+    def test_core_resident_count_is_61(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
+        self.assertEqual(len(CORE_TOOL_PRIORITY), 61)  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
 
     def test_every_desktop_resident_is_registered(self):
         names = {d["name"] for d in tools.get_declarations()}
         for tool in DESKTOP_TOOL_PRIORITY:
             self.assertIn(tool, names, tool)
 
-    def test_desktop_offered_is_65(self):
+    def test_desktop_offered_is_71(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
         decls = profile_declarations(tools, "desktop")
         names = [d["name"] for d in decls]
-        self.assertEqual(len(names), 65)  # 53 resident + 11 routers
+        self.assertEqual(len(names), 71)  # 59 resident + 11 routers; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
         # + use_toolbox; round-3 fix Q5+Q7 (2026-11-19): 60 -> 65
         self.assertEqual(names[-1], "use_toolbox")
         for tool in FIVE:
             self.assertIn(tool, names, tool)
 
-    def test_assistant_offered_unmoved(self):
+    def test_assistant_offered_is_73(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
         decls = profile_declarations(tools, "assistant")
         names = [d["name"] for d in decls]
-        # 60 resident + 11 routers + use_toolbox (the "61 offered
+        # 61 resident + 11 routers + use_toolbox (the "61 offered; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
         # declarations" pin elsewhere counts router_declarations:
-        # 60 resident + use_toolbox, no routers — see below).
-        self.assertEqual(len(names), 72)
+        # 61 resident + use_toolbox, no routers — see below).; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
+        self.assertEqual(len(names), 73)  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
         self.assertEqual(names[-1], "use_toolbox")
 
-    def test_router_declarations_unmoved(self):
+    def test_router_declarations_is_62(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
         from core.funnel.toolbox import router_declarations
         decls = router_declarations(tools)
         names = [d["name"] for d in decls]
-        self.assertEqual(len(names), 61)  # 60 resident + use_toolbox
+        self.assertEqual(len(names), 62)  # 61 resident + use_toolbox; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
 
 
 class TestClassificationUnmoved(unittest.TestCase):
@@ -246,6 +247,20 @@ class TestToolboxRanking(unittest.TestCase):
 
 
 class TestHandlerSmoke(unittest.TestCase):
+    def setUp(self):
+        # Loophole batch 4: the speaker lock defaults ON, so a
+        # session with no provenance ("unknown") now gates every
+        # state-changing tool — remember_user_fact would be
+        # refused before the handler ran. These legs measure the
+        # handler round-trips, so they run in a user-started
+        # session.
+        super().setUp()
+        _tools_gate.set_session_provenance("user")
+
+    def tearDown(self):
+        _tools_gate.set_session_provenance("unknown")
+        super().tearDown()
+
     def test_quick_math_evaluates(self):
         self.assertEqual(quick_math("2+2"), "2+2 = 4")
         self.assertEqual(quick_math("12 * 3"), "12 * 3 = 36")

@@ -607,10 +607,13 @@ class TestSettingsOnboardingNames(unittest.TestCase):
 
     def test_onboarding_names(self):
         # INTENTIONAL (GUI split #13 batch 1): both a11y pins moved
-        # verbatim with their pages (_page_api_key, _page_mic) to the
-        # pages mixin. Assertion unchanged.
+        # verbatim with their pages (_page_signin, _page_mic) to the
+        # pages mixin. Assertion unchanged. (Round-3 OAuth build:
+        # the key page's "Gemini API key" pin is gone with the
+        # page — the sign-in button's "Continue with Google" pin
+        # takes its place.)
         src = _read("onboarding_pages.py")
-        self.assertIn('setAccessibleName("Gemini API key")', src)
+        self.assertIn('setAccessibleName("Continue with Google")', src)
         self.assertIn('setAccessibleName("Microphone")', src)
 
 

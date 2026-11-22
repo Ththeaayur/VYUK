@@ -10,9 +10,12 @@ Covers, in order:
     deny applies nothing, undo expires, blanket-on refused,
     deny-all works, routing classes A/C/D, one pending
     proposal at a time.
-  * §8/R1 session grants: live-origin only, never for the
+  * §8/R1 session grants: the store-level grant (made on
+    screen in Settings) is live-origin only, never for the
     microphone, never over a stored denial (D7/D5), and the
-    funnel (check_tool) + capture guard consult them.
+    funnel (check_tool) + capture guard consult them. Voice
+    grants are REFUSED (loophole batch 4, L-28) — grants are
+    Settings-page-only.
   * The funnel handler dispatch (live set proposes, chat set
     applies, permission names get the directed refusal).
   * GUI structure: Connect dialog, onboarding key/mic/voice
@@ -129,6 +132,7 @@ capture_guard = None
 confirm_gate_mod = None
 app_settings_mod = None
 config_mod = None
+tools_gate_mod = None
 
 
 def setUpModule():
@@ -147,6 +151,7 @@ def setUpModule():
     global registry_mod, dispatch_mod
     global sv, pga, live_origin, capture_guard
     global app_settings_mod, config_mod, confirm_gate_mod
+    global tools_gate_mod
     _VA_SNAPSHOT = {k: v for k, v in sys.modules.items()
                     if k == "voice_assistant"
                     or k.startswith("voice_assistant.")}
@@ -180,7 +185,7 @@ def setUpModule():
             permission_grants as _pg, settings_voice as _sv)
         from voice_assistant.core import config as _cfg  # noqa: E402
         from voice_assistant.core.funnel import (  # noqa: E402
-            live_origin as _lo)
+            live_origin as _lo, tools_gate as _tg)
         ConnectDialog = _CD
         key_test_verdict = _ktv
         OnboardingDialog = _OD
@@ -195,6 +200,7 @@ def setUpModule():
         confirm_gate_mod = _conf
         app_settings_mod = _as
         config_mod = _cfg
+        tools_gate_mod = _tg
     except Exception:  # noqa: BLE001 — GUI import failed, skip
         _QT = False
 
@@ -508,16 +514,15 @@ class ProtocolTests(_StoreMixin):
         self.assertIsNone(sv.pending_proposal())
 
     def test_deny_all_revokes_session_grants(self):
-        token = self._live()
-        try:
-            self.assertIn("session", sv.grant_session_by_voice("camera"))
-            self.assertEqual(sv.active_session_grants(), ["camera"])
-            routed = sv.route_voice_settings_request(
-                "everything", "off")
-            self.assertEqual(routed["kind"], "deny_all")
-            self.assertEqual(sv.active_session_grants(), [])
-        finally:
-            live_origin.reset_live_origin(token)
+        # Loophole batch 4 (L-28): the voice grant is refused —
+        # the deny-all path is set up with a store-level session
+        # grant instead (the grant the owner made on screen).
+        pga.grant_session_only("camera")
+        self.assertEqual(sv.active_session_grants(), ["camera"])
+        routed = sv.route_voice_settings_request(
+            "everything", "off")
+        self.assertEqual(routed["kind"], "deny_all")
+        self.assertEqual(sv.active_session_grants(), [])
 
     def test_class_c_queues_the_connect_screen(self):
         routed = sv.route_voice_settings_request("api key", "")
@@ -554,11 +559,12 @@ class GrantGateTests(_StoreMixin):
     """Session grants: live-origin only, never the mic, never
     over a stored denial — and the gates consult them."""
 
-    def test_camera_grant_opens_check_tool_only_when_live(self):
+    def test_store_grant_opens_check_tool_only_when_live(self):
+        # The gate still consults a store-level session grant
+        # (made on screen in Settings): live origin opens it.
         token = self._live()
         try:
-            self.assertIn("session",
-                          sv.grant_session_by_voice("camera"))
+            pga.grant_session_only("camera")
             self.assertEqual(pga.check_tool("webcam_snapshot"),
                              (True, None))
         finally:
@@ -568,8 +574,24 @@ class GrantGateTests(_StoreMixin):
         self.assertEqual(pga.check_tool("webcam_snapshot"),
                          (False, "camera"))
 
+    def test_voice_grant_is_refused_even_when_live(self):
+        # Loophole batch 4 (L-28): permission grants are NEVER
+        # by voice — refused in words, naming Settings, and no
+        # grant is recorded, even inside a live session.
+        token = self._live()
+        try:
+            got = sv.grant_session_by_voice("camera")
+            self.assertIn("can't grant", got)
+            self.assertIn("Settings", got)
+            self.assertIn("Permissions", got)
+            self.assertEqual(sv.active_session_grants(), [])
+            self.assertEqual(pga.check_tool("webcam_snapshot"),
+                             (False, "camera"))
+        finally:
+            live_origin.reset_live_origin(token)
+
     def test_grant_without_live_origin_refused(self):
-        self.assertIn("live session",
+        self.assertIn("can't grant",
                       sv.grant_session_by_voice("camera"))
         self.assertEqual(sv.active_session_grants(), [])
         self.assertEqual(pga.check_tool("webcam_snapshot"),
@@ -591,9 +613,13 @@ class GrantGateTests(_StoreMixin):
         self._deny_stored("camera")
         token = self._live()
         try:
+            # L-28: the voice grant is refused outright now.
             got = sv.grant_session_by_voice("camera")
-            self.assertIn("switched off in Settings", got)
+            self.assertIn("can't grant", got)
             self.assertEqual(sv.active_session_grants(), [])
+            # And a stored denial still blocks even a store-level
+            # session grant at the gate.
+            pga.grant_session_only("camera")
             self.assertEqual(pga.check_tool("webcam_snapshot"),
                              (False, "camera"))
         finally:
@@ -602,7 +628,7 @@ class GrantGateTests(_StoreMixin):
     def test_revoke_session_grant_closes_the_gate(self):
         token = self._live()
         try:
-            sv.grant_session_by_voice("camera")
+            pga.grant_session_only("camera")
             self.assertEqual(pga.check_tool("webcam_snapshot"),
                              (True, None))
             self.assertIn("off", sv.revoke_session_by_voice("camera"))
@@ -616,7 +642,7 @@ class GrantGateTests(_StoreMixin):
         # proves the PRE-CHECK consults the grant, not the ask.
         token = self._live()
         try:
-            sv.grant_session_by_voice("camera")
+            pga.grant_session_only("camera")
             with mock.patch.object(
                     confirm_gate_mod, "request_confirmation",
                     return_value=True):
@@ -636,7 +662,7 @@ class GrantGateTests(_StoreMixin):
         self._deny_stored("camera")
         token = self._live()
         try:
-            sv.grant_session_by_voice("camera")
+            pga.grant_session_only("camera")
             with mock.patch.object(
                     confirm_gate_mod, "request_confirmation",
                     return_value=True):
@@ -659,6 +685,12 @@ class FunnelDispatchTests(_StoreMixin):
 
     def setUp(self):
         super().setUp()
+        # Loophole batch 4: the speaker lock defaults ON, so a
+        # session with no provenance ("unknown") now gates
+        # app_settings before the handler runs — these dispatch
+        # legs measure the routing, not provenance, so they run
+        # in a user-started session.
+        tools_gate_mod.set_session_provenance("user")
         self._bp = mock.patch.object(
             registry_mod, "_budget_check", lambda name, is_read: None)
         self._bp2 = mock.patch.object(
@@ -669,6 +701,7 @@ class FunnelDispatchTests(_StoreMixin):
     def tearDown(self):
         self._bp2.stop()
         self._bp.stop()
+        tools_gate_mod.set_session_provenance("unknown")
         super().tearDown()
 
     def _execute(self, args):
@@ -710,9 +743,28 @@ class FunnelDispatchTests(_StoreMixin):
         self.assertIn(self._test_theme,
                       str(app_settings_mod.app_settings("get", "theme")))
 
-    def test_grant_action_needs_a_live_session(self):
-        got = self._execute({"action": "grant", "setting": "camera"})
-        self.assertIn("live session", str(got))
+    def test_grant_action_is_refused_by_voice(self):
+        # Loophole batch 4 (L-28): the app_settings grant action
+        # is refused through the real funnel — with or without a
+        # live session. Grants are Settings-page-only. The
+        # refusal reads as a funnel refusal (no "result" key —
+        # the handler's "I can't grant" string is classified as
+        # a failure by the outcome reader), so this leg reads
+        # the raw execute dict, not the _execute helper.
+        result = registry_mod.tools.execute(
+            "app_settings", {"action": "grant", "setting": "camera"})
+        self.assertEqual(result.get("status"), "refused")
+        self.assertIn("can't grant", str(result.get("message", "")))
+        self.assertIn("Permissions", str(result.get("message", "")))
+        self.assertEqual(sv.active_session_grants(), [])
+        token = self._live()
+        try:
+            result = registry_mod.tools.execute(
+                "app_settings", {"action": "grant", "setting": "camera"})
+        finally:
+            live_origin.reset_live_origin(token)
+        self.assertEqual(result.get("status"), "refused")
+        self.assertIn("can't grant", str(result.get("message", "")))
         self.assertEqual(sv.active_session_grants(), [])
 
 
@@ -784,25 +836,40 @@ class OnboardingPageTests(_StoreMixin):
         self.addCleanup(dlg.deleteLater)
         return dlg
 
-    def test_key_page_has_test_button_link_and_result(self):
+    def test_signin_page_has_test_button_and_result(self):
+        # Round-3 OAuth build: the key page is gone — the wizard's
+        # sign-in page carries the test button and result label
+        # instead, plus the "Continue with Google" button and the
+        # honest free-tier note (the old "Get a free key" link went
+        # with the key).
         from PySide6.QtWidgets import QLabel
 
         dlg = self._dialog()
-        self.assertIsNotNone(dlg.ob_btn_test_key)
-        self.assertEqual(dlg.ob_btn_test_key.text(), "Test key")
-        self.assertIsNotNone(dlg.ob_key_test_label)
-        links = [w for w in dlg._key_page.findChildren(QLabel)
-                 if w.accessibleName()
-                 == "Get a free key from Google AI Studio"]
-        self.assertEqual(len(links), 1)
-        self.assertIn("aistudio.google.com", links[0].text())
+        self.assertIsNotNone(dlg.ob_btn_test_signin)
+        self.assertEqual(dlg.ob_btn_test_signin.text(), "Test sign-in")
+        self.assertIsNotNone(dlg.ob_signin_test_label)
+        self.assertIsNotNone(dlg.ob_btn_signin)
+        self.assertEqual(dlg.ob_btn_signin.text(), "Continue with Google")
+        notes = [w for w in dlg._signin_page.findChildren(QLabel)
+                 if "improve its products" in w.text()]
+        self.assertEqual(len(notes), 1)
 
-    def test_key_test_with_empty_key_says_so(self):
+    def test_signin_test_with_no_signin_says_so(self):
+        # Round-3 OAuth build: with no sign-in stored, "Test
+        # sign-in" reports it — validate_token() answers without
+        # touching the network, and the worker thread reports back
+        # on the signal.
         dlg = self._dialog()
-        dlg.ob_api_key.setText("")
-        dlg.ob_btn_test_key.click()
-        self.assertIn("Paste a key first",
-                      dlg.ob_key_test_label.text())
+        dlg.ob_btn_test_signin.click()
+        end = time.time() + 10
+        while time.time() < end:
+            _QA.instance().processEvents()
+            time.sleep(0.02)
+            if "Not signed in with Google yet." in \
+                    dlg.ob_signin_test_label.text():
+                break
+        self.assertIn("Not signed in with Google yet.",
+                      dlg.ob_signin_test_label.text())
 
     def test_mic_page_has_hearback_button(self):
         dlg = self._dialog()
@@ -1013,7 +1080,11 @@ class StripTests(_StoreMixin):
         ns = self._window()
         token = self._live()
         try:
-            sv.grant_session_by_voice("camera")
+            # Loophole batch 4 (L-28): the voice grant is refused,
+            # so the strip's keep/off state is set up with a
+            # store-level session grant (the grant the owner made
+            # on screen).
+            pga.grant_session_only("camera")
             self._refresh(ns)
         finally:
             live_origin.reset_live_origin(token)

@@ -54,9 +54,9 @@ class TestNotifyUserGate(unittest.TestCase):
         self.assertEqual(classify("notify_user"), "confirm")
         self.assertTrue(_needs_confirmation("notify_user", ARGS))
 
-    def test_gate_set_has_167(self):
+    def test_gate_set_has_169(self):
         _clean_session(self)
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 167)
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 169)  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
 
     def test_snapshot_entry_is_confirm_gated(self):
         snap = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))
@@ -117,7 +117,7 @@ class TestNotifyUserGate(unittest.TestCase):
                  for d in registry_mod.tools.get_declarations()]
         confirmed = {n for n in names if classify(n) == "confirm"}
         self.assertEqual(confirmed, set(_CONFIRM_GATE_TOOLS))
-        self.assertEqual(len(confirmed), 167)
+        self.assertEqual(len(confirmed), 169)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 167 -> 169 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added
 
 
 if __name__ == "__main__":
