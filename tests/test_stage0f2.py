@@ -28,9 +28,9 @@ This suite pins the batch, so it can never regress silently:
   start/end only, shift the whole event when no new end is given,
   and refuse a timed move of an all-day event. Every failure is an
   _outcome.failed, never a plain success string (F-F501).
-- Census pins: 764 tools / 384 read / 380 effectful / 169
-  confirm-gated / params 2102 / grouped 761 / closed 763 /
-  already-verified 314 / §2c rows 380 / labels 689 /
+- Census pins: 769 tools / 384 read / 385 effectful / 169
+  confirm-gated / params 2121 / grouped 766 / closed 768 /
+  already-verified 319 / §2c rows 385 / labels 694 /
   comms_calendar 32.
 
 Stdlib unittest only. All Google calls go through fake services
@@ -321,24 +321,24 @@ class TestStage0F2Wiring(unittest.TestCase):
 
     def test_census_totals(self):
         totals, _doc = _audit_totals()
-        self.assertEqual(totals["total"], 764)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(totals["total"], 769)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertEqual(totals["read"], 384)
-        self.assertEqual(totals["effectful"], 380)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(totals["effectful"], 385)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertEqual(totals["confirm_gated"], 169)
-        self.assertEqual(totals["already_verified_in_handler"], 314)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(totals["already_verified_in_handler"], 319)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         decls = tools.get_declarations()
-        self.assertEqual(len(decls), 764)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(decls), 769)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         params = sum(len(d.get("parameters", {}).get("properties", {}))
                      for d in decls)
-        self.assertEqual(params, 2102)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(params, 2121)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         grouped = sum(len(v) for v in GROUP_MEMBERS.values())
-        self.assertEqual(grouped, 761)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(grouped, 766)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         closed = sum(
             1 for d in decls
             if d.get("parameters", {}).get("additionalProperties")
             is False)
-        self.assertEqual(closed, 763)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
-        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 689)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(closed, 768)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 694)  #Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
 
 
 class _CalBase(unittest.TestCase):

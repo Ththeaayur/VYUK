@@ -15,7 +15,7 @@ and run_anticipation_routine in fix #32).
 This suite pins the fix, so it can never regress silently:
 
 - The five tools are resident in the desktop profile (48 -> 53);
-  the desktop offered set is 71 (59 resident + 11 routers +
+  the desktop offered set is 76 (64 resident + 11 routers +
   use_toolbox). The four already-core tools keep their core home
   (61, +find_free_slots); save_routine's home is desktop-only — its Mind
   siblings split the same way (run/list in core, save/delete in
@@ -82,9 +82,9 @@ class TestDesktopResidency(unittest.TestCase):
         for tool in FIVE:
             self.assertIn(tool, DESKTOP_TOOL_PRIORITY, tool)
 
-    def test_desktop_resident_count_is_59(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+    def test_desktop_resident_count_is_64(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertEqual(
-            len(DESKTOP_TOOL_PRIORITY), 59,  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+            len(DESKTOP_TOOL_PRIORITY), 64,  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
             "round-3 fix Q5+Q7 (2026-11-19): 48 -> 53 — the five "
             "memory/routine tools join the desktop profile")
 
@@ -106,10 +106,10 @@ class TestDesktopResidency(unittest.TestCase):
         for tool in DESKTOP_TOOL_PRIORITY:
             self.assertIn(tool, names, tool)
 
-    def test_desktop_offered_is_71(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+    def test_desktop_offered_is_76(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         decls = profile_declarations(tools, "desktop")
         names = [d["name"] for d in decls]
-        self.assertEqual(len(names), 71)  # 59 resident + 11 routers; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(names), 76)  # 64 resident + 11 routers; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         # + use_toolbox; round-3 fix Q5+Q7 (2026-11-19): 60 -> 65
         self.assertEqual(names[-1], "use_toolbox")
         for tool in FIVE:

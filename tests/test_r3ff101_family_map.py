@@ -104,11 +104,11 @@ class TestFamilyMap(unittest.TestCase):
     def test_census_totals(self):
         # The fix moves one family cell; the census totals do not move.
         read_n = sum(1 for e in self.census if e.get("read"))
-        self.assertEqual(len(self.census), 764)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(self.census), 769)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertEqual(read_n, 384)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 383 -> 384 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added
-        self.assertEqual(len(self.census) - read_n, 380)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 375 -> 378 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(self.census) - read_n, 385)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 375 -> 378 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertEqual(
-            sum(1 for e in self.census if e.get("confirm_gated")), 169)  # Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+            sum(1 for e in self.census if e.get("confirm_gated")), 169)  # Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
 
     def test_sibling_still_comms_calendar(self):
         # Control: the fix moves one tool; its calendar siblings stay.

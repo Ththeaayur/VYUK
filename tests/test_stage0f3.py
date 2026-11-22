@@ -34,10 +34,10 @@ This suite pins the batch, so it can never regress silently:
   become JSON {"monthly": X, "renewal_day": D}, legacy plain
   numbers still read, 'list' shows the next renewal date, and
   _next_renewal clamps to the month's last day.
-- Census pins: 764 tools / 384 read / 380 effectful / 169
-  confirm-gated / params 2102 / grouped 761 / closed 763 /
-  already-verified 314 / §2c rows 380 / labels 689 /
-  productivity 148 / desktop offered 71 / assistant offered 73.
+- Census pins: 769 tools / 384 read / 385 effectful / 169
+  confirm-gated / params 2121 / grouped 766 / closed 768 /
+  already-verified 319 / §2c rows 385 / labels 694 /
+  productivity 152 / desktop offered 76 / assistant offered 73.
 
 Stdlib unittest only. All money-store writes go through a temp
 MemoryStore + temp DATA_DIR (the _store seam); all price fetches
@@ -148,8 +148,8 @@ class TestRegistration(unittest.TestCase):
         self.assertFalse(_is_read_action("portfolio_tracker",
                                          {"action": "remove"}))
 
-    def test_desktop_priority_59_both_resident(self):
-        self.assertEqual(len(DESKTOP_TOOL_PRIORITY), 59)
+    def test_desktop_priority_64_both_resident(self):
+        self.assertEqual(len(DESKTOP_TOOL_PRIORITY), 64)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertIn("check_money_alerts", DESKTOP_TOOL_PRIORITY)
         self.assertIn("portfolio_tracker", DESKTOP_TOOL_PRIORITY)
 
@@ -552,7 +552,7 @@ class TestCensus(unittest.TestCase):
             (self.totals["total"], self.totals["read"],
              self.totals["effectful"], self.totals["confirm_gated"],
              self.totals["already_verified_in_handler"]),
-            (764, 384, 380, 169, 314))
+            (769, 384, 385, 169, 319))  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
 
     def test_params_grouped_closed(self):
         total_params = sum(
@@ -563,20 +563,20 @@ class TestCensus(unittest.TestCase):
             1 for d in self.decls.values()
             if d.get("parameters", {}).get("additionalProperties")
             is False)
-        self.assertEqual(total_params, 2102)
-        self.assertEqual(grouped, 761)
-        self.assertEqual(closed, 763)
+        self.assertEqual(total_params, 2121)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(grouped, 766)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(closed, 768)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
 
     def test_section_2c_rows_labels_productivity(self):
-        self.assertEqual(len(self.rows_2c), 380)
-        self.assertEqual(len(set(self.rows_2c)), 380)
-        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 689)
-        self.assertEqual(self.counts.get("productivity"), 148)
+        self.assertEqual(len(self.rows_2c), 385)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(len(set(self.rows_2c)), 385)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 694)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(self.counts.get("productivity"), 152)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
 
     def test_profiles(self):
         from core.funnel import tool_profiles as profiles  # noqa: E402
         self.assertEqual(
-            len(profiles.profile_declarations(tools, "desktop")), 71)
+            len(profiles.profile_declarations(tools, "desktop")), 76)  # Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertEqual(
             len(profiles.profile_declarations(tools, "assistant")), 73)
 
