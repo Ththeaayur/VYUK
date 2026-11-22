@@ -1,3 +1,5 @@
+> **Proprietary — not open source.** VYUK is the commercial product of Aayur Gattani. This repository is published for reference only: you may read the code, but you may not copy, modify, distribute, or reuse any part of it. See LICENSE and EULA.txt.
+
 # VYUK — Commercial Real-Time Voice AI Assistant
 
 A clean-room, production-grade personal AI assistant built from the ground up for commercial distribution, digital independence, and ultra-low-latency interaction.

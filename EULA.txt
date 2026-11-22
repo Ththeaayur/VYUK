@@ -1,13 +1,5 @@
 VYUK — END USER LICENCE AGREEMENT (EULA)
-
-DRAFT — have a lawyer review before commercial release.
-
-This is a draft agreement written in plain language. It has not been
-reviewed by a lawyer and may not be enforceable or sufficient in your
-jurisdiction. Do not ship VYUK commercially on the strength of this
-document alone.
-
-----------------------------------------------------------------------
+Version 1.0 — November 2026
 
 1. What this is
    VYUK is proprietary software owned by Aayur Gattani ("the
@@ -17,12 +9,13 @@ document alone.
 
 2. What you may do
    - Install and use VYUK for your own personal or internal business
-     purposes.
+     purposes on devices you own or control.
    - Make one backup copy for archival purposes.
 
 3. What you may not do
-   - Copy, distribute, sell, rent, lease or sublicense VYUK, except
-     for the backup copy allowed above.
+   - Copy, modify, distribute, sell, rent, lease or sublicense VYUK,
+     or create derivative works from it, except for the backup copy
+     allowed above.
    - Reverse engineer, decompile or disassemble VYUK, except where
      applicable law gives you that right despite this clause and the
      law cannot be waived.
@@ -50,15 +43,27 @@ document alone.
    NOT LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL OR CONSEQUENTIAL
    DAMAGES, OR FOR LOSS OF DATA, PROFITS OR BUSINESS, ARISING FROM
    THE USE OF OR INABILITY TO USE VYUK, EVEN IF ADVISED OF THE
-   POSSIBILITY OF SUCH DAMAGES. NOTHING IN THIS AGREEMENT EXCLUDES
+   POSSIBILITY OF SUCH DAMAGES. The Licensor's total liability under
+   this agreement is limited to the amount you paid for VYUK, or
+   ₹1,000, whichever is greater. NOTHING IN THIS AGREEMENT EXCLUDES
    LIABILITY THAT CANNOT BE EXCLUDED UNDER APPLICABLE LAW.
 
 7. Termination
    This licence ends automatically if you breach it. On termination
-   you must stop using VYUK and delete your copies.
+   you must stop using VYUK and delete your copies. Sections 3, 5
+   and 6 survive termination.
 
 8. Governing law
-   [To be completed on legal review — jurisdiction and venue.]
+   This agreement is governed by the laws of India. The courts at
+   Mumbai, Maharashtra have exclusive jurisdiction over any dispute
+   arising from or relating to VYUK or this agreement.
+
+9. Entire agreement
+   This agreement, together with LICENSE, is the entire agreement
+   between you and the Licensor about VYUK, and supersedes any
+   earlier understanding about it.
 
 ----------------------------------------------------------------------
-DRAFT — have a lawyer review before commercial release.
+Note: This agreement was prepared by the Licensor without independent
+legal review. Independent legal advice is recommended before
+commercial reliance.

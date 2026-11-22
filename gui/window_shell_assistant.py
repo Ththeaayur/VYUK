@@ -315,7 +315,7 @@ class ShellAssistantMixin:
         # v5.34 split layout (Aayur, 2026-10-22): the stage —
         # orb and her live features — owns the centre of the
         # page, and the conversation docks in a fixed side
-        # panel on the right: Muse's arrangement with the orb
+        # panel on the right: the arrangement with the orb
         # and the chat switched. The hero no longer folds
         # away mid-conversation; the panel is what gives the
         # transcript its room.
