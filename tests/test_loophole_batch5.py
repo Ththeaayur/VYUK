@@ -307,7 +307,7 @@ class OwnerOnlyBoundaryTests(_Base):
     def test_every_dispatched_owner_read_has_a_read_action(self):
         probes = [{"action": a} for a in (
             "list", "status", "get", "summary", "digest", "poll",
-            "events", "discover", "card", "total")]
+            "events", "discover", "card", "total", "report")]  # Stage 0 features batch 4 (2026-11-22): "report" is budget_envelope's owner-read action (gate extension); the probe list predates it
         probes += [{"action": "agent", "mode": "list"},
                    {"action": "flow", "mode": "get"},
                    {"action": "customer", "mode": "list"},
@@ -689,7 +689,7 @@ class ClassificationAuditTests(_Base):
     def test_evidence_table_covers_every_tool(self):
         evidence = classification_audit.load_evidence(
             str(ROOT / "tests"))
-        self.assertEqual(len(evidence), 764)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(evidence), 769)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
         self.assertEqual(
             sorted(evidence),
             sorted(tools._tools))
@@ -697,7 +697,7 @@ class ClassificationAuditTests(_Base):
         for entry in evidence.values():
             counts[entry["class"]] = counts.get(entry["class"], 0) + 1
         self.assertEqual(counts, {"read": 384, "confirm": 169,  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
-                                  "free": 211})  # INTENTIONAL — Stage 0 features batch 2 (Group E, 2026-11-22): confirm 167 -> 169 (cancel_calendar_event, reschedule_calendar_event), free 208 -> 209 (snooze_email, free app-state); Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+                                  "free": 216})  # INTENTIONAL — Stage 0 features batch 2 (Group E, 2026-11-22): confirm 167 -> 169 (cancel_calendar_event, reschedule_calendar_event), free 208 -> 209 (snooze_email, free app-state); Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
 
     def test_mutation_send_email_into_read_is_caught(self):
         mutated = set(tc._READ_ONLY_TOOLS)
