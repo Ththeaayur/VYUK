@@ -321,9 +321,13 @@ class CopyTests(unittest.TestCase):
                              msg="jargon in ask text: %r" % text)
 
     def test_ask_order_is_the_ruled_order(self):
+        # Round-3 wizard expansion, item 2: home_devices joins
+        # the permissions stage last, after files — the ruled
+        # order grows by one at the end, nothing else moves.
         self.assertEqual(
             list(_asks.ASK_COPY),
-            ["microphone", "browser", "camera", "screen", "files"])
+            ["microphone", "browser", "camera", "screen", "files",
+             "home_devices"])
 
     def test_mic_copy_is_the_first_use_dialog_copy(self):
         # The mic ask reuses the first-use dialog's copy: the

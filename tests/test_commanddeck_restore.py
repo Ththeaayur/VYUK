@@ -72,8 +72,9 @@ class SidebarRestoreTests(unittest.TestCase):
     def test_section_labels_present(self):
         # Chat pass (2026-11-17, owner ruling: the sidebar is
         # v6.3 exactly): the §9.2 section labels are BACK — the
-        # rail is seven nav items in labelled groups, as restored
-        # 2026-11-01 and as shipped in v6.3 (proven at
+        # rail is eleven nav items in labelled groups (the v6.3
+        # seven plus the Stage 0 features batch 1 views), as
+        # restored 2026-11-01 and as shipped in v6.3 (proven at
         # backup_release_v630_pre gui/window_shell_sidebar.py
         # :330-345). This suite's own scope is the labels restore;
         # Build 3 flipped the test to assert absence, the chat
@@ -83,7 +84,9 @@ class SidebarRestoreTests(unittest.TestCase):
         for label in ('_core_label = QLabel("CORE")',
                       '_mission_label = QLabel("MISSION")',
                       '_archive_label = QLabel("ARCHIVE")',
-                      '_system_label = QLabel("SYSTEM")'):
+                      '_system_label = QLabel("SYSTEM")',
+                      # Stage 0 features batch 1 (Group D).
+                      '_views_label = QLabel("VIEWS")'):
             self.assertIn(label, segment,
                           "a v6.3 section label is missing")
         self.assertNotIn('QLabel("CAPABILITIES")', segment,
@@ -94,10 +97,11 @@ class SidebarRestoreTests(unittest.TestCase):
         # Chat pass (2026-11-17): the map is the v6.3 seven-button
         # map again — Skills has no sidebar button, so index 3 is
         # gone (proven at backup_release_v630_pre
-        # gui/window_shell_sidebar.py:295).
+        # gui/window_shell_sidebar.py:295). Stage 0 features
+        # batch 1 (Group D) adds the four views at stack 8–11.
         segment = _segment("window_shell_sidebar.py", "_build_sidebar")
         self.assertIn("sidebar.setFixedWidth(220)", segment)
-        self.assertIn("_nav_page_indices = [0, 1, 2, 5, 6, 7, 4]",
+        self.assertIn("_nav_page_indices = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4]",
                       segment)
 
     def test_no_capabilities_label_no_skills_button(self):

@@ -56,9 +56,9 @@ class TestAnticipationRoutineClassification(unittest.TestCase):
         self.assertNotIn("run_anticipation_routine", _FREE_BY_DESIGN)
         self.assertTrue(_needs_confirmation("run_anticipation_routine", {}))
 
-    def test_confirm_count_is_167(self):
+    def test_confirm_count_is_169(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
         self.assertEqual(
-            len(_CONFIRM_GATE_TOOLS), 167,
+            len(_CONFIRM_GATE_TOOLS), 169,  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
             "fix #32 follow-up (2026-11-19): 165 -> 166 — "
             "run_anticipation_routine classified confirm-gated "
             "per parent ruling; round-3 section F fix F-F303 "
@@ -121,8 +121,8 @@ class TestDoctorLabelAfterFollowup(unittest.TestCase):
         router = [d for s, l, d in seen if l == "Tool router"]
         self.assertEqual(len(router), 1)
         detail = router[0]
-        self.assertIn("61 offered declarations", detail)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 60 -> 61 — one new tool get_morning_briefing joins the routed core set
-        self.assertIn("(60 resident tools + use_toolbox)", detail)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing joins the routed core set
+        self.assertIn("62 offered declarations", detail)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 60 -> 61 — one new tool get_morning_briefing joins the routed core set; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
+        self.assertIn("(61 resident tools + use_toolbox)", detail)  # INTENTIONAL — round-3 fix Q6 (2026-11-19): 59 -> 60 — one new tool get_morning_briefing joins the routed core set; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
 
 
 if __name__ == "__main__":

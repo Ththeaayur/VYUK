@@ -39,6 +39,7 @@ from core import confirm_gate_allowlist as _al  # noqa: E402
 from core import injection  # noqa: E402
 from core import permission_grants as pg  # noqa: E402
 from core import plan_approval as pa  # noqa: E402
+from core.funnel import tools_gate as _tools_gate  # noqa: E402
 
 try:
     from PySide6.QtCore import Qt  # noqa: F401
@@ -95,6 +96,20 @@ class _DataGuard:
 # ------------------------------------------------------------------
 
 class AlwaysAllowTests(unittest.TestCase):
+    def setUp(self):
+        # Loophole batch 4: the speaker lock defaults ON, so a
+        # session with no provenance ("unknown") now gates every
+        # state-changing tool — the allowlist shortcut these legs
+        # measure would be defeated by provenance, not by the
+        # taint. These legs run in a user-started session (the
+        # shape where the shortcut applies as before).
+        super().setUp()
+        _tools_gate.set_session_provenance("user")
+
+    def tearDown(self):
+        _tools_gate.set_session_provenance("unknown")
+        super().tearDown()
+
     def test_allowlistable_set_is_exactly_the_eight_navigation_kinds(self):
         # The safe shape: exactly 7 navigation kinds + browser_type.
         # Anything else never gets the button, by construction.
@@ -170,10 +185,17 @@ class AlwaysAllowTests(unittest.TestCase):
 
 class PlanPreviewTests(unittest.TestCase):
     def setUp(self):
+        # Loophole batch 4 (see AlwaysAllowTests): the speaker
+        # lock defaults ON — these legs measure the preview
+        # counts, so they run in a user-started session.
+        super().setUp()
+        _tools_gate.set_session_provenance("user")
         pa.clear_all()
 
     def tearDown(self):
+        _tools_gate.set_session_provenance("unknown")
         pa.clear_all()
+        super().tearDown()
 
     def _task(self, steps):
         from core.brain import task_coordinator as tc
@@ -266,12 +288,19 @@ class PlanPreviewTests(unittest.TestCase):
 
 class PlanDigestTests(unittest.TestCase):
     def setUp(self):
+        # Loophole batch 4 (see AlwaysAllowTests): the speaker
+        # lock defaults ON — these legs measure the digest
+        # binding, so they run in a user-started session.
+        super().setUp()
+        _tools_gate.set_session_provenance("user")
         pa.clear_all()
         injection.clear_taint(force=True)
 
     def tearDown(self):
+        _tools_gate.set_session_provenance("unknown")
         pa.clear_all()
         injection.clear_taint(force=True)
+        super().tearDown()
 
     def _task(self, steps):
         from core.brain import task_coordinator as tc

@@ -100,6 +100,20 @@ class BriefingScrollTests(WindowBase):
             self.window._skip_boot_sequence()
         except Exception:  # noqa: BLE001 — boot skip is best-effort
             pass
+        # Round-3 wizard expansion: the boot marks the window
+        # onboarded with no brain choice stored, so the Home
+        # "finish setup" card shows and the stage content grows
+        # by the card (~120 px) — the collapse geometry this
+        # suite pins (content fits at 1280, bar clamps to 0)
+        # needs a completed setup, the state the finding was
+        # measured in. The card itself is covered by
+        # test_r3wizard_expand's HomeCardsTests.
+        from PySide6.QtCore import QSettings as _QSettings
+        _s = _QSettings("NovaAI", "Nova")
+        _s.setValue("onboarded", True)
+        _s.setValue("setup/brain_choice", "local")
+        _s.sync()
+        self.window._refresh_setup_cards()
         _seed_briefing_reminders()
         self.window._refresh_briefing_card()
         _pump(self.app, 0.5)

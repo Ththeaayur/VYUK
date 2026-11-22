@@ -154,9 +154,21 @@ class DefenceInDepthTests(unittest.TestCase):
         # Deterministic foreground: not a shell.
         self._orig_fg = _class_mod._foreground_is_shell
         _class_mod._foreground_is_shell = lambda: False
+        # Batch 4 provenance lock: in a bare process no session
+        # was ever started, so provenance is "unknown" and the
+        # lock (ON by default) gates every state-changing tool —
+        # including the follow-on tool this class measures. This
+        # class measures the TAINT gate, so it proves the session
+        # first (the exact call the window makes at a user start);
+        # the lock then stays out of the measurement, and the
+        # "free before taint" precondition reads true again.
+        # Restored in tearDown so no proven state leaks to
+        # other classes in this process.
+        tools_mod.set_session_provenance("user")
 
     def tearDown(self):
         _class_mod._foreground_is_shell = self._orig_fg
+        tools_mod.set_session_provenance("unknown")
         injection.clear_taint()
 
     def test_both_entries_gate_state_changing_but_not_reads(self):

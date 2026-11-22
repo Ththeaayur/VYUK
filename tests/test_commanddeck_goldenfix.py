@@ -302,8 +302,12 @@ class D5Tests(unittest.TestCase):
             "layout.addWidget(self.nav_buttons[2])",
             '_system_label = QLabel("SYSTEM")',
             "for btn in self.nav_buttons[3:6]:",
+            # Stage 0 features batch 1 (Group D): the VIEWS
+            # section sits between SYSTEM and the stretch.
+            '_views_label = QLabel("VIEWS")',
+            "for btn in self.nav_buttons[6:10]:",
             "layout.addStretch()",
-            "layout.addWidget(self.nav_buttons[6])",
+            "layout.addWidget(self.nav_buttons[10])",
         ])
 
 

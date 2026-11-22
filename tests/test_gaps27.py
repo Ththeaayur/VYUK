@@ -501,7 +501,19 @@ class MemoryReadTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "mem.db"
             store = MemoryStore(db_path=db)
-            store.save_fact("general", "wifi_password", "hunter2")
+            # Loophole batch 3 (L-30, #11): a credential-shaped
+            # user fact is REFUSED at save time now — it never
+            # lands in the store. The read path must still hide a
+            # legacy credential row (written before the guard, or
+            # by another path), so one is inserted directly.
+            with self.assertRaises(ValueError):
+                store.save_fact("general", "wifi_password", "hunter2")
+            conn = sqlite3.connect(str(db))
+            conn.execute(
+                "INSERT INTO facts (category, key, value, source) "
+                "VALUES ('general', 'wifi_password', 'hunter2', 'user')")
+            conn.commit()
+            conn.close()
             store.save_fact("general", "favourite_food", "dosa")
             mem = read_memory_fn(db_path=db)
             self.assertNotIn("hunter2", json.dumps(mem))
@@ -570,10 +582,15 @@ class BackupManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             data = self._fixture_data(tmp)
-            out = tmp / "bundle.zip"
-            report = backup_mod.create_backup(str(data), {"k": "v"},
-                                              str(out))
-            check = backup_mod.verify_bundle(str(out))
+            out = tmp / "bundle.vyukbak"
+            # Loophole batch 3 (#10, L-23): backups are encrypted
+            # under a passphrase now; the fixture's chat turns are
+            # stripped from the snapshot, the facts still restore.
+            report = backup_mod.create_backup(
+                str(data), {"k": "v"}, str(out),
+                passphrase="gaps27-test-passphrase")
+            check = backup_mod.verify_bundle(
+                str(out), passphrase="gaps27-test-passphrase")
             self.assertTrue(check.get("ok"))
             self.assertIn("assistant.db",
                           (check.get("manifest") or {}).get("hashes",
@@ -583,7 +600,9 @@ class BackupManifestTests(unittest.TestCase):
             target.mkdir()
             prev = MemoryStore(db_path=target / "assistant.db")
             prev.save_fact("general", "pre_existing", "keep_me")
-            report2 = backup_mod.restore_bundle(str(out), str(target))
+            report2 = backup_mod.restore_bundle(
+                str(out), str(target),
+                passphrase="gaps27-test-passphrase")
             restored = target / "assistant.db"
             kept = list(target.glob("assistant.db.pre-restore-*"))
             self.assertTrue(restored.exists())
@@ -601,11 +620,15 @@ class BackupManifestTests(unittest.TestCase):
             tmp = Path(tmp)
             data = tmp / "data"
             (data / "memories").mkdir(parents=True)
-            out = tmp / "bundle.zip"
-            report = backup_mod.create_backup(str(data), {}, str(out))
+            out = tmp / "bundle.vyukbak"
+            report = backup_mod.create_backup(
+                str(data), {}, str(out),
+                passphrase="gaps27-test-passphrase")
             self.assertIsNone(report.get("assistant_db"))
             self.assertEqual(report.get("assistant_db_error"), "absent")
-            self.assertTrue(backup_mod.verify_bundle(str(out)).get("ok"))
+            self.assertTrue(backup_mod.verify_bundle(
+                str(out),
+                passphrase="gaps27-test-passphrase").get("ok"))
 
 
 # ---------------------------------------------------------------- M-V8
@@ -631,7 +654,9 @@ class TelemetryOptInTests(unittest.TestCase):
         # (chat/last_seen_store_id). Field-check fix #12
         # (M11a): +2 (audio/output_device[_name]).
         # Rethink Build 5 (§9.1): +1 (browser/connect_offer_shown).
-        self.assertEqual(len(cs.QSETTINGS_FIELDS), 96)
+        # Round-3 wizard expansion (2026-11-21): +1
+        # (firstrun/selftest_faults — the self-test fix-it pin).
+        self.assertEqual(len(cs.QSETTINGS_FIELDS), 99)  # Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
 
     def test_apply_settings_off_on_and_no_args(self):
         class _Stub:
@@ -728,7 +753,7 @@ class CensusTests(unittest.TestCase):
                 encoding="utf-8"))
         self.assertIsNotNone(totals)
         self.assertEqual(tuple(int(g) for g in totals.groups()),
-                         (758, 383, 375, 167, 44, 309, 22, 0))  # INTENTIONAL — field-check fix #32 (2026-11-18): 755/373/307 -> 756/374/308 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756/374/164/308 -> 757/375/165/309 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 fix Q6 (2026-11-19): 757 -> 758, 382 -> 383 — one new tool get_morning_briefing; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
+                         (764, 384, 380, 169, 44, 314, 22, 0))  # INTENTIONAL — field-check fix #32 (2026-11-18): 755/373/307 -> 756/374/308 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756/374/164/308 -> 757/375/165/309 — one new tool run_plan; fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 fix Q6 (2026-11-19): 757 -> 758, 382 -> 383 — one new tool get_morning_briefing; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
         from core.funnel.tools_registry import tools as _TOOLS
         from core.funnel.tools_gate import _CONFIRM_GATE_TOOLS
         import core.catalogue_groups_data as _cat
@@ -738,12 +763,12 @@ class CensusTests(unittest.TestCase):
             grouped.update(members)
         params = sum(len((s.get("parameters") or {}).get("properties")
                          or {}) for s in tools.values())
-        self.assertEqual(len(tools), 758)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
-        self.assertEqual(params, 2079)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
+        self.assertEqual(len(tools), 764)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(params, 2102)  #Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan; Stage 0 features batch 2 (Group E, 2026-11-22): 2079 -> 2095 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
         self.assertEqual(len([n for n in tools
-                              if n in _CONFIRM_GATE_TOOLS]), 167)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated
-        self.assertEqual(len(grouped), 755)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing
-        self.assertEqual(len(tools) - 1, 757)  # closed = total - 1; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 755 -> 756 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 756 -> 757 — one new tool get_morning_briefing
+                              if n in _CONFIRM_GATE_TOOLS]), 169)  # INTENTIONAL — round-3 fix #4 (2026-11-19): 164 -> 165 — one new tool run_plan (confirm-gated); fix #32 follow-up (2026-11-19): 165 -> 166 — run_anticipation_routine classified confirm-gated per parent ruling; round-3 section F fix F-F303 (2026-11-21): 166 -> 167 — notify_user classified confirm-gated; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(grouped), 761)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 755 -> 759 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len(tools) - 1, 763)  # closed = total - 1; field-check fix #32 (2026-11-18): 754 -> 755 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 755 -> 756 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 756 -> 757 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 757 -> 761 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
 
 
 if __name__ == "__main__":

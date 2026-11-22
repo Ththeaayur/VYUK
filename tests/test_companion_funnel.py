@@ -25,6 +25,8 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(
     os.path.dirname(__file__), "..")))
 
+from core.funnel import tools_gate as _tools_gate  # noqa: E402
+
 _COMPANION_SRC = open(os.path.join(
     os.path.dirname(__file__), "..", "core", "companion.py"),
     encoding="utf-8").read()
@@ -99,6 +101,14 @@ class CompanionFunnelTests(unittest.TestCase):
         ok, msg = self.session.start(port=0, files_root=self.fixture)
         if not ok:
             self.skipTest(f"companion would not start: {msg}")
+        # Loophole batch 4: the speaker lock defaults ON, so a
+        # session with no provenance ("unknown") now gates every
+        # state-changing tool — the companion routes through the
+        # real funnel, so its legs would refuse instead of
+        # routing. These legs measure the routing, so they run
+        # in a user-started session (set after the skip point,
+        # so a skipped leg leaves provenance untouched).
+        _tools_gate.set_session_provenance("user")
         self.token = self.session.issue_token("127.0.0.1")
         self.calls = []
         self._real_execute = self._tools.execute
@@ -111,6 +121,7 @@ class CompanionFunnelTests(unittest.TestCase):
         self._activity_before = _activity()
 
     def tearDown(self):
+        _tools_gate.set_session_provenance("unknown")
         self._tools.execute = self._real_execute  # type: ignore[method-assign]
         try:
             self.session.stop()
@@ -137,10 +148,10 @@ class CompanionFunnelTests(unittest.TestCase):
 
     def test_census_unchanged(self):
         decls = self._tools.get_declarations()
-        self.assertEqual(len(decls), 758)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
-        self.assertEqual(len({d["name"] for d in decls}), 758)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing
+        self.assertEqual(len(decls), 764)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing; Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        self.assertEqual(len({d["name"] for d in decls}), 764)  # INTENTIONAL — Click-anywhere (2026-11-14): 754 -> 755 — one new tool click_anywhere; field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
         self.assertEqual(
-            sum(len(d["parameters"]["properties"]) for d in decls), 2079)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): 2063 -> 2064 — start_meeting gains system_audio; Click-anywhere (2026-11-14): 2064 -> 2073 — click_anywhere's 9 properties; RET-2 (2026-11-15): 2073 -> 2076 — scheduled_agents gains 3 properties (name, steps, schedule); Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan
+            sum(len(d["parameters"]["properties"]) for d in decls), 2102)  # INTENTIONAL — GAPS-20 loopback-meeting pack (2026-11-13): 2063 -> 2064 — start_meeting gains system_audio; Click-anywhere (2026-11-14): 2064 -> 2073 — click_anywhere's 9 properties; RET-2 (2026-11-15): 2073 -> 2076 — scheduled_agents gains 3 properties (name, steps, schedule); Voice-control batch (2026-11-16): 2076 -> 2077 — click_anywhere gains confirm (C4 ask resolver); field-check fix #32 (2026-11-18): 2077 -> 2078 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 2078 -> 2079 — one new tool run_plan; Stage 0 features batch 2 (Group E, 2026-11-22): 2079 -> 2095 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
 
     # -- live: free actions drive the funnel -----------------------------
     def test_type_routes_through_funnel(self):

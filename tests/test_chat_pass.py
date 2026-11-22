@@ -2,8 +2,8 @@
 v6.3 exactly, plus the chip-row freeze fix.
 
 The owner ruled the v6.3 look is the baseline and only decluttering
-was ever wanted: the sidebar is v6.3 (seven buttons, section labels
-CORE/MISSION/ARCHIVE/SYSTEM, Skills Ctrl+K-only, the privacy card),
+was ever wanted: the sidebar is v6.3 (eleven buttons, section labels
+CORE/MISSION/ARCHIVE/SYSTEM/VIEWS, Skills Ctrl+K-only, the privacy card),
 the chat panel's floor is 300 again (Build 1's raise to 380 and its
 compact tier are gone), and the docked strip Build 3 added stays.
 The chip row froze at 4 px tall in v6.3 itself (fit_chips resized
@@ -73,7 +73,11 @@ def _assign_value(func_node, name):
 
 
 class TestChatPassSidebarSource(unittest.TestCase):
-    def test_nav_defs_are_the_v63_seven(self):
+    def test_nav_defs_are_the_views_eleven(self):
+        # Stage 0 features batch 1 (Group D): the v6.3 seven plus
+        # the four views — Calendar / Inbox / Contacts / Calls
+        # (stack 8–11), before the footer Settings. Skills still
+        # has no sidebar button.
         src = _gui_source("window_shell_sidebar.py")
         tree = ast.parse(src)
         func = _func(tree, "_build_sidebar")
@@ -84,11 +88,15 @@ class TestChatPassSidebarSource(unittest.TestCase):
                                 ("System Pulse", "pulse", 5),
                                 ("Senses", "senses", 6),
                                 ("Doctor", "check", 7),
+                                ("Calendar", "grid", 8),
+                                ("Inbox", "send", 9),
+                                ("Contacts", "square", 10),
+                                ("Calls", "mic", 11),
                                 ("Settings", "sliders", 4)])
         indices = [e.value for e in
                    _assign_value(func, "_nav_page_indices").elts
                    if isinstance(e, ast.Constant)]
-        self.assertEqual(indices, [0, 1, 2, 5, 6, 7, 4])
+        self.assertEqual(indices, [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4])
         labels = [label for label, _, _ in defs]
         self.assertNotIn("Skills", labels,
                          "Skills must not have a sidebar button")
@@ -106,22 +114,30 @@ class TestChatPassSidebarSource(unittest.TestCase):
                  "layout.addWidget(self.nav_buttons[2])",
                  '_system_label = QLabel("SYSTEM")',
                  "for btn in self.nav_buttons[3:6]:",
+                 # Stage 0 features batch 1 (Group D): VIEWS.
+                 '_views_label = QLabel("VIEWS")',
+                 "for btn in self.nav_buttons[6:10]:",
                  "layout.addStretch()",
-                 "layout.addWidget(self.nav_buttons[6])"]
+                 "layout.addWidget(self.nav_buttons[10])"]
         positions = [segment.index(marker) for marker in order]
         self.assertEqual(positions, sorted(positions),
                          "sidebar order is not CORE -> MISSION -> "
-                         "ARCHIVE -> SYSTEM -> stretch -> footer "
-                         "Settings")
-        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM"):
+                         "ARCHIVE -> SYSTEM -> VIEWS -> stretch -> "
+                         "footer Settings")
+        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM", "VIEWS"):
             self.assertIn(f'QLabel("{label}")', segment)
 
     def test_privacy_card_present_not_a_line(self):
         src = _gui_source("window_shell_sidebar.py")
         self.assertIn('setObjectName("privacyCard")', src)
         self.assertIn('"Private by design"', src)
-        self.assertIn("Memory stays on this device. The mic is off "
-                      "until you talk to VYUK", src)
+        # Loophole batch 8 (L-31): the body reads the shared
+        # sentence from core/privacy_copy.py (PRIVACY_PROMISE) —
+        # "Memory stays on this device" hid that a cloud turn
+        # sends the facts she needs to the cloud brain.
+        self.assertIn("privacy_copy.PRIVACY_PROMISE", src)
+        self.assertNotIn("Memory stays on this device. The mic is off",
+                         src)
         self.assertNotIn("privacy_lock", src,
                          "the Build 3 one-line privacy_lock survives")
 
@@ -191,16 +207,22 @@ class TestChatPassWindow(WindowBase):
         self.app.processEvents()
 
     def test_sidebar_is_v63_on_the_live_window(self):
+        # INTENTIONAL UPDATE (Stage 0 features batch 1, 2026-11-22):
+        # eleven buttons, not seven — the four views (Calendar,
+        # Inbox, Contacts, Calls) join before Settings under a
+        # new VIEWS section label; the v6.3 seven keep their
+        # order and Settings stays last.
         self._show_home()
         labels = [b.text() for b in self.window.nav_buttons]
         self.assertEqual(labels, ["Home", "Activity", "Memory",
                                   "System Pulse", "Senses", "Doctor",
-                                  "Settings"])
+                                  "Calendar", "Inbox", "Contacts",
+                                  "Calls", "Settings"])
         from PySide6.QtWidgets import QLabel, QFrame
 
         inner = self.window.nav_buttons[0].parentWidget()
         seen = {lbl.text() for lbl in inner.findChildren(QLabel)}
-        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM"):
+        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM", "VIEWS"):
             self.assertIn(label, seen,
                           "a v6.3 section label is missing")
         card = self.window.findChild(QFrame, "privacyCard")

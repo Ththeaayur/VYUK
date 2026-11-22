@@ -337,8 +337,10 @@ class SpecDiagnosticsTests(unittest.TestCase):
         self.assertEqual(len(hits), 1)
 
     def test_provenance_garbage_names_the_fallback(self):
+        # Loophole batch 4 (L-27): a garbled line falls back to
+        # the lock-ON default — never silently to OFF.
         spec = cs.build_spec({"SESSION_PROVENANCE_LOCK": "maybe"})
-        self.assertIs(spec.session_provenance_lock, False)
+        self.assertIs(spec.session_provenance_lock, True)
         diags = [d for d in cs.spec_diagnostics()
                  if d["env_key"] == "SESSION_PROVENANCE_LOCK"]
         self.assertEqual(len(diags), 1)

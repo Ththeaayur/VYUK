@@ -45,9 +45,21 @@ class SpecShapeTests(unittest.TestCase):
         # is gone (its env var could never take effect; the
         # working override is BROWSER_DEBUG_PORT via
         # browser_debug_port).
-        self.assertEqual(len(fields), 106)
+        # OAuth build: 106 -> 108 fields, 101 -> 103 env-backed —
+        # gemini_oauth_client_id / gemini_oauth_client_secret
+        # (GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET).
+        # Round-3 wizard expansion: 108 -> 109 fields, 103 -> 104
+        # env-backed — user_name (USER_NAME, the wizard's name ask).
+        # Loophole batch 5: 109 -> 110 fields, 104 -> 105
+        # env-backed — private_mode (PRIVATE_MODE). The pin was
+        # NOT updated then, so it read stale (109/104 against a
+        # live 110/105) until loophole batch 7 fixed it here.
+        # Loophole batch 7: 110 -> 111 fields, 105 -> 106
+        # env-backed — feedback_reporting_enabled
+        # (FEEDBACK_REPORTING_ENABLED).
+        self.assertEqual(len(fields), 111)
         env_backed = [f for f in fields if "env" in f.metadata]
-        self.assertEqual(len(env_backed), 101)
+        self.assertEqual(len(env_backed), 106)
         names = {f.name for f in fields}
         self.assertIn("version", names)
         self.assertIn("browser_allow_history_read", names)
@@ -57,14 +69,16 @@ class SpecShapeTests(unittest.TestCase):
     def test_secrets_are_repr_false(self):
         fields = {f.name: f for f in dataclasses.fields(cs.ConfigSpec)}
         for name in ("api_key", "groq_api_key", "google_client_secret",
-                     "rustic_password"):
+                     "rustic_password", "gemini_oauth_client_secret"):
             self.assertTrue(fields[name].metadata.get("secret"), name)
             self.assertFalse(fields[name].repr, name)
         spec = cs.build_spec({})
         spec.api_key = "sk-test-secret"
         spec.groq_api_key = "gsk-test-secret"
+        spec.gemini_oauth_client_secret = "oauth-test-secret"
         self.assertNotIn("sk-test-secret", repr(spec))
         self.assertNotIn("gsk-test-secret", repr(spec))
+        self.assertNotIn("oauth-test-secret", repr(spec))
 
     def test_env_keys_are_unique(self):
         keys = [f.metadata["env"] for f in dataclasses.fields(cs.ConfigSpec)
