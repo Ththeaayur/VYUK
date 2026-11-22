@@ -220,7 +220,12 @@ class BrainServicesMixin:
         """Cheap status line for the browser card: opt-in + connected
         only (two boolean reads — no Playwright call, so it is safe
         to run every time a page opens, the _show_page pattern).
-        No-op until the card is built. Never raises."""
+        Batch 2, #4: when the chrome://inspect toggle is still on
+        it appends the plain-words toggle line (toggle_notice
+        verifies it with one localhost CDP probe, only when a
+        toggle flag is recorded — the common flag-absent case is
+        still a cheap file read). No-op until the card is built.
+        Never raises."""
         label = getattr(self, "browser_enable_status_label", None)
         if label is None:
             return
@@ -228,17 +233,21 @@ class BrainServicesMixin:
             from voice_assistant.core.gui_facade import browser_enable as _be
             on = bool(_be._opt_in())
             connected = bool(_be._is_connected())
+            notice = _be.toggle_notice()
         except Exception:  # noqa: BLE001 — status never breaks Settings
             label.setText("Browser status unavailable.")
             return
         if connected:
-            label.setText("Browser control is on — attached to your Chrome.")
+            text = "Browser control is on — attached to your Chrome."
         elif on:
-            label.setText(
+            text = (
                 "Browser control is on, but not attached — press "
                 "'Enable browser control' to attach.")
         else:
-            label.setText("Browser control is off.")
+            text = "Browser control is off."
+        if notice.get("toggle_on") and notice.get("toggle_line"):
+            text = f"{text} {notice['toggle_line']}"
+        label.setText(text)
 
     def _open_browser_connect_dialog(self):
         """Open the browser-connect dialog from Settings →
@@ -455,6 +464,99 @@ class BrainServicesMixin:
             btn.setText("Check for updates")
             btn.setEnabled(True)
             self._update_info = None
+        self._refresh_update_buttons()
+
+    # Loophole batch 6 (#9): the update's two undo seams on the
+    # About card. Both are plain Settings buttons — never
+    # voice-triggered, never automatic. Rollback only REQUESTS
+    # here (it writes the rollback journal); the restore runs at
+    # next startup inside apply_staged(), because a running app
+    # must not overwrite its own files. Discard removes the
+    # staging dir at once — nothing live is staged yet, so there
+    # is nothing to protect. Both run synchronously: a journal
+    # write is instant, and discarding one staged tree is a
+    # single rmtree, not a download.
+    def _refresh_update_buttons(self):
+        """Show each undo button only when its seam applies:
+        Roll back when an update backup exists, Discard when an
+        update is staged. Never raises — the About card must
+        build and stay usable when the updater is unhappy."""
+        try:
+            from voice_assistant.core.gui_facade import updater
+            rollback = updater.rollback_available()
+            pending = updater.pending_update()
+        except Exception:  # noqa: BLE001
+            rollback, pending = {}, None
+        btn_rb = getattr(self, "btn_rollback", None)
+        if btn_rb is not None:
+            show = bool(isinstance(rollback, dict)
+                        and rollback.get("available"))
+            btn_rb.setVisible(show)
+            if show:
+                btn_rb.setText(
+                    "Roll back to VYUK "
+                    f"{rollback.get('version', '')}")
+        btn_dc = getattr(self, "btn_discard_update", None)
+        if btn_dc is not None:
+            btn_dc.setVisible(bool(pending))
+
+    def _on_rollback_clicked(self):
+        label = getattr(self, "update_label", None)
+        try:
+            from voice_assistant.core.gui_facade import updater
+            res = updater.rollback_to_previous()
+        except Exception as exc:  # noqa: BLE001
+            res = {"state": "error", "message": str(exc)}
+        state = str(res.get("state", "error"))
+        if label is None:
+            return
+        if state == "rollback_pending":
+            version = str(res.get("version", "")).strip()
+            label.setText(
+                f"Rollback to VYUK {version} is ready — restart "
+                "VYUK to complete it."
+                + (f" {res.get('detail', '')}" if res.get("detail")
+                   else ""))
+            btn = getattr(self, "btn_rollback", None)
+            if btn is not None:
+                btn.setEnabled(False)
+        elif state == "none":
+            label.setText(
+                "No previous build is available to roll back to.")
+        else:
+            label.setText(
+                "Couldn't request the rollback"
+                + (f" — {str(res.get('message', ''))[:160]}"
+                   if res.get("message") else "."))
+
+    def _on_discard_update_clicked(self):
+        label = getattr(self, "update_label", None)
+        try:
+            from voice_assistant.core.gui_facade import updater
+            res = updater.discard_staged_update()
+        except Exception as exc:  # noqa: BLE001
+            res = {"state": "error", "message": str(exc)}
+        state = str(res.get("state", "error"))
+        if label is None:
+            return
+        if state == "discarded":
+            version = str(res.get("version", "")).strip()
+            label.setText(
+                f"VYUK {version} download discarded — nothing will "
+                "be installed on restart.")
+            btn = getattr(self, "btn_updates", None)
+            if btn is not None:
+                btn.setText("Check for updates")
+                btn.setEnabled(True)
+            self._update_info = None
+        elif state == "none":
+            label.setText("No downloaded update to discard.")
+        else:
+            label.setText(
+                "Couldn't discard the downloaded update"
+                + (f" — {str(res.get('message', ''))[:160]}"
+                   if res.get("message") else "."))
+        self._refresh_update_buttons()
 
     # ------------------------------------------------- Knows your world
     @staticmethod
@@ -483,9 +585,15 @@ class BrainServicesMixin:
         the sign-in itself happens in their browser. Since v5.2 she
         can also send mail and add events — each one approved by the
         user in a popup first; deleting stays impossible."""
+        # L-31 + L-32 (loophole batch 8): the card body lives in
+        # core/privacy_copy.py (WORLD_CARD). "Everything stays on
+        # this device" was false the moment the account is
+        # connected (calendar and mail live at Google); "approve
+        # it in a popup" hid that a spoken yes in a proved
+        # session approves too (batch 4).
+        from voice_assistant.core.gui_facade import privacy_copy
         world = self._settings_card(
-            c_layout, "Your world",
-            "Connect your Google account so VYUK knows your day — lectures, deadlines and mail. She can read your calendar and mail, and she can send an email or add an event only after you approve it in a popup — she can never delete anything. Sign-in happens in your browser; everything stays on this device.")
+            c_layout, "Your world", privacy_copy.WORLD_CARD)
         self._world_available = self._google_services() is not None
         self.world_status_label = QLabel()
         self.world_status_label.setObjectName("cardHint")

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from .. import config_spec
 from datetime import datetime, timezone
 from pathlib import Path
@@ -89,3 +90,20 @@ def _sha256_of(path: Path) -> str:
                 break
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _read_version_file(path: Path) -> str | None:
+    """The VERSION string from a version.py file, or None when
+    the file is missing or unparseable. Rollback reads the
+    BACKUP's version file (loophole batch 6, #9) — the directory
+    name is never trusted as the version; a backup whose version
+    file is missing or garbled is not a rollback target."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r"""^VERSION\s*=\s*["']([^"']+)["']""",
+                      text, re.M)
+    if match is None:
+        return None
+    return match.group(1)

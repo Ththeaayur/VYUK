@@ -155,6 +155,8 @@ TOOL_FRIENDLY_NAMES = {
     "browser_press": "Web keyboard",
     "get_crypto_price": "Crypto price",
     "get_stock_quote": "Stock price",
+    "check_money_alerts": "Money alerts",
+    "portfolio_tracker": "Portfolio",
     "get_todays_schedule": "Today's schedule",
     "get_morning_briefing": "Morning briefing",
     "get_upcoming_events": "Upcoming events",
@@ -162,6 +164,12 @@ TOOL_FRIENDLY_NAMES = {
     "search_email": "Search email",
     "send_email": "Send email",
     "create_calendar_event": "Create calendar event",
+    # Stage 0 features batch 2 (Group E, 2026-11-22): the mail
+    # and calendar actions.
+    "find_free_slots": "Find free slots",
+    "snooze_email": "Snooze email",
+    "cancel_calendar_event": "Cancel calendar event",
+    "reschedule_calendar_event": "Reschedule calendar event",
     # v5.4 "More hands" packs (skills_desktop_prefs / skills_system_monitor / skills_smart)
     "set_wallpaper": "Set wallpaper",
     "toggle_dark_mode": "Dark mode",

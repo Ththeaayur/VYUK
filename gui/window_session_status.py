@@ -155,6 +155,38 @@ class SessionStatusMixin:
             except Exception:  # noqa: BLE001
                 pass
             return
+        # Loophole batch 7 (#7): the live quota notices — same
+        # shape as the FALLBACK notice above, and for the same
+        # reason they run BEFORE the drop machinery: a COST_CAP
+        # refusal is not a drop (no session exists to drop, and
+        # no reconnect episode may start), and a COST_WARNING is
+        # not an error (the session keeps running). Both present
+        # once in plain words on the state label + chat, then
+        # return: the session's own statuses drive the UI from
+        # here. The raw status stays one hover away in the
+        # tooltip.
+        if upper.startswith("COST_WARNING:") or upper.startswith(
+                "COST_CAP:"):
+            detail = status.split(":", 1)[1].strip() \
+                if ":" in status else status
+            if upper.startswith("COST_WARNING:"):
+                self.state_label.setText(
+                    "Cost warning — live turns keep spending")
+                self._set_caption(detail)
+                self._set_pill("Cost warning")
+            else:
+                self.state_label.setText(
+                    "Cost cap reached — live session won't start")
+                self._set_caption(detail)
+                self._set_pill("Cost cap")
+            self.state_label.setToolTip(status)
+            # A dedicated mirror flag (not the error mirror's):
+            # a cost notice must never suppress a later error
+            # with the same words, or be suppressed by one.
+            if getattr(self, "_last_cost_notice", None) != detail:
+                self._last_cost_notice = detail
+                self._add_system(detail)
+            return
         # Fix 4 (2026-11-05): a server goAway is not a drop yet —
         # the session ends on the next status — but it IS the
         # cause of that end. Remember it so the DISCONNECTED

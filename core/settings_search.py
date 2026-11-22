@@ -179,9 +179,9 @@ CARD_VOICE: dict[str, tuple[str, str]] = {
     "Briefing voice": (
         CLASS_B, "You can also say: “slow the briefing down”."),
     "Microphone": (
-        CLASS_A, "Change this here — voice can't flip it, for safety. "
-        "Voice can grant it for this session only: say “turn the "
-        "microphone on”, and it stays on until the session ends."),
+        CLASS_A, "Change this here — voice can't flip it, for safety, "
+        "and voice can't grant it either: grants are made on "
+        "screen only, in Settings → Permissions."),
     "Voice bridge": (
         CLASS_B, "You can also say: “turn the voice bridge on”."),
     "Sounds": (
@@ -198,10 +198,12 @@ CARD_VOICE: dict[str, tuple[str, str]] = {
         CLASS_A, "Change this here — voice can't flip it, for safety."),
     "Screen watching": (
         CLASS_A, "Change this here — voice can't flip it, for safety. "
-        "Voice can grant it for this session only."),
+        "Voice can't grant it either — grants are made on screen "
+        "only."),
     "Browser control": (
         CLASS_A, "Change this here — voice can't flip it, for safety. "
-        "Voice can grant it for this session only."),
+        "Voice can't grant it either — grants are made on screen "
+        "only."),
     "Audit": (
         CLASS_D, "Settings only — voice can't touch this."),
     "Remembered approvals": (

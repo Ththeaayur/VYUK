@@ -172,16 +172,80 @@ class SettingsGroupsMixin:
         self.chk_session_provenance_lock.toggled.connect(
             self._on_session_provenance_lock_toggled)
         privacy.addWidget(self.chk_session_provenance_lock)
-        session_provenance_lock_hint = QLabel("Only act on voice commands in a session I started — while on, spoken requests that would change the computer need your confirmation unless you started this session from the app. This is a session lock, not voiceprint verification: it does not recognise who is speaking.")
+        session_provenance_lock_hint = QLabel("On by default — a voice session starts unproven, and a spoken yes cannot approve anything until you prove the session: start it from the app, unlock it on screen below, or say your voice PIN. While unproven it can still answer and read — it just cannot approve anything or grant anything. This is a session lock, not voiceprint verification: it does not recognise who is speaking.")
         session_provenance_lock_hint.setObjectName("cardHint")
         session_provenance_lock_hint.setWordWrap(True)
         privacy.addWidget(session_provenance_lock_hint)
+        # Loophole batch 4 (#1, #20, L-27, #19): the on-screen
+        # unlock + the voice-PIN set/clear, beside the lock. The
+        # unlock proves THIS session only (a new session starts
+        # unproven again); the PIN is opt-in and never shown.
+        _proof_row = QHBoxLayout()
+        self.btn_unlock_voice_session = QPushButton(
+            "Unlock voice for this session")
+        self.btn_unlock_voice_session.setObjectName("chipBtn")
+        self.btn_unlock_voice_session.setToolTip(
+            "Prove this session is yours, so a spoken yes can "
+            "approve things again. Lasts until the session ends.")
+        self.btn_unlock_voice_session.clicked.connect(
+            self._unlock_voice_for_session)
+        _proof_row.addWidget(self.btn_unlock_voice_session)
+        self.btn_set_voice_pin = QPushButton("Set voice PIN")
+        self.btn_set_voice_pin.setObjectName("chipBtn")
+        self.btn_set_voice_pin.setToolTip(
+            "A 4–8 digit PIN you can say aloud (\"voice PIN "
+            "1234\") to unlock a voice session when you are away "
+            "from the screen.")
+        self.btn_set_voice_pin.clicked.connect(self._set_voice_pin)
+        _proof_row.addWidget(self.btn_set_voice_pin)
+        self.btn_clear_voice_pin = QPushButton("Clear voice PIN")
+        self.btn_clear_voice_pin.setObjectName("chipBtn")
+        self.btn_clear_voice_pin.clicked.connect(
+            self._clear_voice_pin)
+        _proof_row.addWidget(self.btn_clear_voice_pin)
+        _proof_row.addStretch()
+        privacy.addLayout(_proof_row)
+        self.voice_proof_label = QLabel("")
+        self.voice_proof_label.setObjectName("cardHint")
+        self.voice_proof_label.setWordWrap(True)
+        privacy.addWidget(self.voice_proof_label)
+        self.voice_pin_label = QLabel("")
+        self.voice_pin_label.setObjectName("cardHint")
+        self.voice_pin_label.setWordWrap(True)
+        privacy.addWidget(self.voice_pin_label)
+        self._refresh_voice_proof_status()
+        # Loophole batch 5 (#5): private mode — the toggle + the
+        # status line, beside the lock. While ON, a turn writes
+        # NOTHING anywhere: no transcript, no receipt, no audit
+        # record, no Activity line, no cost-ledger row, no
+        # learning. The mode says so plainly, on this card and
+        # in the status line below. Off by default.
+        self.chk_private_mode = QCheckBox("Private mode")
+        self.chk_private_mode.setChecked(
+            bool(getattr(config, "private_mode", False)))
+        self.chk_private_mode.toggled.connect(
+            self._on_private_mode_toggled)
+        privacy.addWidget(self.chk_private_mode)
+        private_mode_hint = QLabel("While on, a turn writes nothing anywhere — no transcript, no receipt, no audit record, no Activity line, no cost-ledger row, nothing learned. The turn still runs and you still see it; it is simply never stored. Turn it off again to record turns normally.")
+        private_mode_hint.setObjectName("cardHint")
+        private_mode_hint.setWordWrap(True)
+        privacy.addWidget(private_mode_hint)
+        self.private_mode_label = QLabel("")
+        self.private_mode_label.setObjectName("cardHint")
+        self.private_mode_label.setWordWrap(True)
+        privacy.addWidget(self.private_mode_label)
+        self._refresh_private_mode_status()
         # Sci-fi Home: the promise the sidebar card used to carry
         # lives here now, beside the standing switches — the card
         # states the guarantee the switches enforce.
+        # L-31 (loophole batch 8): the sentence lives in
+        # core/privacy_copy.py (PRIVACY_PROMISE), shared with the
+        # sidebar card so the two cannot drift apart. "Memory
+        # stays on this device" hid that a cloud turn sends the
+        # facts she needs to answer to the cloud brain.
+        from voice_assistant.core.gui_facade import privacy_copy
         privacy_promise = QLabel(
-            "Private by design — memory stays on this device. "
-            "The mic is off until you talk to VYUK.")
+            "Private by design — " + privacy_copy.PRIVACY_PROMISE)
         privacy_promise.setObjectName("cardHint")
         privacy_promise.setWordWrap(True)
         privacy.addWidget(privacy_promise)
@@ -213,6 +277,135 @@ class SettingsGroupsMixin:
             self._w9_privacy_widget = _pf.PrivacyDashboardWidget()
             _g_privacy.addWidget(self._w9_privacy_widget)
         except Exception:  # noqa: BLE001 — Settings must still build
+            pass
+
+    def _refresh_voice_proof_status(self):
+        """Loophole batch 4: the Privacy card's voice-proof status
+        lines — whether this session is proven (and how), and
+        whether a voice PIN is set. The PIN is never shown."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                session_owner_proof_status as _status)
+            from voice_assistant.core.gui_facade import (
+                voice_pin as _vp)
+            from voice_assistant.core.gui_facade import (
+                config_module as _cfg_mod)
+            status = _status()
+            if status.get("proven"):
+                reason = status.get("reason") or "screen"
+                how = {"user-started": "you started it from the app",
+                       "screen": "you unlocked it on screen",
+                       "voice-pin": "you unlocked it with the "
+                       "voice PIN"}.get(
+                           reason, "you unlocked it on screen")
+                self.voice_proof_label.setText(
+                    f"This voice session is unlocked — {how}.")
+            else:
+                self.voice_proof_label.setText(
+                    "This voice session is locked — a spoken yes "
+                    "cannot approve anything until you unlock it.")
+            has = _vp.has_voice_pin(str(_cfg_mod.DATA_DIR))
+            self.voice_pin_label.setText(
+                "A voice PIN is set — say \"voice PIN\" followed "
+                "by the digits to unlock a voice session." if has else
+                "No voice PIN is set — there is no voice unlock "
+                "until you set one.")
+        except Exception:  # noqa: BLE001 — a status line never
+            pass  # breaks Settings
+
+    def _on_private_mode_toggled(self, on: bool):
+        # Loophole batch 5 (#5): persists like the neighbouring
+        # toggles (config field + PRIVATE_MODE in .env). The
+        # stores consult core/private_mode.private_mode_on() at
+        # write time, reading this config field live — a turn
+        # that flips it on mid-turn suppresses its own stores.
+        # Lives HERE, beside the card that connects it (and
+        # _refresh_private_mode_status below) — not on the brain
+        # mixin: a bare SettingsGroupsMixin builds this card, and
+        # a handler on another mixin leaves the build raising
+        # AttributeError (neighbour run, loophole batch 5).
+        config.private_mode = bool(on)
+        self._persist_config_setting(
+            "PRIVATE_MODE", "true" if on else "false")
+        self._refresh_private_mode_status()
+
+    def _refresh_private_mode_status(self):
+        """Loophole batch 5 (#5): the Privacy card's private-mode
+        status line — plain words for what private mode does
+        right now. Never raises (a broken read reads as off)."""
+        try:
+            on = bool(getattr(config, "private_mode", False))
+        except Exception:  # noqa: BLE001 — a broken read reads off
+            on = False
+        label = getattr(self, "private_mode_label", None)
+        if label is None:
+            return
+        label.setText(
+            "Private mode is ON — this turn writes nothing "
+            "anywhere." if on else
+            "Private mode is off — turns are recorded normally.")
+
+    def _unlock_voice_for_session(self):
+        """Loophole batch 4: the on-screen unlock — proves THIS
+        session owner (lasts until the session ends)."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                mark_session_owner_proven as _mark)
+            _mark("screen")
+            self._refresh_voice_proof_status()
+        except Exception:  # noqa: BLE001 — Settings must still work
+            pass
+
+    def _set_voice_pin(self):
+        """Loophole batch 4: ask for a 4–8 digit PIN (typed
+        twice, masked), store it protected, refresh the status.
+        A spoken PIN can be overheard — the dialog says so."""
+        try:
+            from PySide6.QtWidgets import QInputDialog, QLineEdit
+            from voice_assistant.core.gui_facade import (
+                voice_pin as _vp)
+            from voice_assistant.core.gui_facade import (
+                config_module as _cfg_mod)
+            first, ok = QInputDialog.getText(
+                self, "Set voice PIN",
+                "A 4–8 digit PIN you can say aloud to unlock a "
+                "voice session (\"voice PIN 1234\").\nAnyone who "
+                "hears it can use it — pick digits you do not "
+                "use anywhere else.",
+                QLineEdit.EchoMode.Password)
+            if not ok or not (first or "").strip():
+                return
+            second, ok2 = QInputDialog.getText(
+                self, "Set voice PIN",
+                "Type the PIN again to confirm.",
+                QLineEdit.EchoMode.Password)
+            if not ok2 or second != first:
+                self.voice_pin_label.setText(
+                    "The two PINs did not match — nothing was "
+                    "changed.")
+                return
+            try:
+                _vp.set_voice_pin(str(_cfg_mod.DATA_DIR), first)
+            except ValueError:
+                self.voice_pin_label.setText(
+                    "A voice PIN is 4 to 8 digits — nothing was "
+                    "changed.")
+                return
+            self._refresh_voice_proof_status()
+        except Exception:  # noqa: BLE001 — Settings must still work
+            pass
+
+    def _clear_voice_pin(self):
+        """Loophole batch 4: clear the stored voice PIN. With no
+        PIN stored there is no voice unlock path at all."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                voice_pin as _vp)
+            from voice_assistant.core.gui_facade import (
+                config_module as _cfg_mod)
+            _vp.set_voice_pin(str(_cfg_mod.DATA_DIR), "")
+            self._refresh_voice_proof_status()
+        except Exception:  # noqa: BLE001 — Settings must still work
             pass
 
     def _build_eyes_cards(self, _g_privacy):
@@ -442,6 +635,14 @@ class SettingsGroupsMixin:
         self.btn_allowlist_remove.clicked.connect(
             self._on_allowlist_remove)
         allow_row.addWidget(self.btn_allowlist_remove)
+        # F-F402 reversal (loophole #2): a paused kind is shown
+        # with a " — paused" suffix in the list above, and this
+        # button resumes it — the always-allow stands again.
+        self.btn_allowlist_resume = QPushButton("Resume selected")
+        self.btn_allowlist_resume.setObjectName("chipBtn")
+        self.btn_allowlist_resume.clicked.connect(
+            self._on_allowlist_resume)
+        allow_row.addWidget(self.btn_allowlist_resume)
         self.btn_allowlist_forget = QPushButton("Forget all")
         self.btn_allowlist_forget.setObjectName("chipBtn")
         self.btn_allowlist_forget.clicked.connect(

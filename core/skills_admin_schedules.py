@@ -37,6 +37,34 @@ def _load_contacts() -> tuple[list, int]:
     return entries, broken
 
 
+def list_contacts() -> list[dict]:
+    """Every stored person, grouped — NOT a tool.
+
+    Powers the Contacts list view (Stage 0 features batch 1):
+    [{"person", "details": [str, ...]}] sorted by person name,
+    details sorted. ``contact_card`` saves/shows one person; this
+    is the list of all of them. Raises like ``_load_contacts``
+    when the store can't be read — callers say so plainly.
+    """
+    entries, _broken = _load_contacts()
+    grouped: dict[str, dict] = {}
+    for entry in entries:
+        person = (entry.get("person") or "").strip()
+        detail = (entry.get("detail") or "").strip()
+        if not person or not detail:
+            continue
+        key = person.lower()
+        if key not in grouped:
+            grouped[key] = {"person": person, "details": []}
+        if detail not in grouped[key]["details"]:
+            grouped[key]["details"].append(detail)
+    out = list(grouped.values())
+    for person in out:
+        person["details"].sort(key=str.lower)
+    out.sort(key=lambda p: p["person"].lower())
+    return out
+
+
 def contact_card(action: str, person: str = "",
                  detail: str = "") -> str:
     """Save one labelled detail for a person ('phone: …',

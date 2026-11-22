@@ -83,7 +83,7 @@ from .. import power_policy  # Phase 3 H1: target stays flat in core/
 from ..version import VERSION, parse_version, version_newer  # Phase 3 H1: target stays flat in core/
 
 # Re-exports — split from this module (Phase B B24); importers unchanged.
-from .updater_paths import _APPLIED_NAME, _BACKUP_DIRNAME, _CHECK_TIMEOUT_S, _DOWNLOAD_TIMEOUT_S, _JOURNAL_NAME, _LOOPBACK_HOSTS, _MANIFEST_NAME, _MANIFEST_SIG_NAME, _MARKER_NAME, _PROTECTED_BASENAMES, _STAGING_DIRNAME, _VERSION_REL, _data_dir, _log, _marker_path, _now_iso, _package_root, _sha256_of, _staging_dir  # noqa: F401
+from .updater_paths import _APPLIED_NAME, _BACKUP_DIRNAME, _CHECK_TIMEOUT_S, _DOWNLOAD_TIMEOUT_S, _JOURNAL_NAME, _LOOPBACK_HOSTS, _MANIFEST_NAME, _MANIFEST_SIG_NAME, _MARKER_NAME, _PROTECTED_BASENAMES, _STAGING_DIRNAME, _VERSION_REL, _data_dir, _log, _marker_path, _now_iso, _package_root, _read_version_file, _sha256_of, _staging_dir  # noqa: F401
 from .updater_transport import _configured_feed_url, _opener_for, _transport_error  # noqa: F401
 from .updater_verify import PINNED_UPDATE_PUBLIC_KEY, UPDATE_FEED_PUBLIC_KEY_HEX, _ED_BASE, _ED_BASE_X, _ED_BASE_Y, _ED_D, _ED_I, _ED_IDENTITY, _ED_L, _ED_Q, _UNTRUSTED_MESSAGE, _ed25519_verify, _ed_add, _ed_decode_point, _ed_encode, _ed_mul, _ed_xrecover, _verify_feed_signature  # noqa: F401
 from .updater_policy import _policy_refusal  # noqa: F401
@@ -92,4 +92,5 @@ from .updater_stage import _download_and_stage, _download_resumable, _extract_st
 from .updater_pending import _read_marker, pending_update  # noqa: F401
 from .updater_protect import _is_protected_rel, _protected_in_inventory  # noqa: F401
 from .updater_manifest import _read_manifest_map, _verify_staged_manifest  # noqa: F401
-from .updater_apply import _apply_staged, _backup_ignore, _clear_staging, _journal_path, _read_journal, _recover_interrupted, _remove_journal, _restore_from_backup, _verify_staging, _writable_probe, apply_staged, _write_journal  # noqa: F401
+from .updater_apply import _apply_staged, _backup_ignore, _clear_staging, _journal_path, _perform_rollback, _read_journal, _recover_interrupted, _remove_journal, _restore_from_backup, _verify_staging, _writable_probe, apply_staged, _write_journal  # noqa: F401
+from .updater_rollback import discard_staged_update, rollback_available, rollback_to_previous  # noqa: F401  # Loophole batch 6 (#9): rollback + discard seams

@@ -21,7 +21,11 @@ def live_failure_records(limit: int = 200) -> list[dict]:
     the miner's shape (tool/error/message/kind/ts)."""
     from . import audit_chain
 
-    entries = audit_chain.read(kind=None, limit=limit)
+    # Loophole batch 6 (#12): mine the VERIFIED prefix only — a
+    # failure record at or after the chain's first break is
+    # untrusted (it may be forged) and must not reach the miner.
+    entries = audit_chain.read_trusted(kind=None,
+                                       limit=limit)["entries"]
     records: list[dict] = []
     for entry in entries:
         data = entry.get("data") or {}

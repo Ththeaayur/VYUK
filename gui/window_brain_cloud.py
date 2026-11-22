@@ -391,3 +391,103 @@ class BrainCloudMixin:
                 label.setText(f"Couldn't verify the key — {detail[:160]}")
             else:
                 label.setText("Couldn't verify the key.")
+
+    def _refresh_gemini_signin_row(self):
+        """Syncs the Settings Gemini sign-in row with the stored
+        sign-in: the status line, the primary button's job (sign
+        in, or re-test when already signed in), and the Sign out
+        button. Read-only — refreshing never signs anyone in or
+        out."""
+        try:
+            from voice_assistant.core.gui_facade import gemini_oauth as _oauth
+
+            signed_in = _oauth.is_signed_in()
+            email = _oauth.signed_in_email() if signed_in else None
+        except Exception:  # noqa: BLE001 — no sign-in readable = signed out
+            signed_in, email = False, None
+        status = getattr(self, "gemini_signin_status", None)
+        if status is not None:
+            if signed_in and email:
+                status.setText(f"Signed in as {email}.")
+            elif signed_in:
+                status.setText("Signed in with Google.")
+            else:
+                status.setText("Not signed in yet.")
+        btn = getattr(self, "btn_gemini_signin", None)
+        if btn is not None:
+            btn.setText("Test sign-in" if signed_in
+                        else "Continue with Google")
+        signout = getattr(self, "btn_gemini_signout", None)
+        if signout is not None:
+            signout.setVisible(signed_in)
+
+    def _on_gemini_signin_clicked(self):
+        """The Settings sign-in button: when signed out it runs
+        the OAuth flow (browser + consent) on a worker thread,
+        then validates; when signed in it just re-validates. The
+        verdict lands on gemini_signin_completed."""
+        if getattr(self, "_gemini_signin_running", False):
+            return
+        try:
+            from voice_assistant.core.gui_facade import gemini_oauth as _oauth
+
+            already = _oauth.is_signed_in()
+        except Exception:  # noqa: BLE001 — unreadable = signed out
+            already = False
+        self._gemini_signin_running = True
+        btn = getattr(self, "btn_gemini_signin", None)
+        if btn is not None:
+            btn.setEnabled(False)
+            btn.setText("Testing…" if already else "Waiting for Google…")
+        status = getattr(self, "gemini_signin_status", None)
+        if status is not None and not already:
+            status.setText(
+                "Your browser should have opened Google's sign-in — "
+                "approve it there, then come back here.")
+
+        def run():
+            try:
+                from voice_assistant.core.gui_facade import (
+                    gemini_oauth as _oauth)
+
+                if not already:
+                    message = _oauth.connect()
+                    if not _oauth.is_signed_in():
+                        self.signals.gemini_signin_completed.emit(
+                            "auth", message)
+                        return
+                ok, kind, detail = _oauth.validate_token()
+                self.signals.gemini_signin_completed.emit(
+                    "ok" if ok else kind,
+                    "" if ok else detail)
+            except Exception as exc:  # noqa: BLE001
+                self.signals.gemini_signin_completed.emit(
+                    "unknown", str(exc))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_gemini_signin_completed(self, kind: str, message: str):
+        self._gemini_signin_running = False
+        btn = getattr(self, "btn_gemini_signin", None)
+        if btn is not None:
+            btn.setEnabled(True)
+        self._refresh_gemini_signin_row()
+        if kind != "ok":
+            status = getattr(self, "gemini_signin_status", None)
+            if status is not None:
+                status.setText(message)
+
+    def _on_gemini_signout_clicked(self):
+        """Signs out of Google (revokes + deletes the local token)
+        and refreshes the row. Sync — disconnect() is local work
+        plus one best-effort revoke with a 3 s timeout."""
+        try:
+            from voice_assistant.core.gui_facade import gemini_oauth as _oauth
+
+            message = _oauth.disconnect()
+        except Exception as exc:  # noqa: BLE001
+            message = f"Couldn't sign out ({exc})."
+        self._refresh_gemini_signin_row()
+        status = getattr(self, "gemini_signin_status", None)
+        if status is not None:
+            status.setText(message)

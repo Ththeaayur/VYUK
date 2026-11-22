@@ -94,6 +94,7 @@ from .memory import (  # Phase 3 M2h: memory.py moved to core/memory/memory.py
     USER_FACT_CATEGORIES,
     as_user_note,
     instruction_shaped,
+    looks_like_credential,
     memory_store,
 )
 
@@ -114,6 +115,42 @@ MAX_LEARNED = MAX_USER_FACTS
 # that never drains against unbounded growth.
 _DROPPED_AT_CAP: list[dict] = []
 _DROPPED_AT_CAP_MAX = 20
+
+# Secrets refused at the learn path, pending announcement
+# (loophole batch 3, L-30 / #11): learn_from_text() refuses a
+# secret-shaped teaching before saving it, and records the
+# refusal here for the chat layer to announce via
+# take_refused_secrets(). The record carries the KEY ONLY —
+# never the value, which is the secret itself — and its display
+# is the masked form (display_for(key, "•••")). Bounded like
+# the cap drain: the GUI drains on every utterance, so the bound
+# never binds in production.
+_REFUSED_SECRETS: list[dict] = []
+_REFUSED_SECRETS_MAX = 20
+
+
+def _record_refused_secret(key, source) -> None:
+    """Record a secret-shaped teaching refused at the learn path,
+    for the chat layer to announce. Never raises; a failure to
+    record must not break learning. The record names the key and
+    the channel — never the secret value."""
+    try:
+        _REFUSED_SECRETS.append(
+            {"key": key, "source": source,
+             "display": display_for(key, "•••")})
+        del _REFUSED_SECRETS[:max(
+            0, len(_REFUSED_SECRETS) - _REFUSED_SECRETS_MAX)]
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def take_refused_secrets() -> list[dict]:
+    """Secret-shaped teachings refused since the last call, oldest
+    first — then clears the pending list, so each refusal is
+    announced exactly once. Returns [] when nothing was refused."""
+    refused = list(_REFUSED_SECRETS)
+    del _REFUSED_SECRETS[:]
+    return refused
 
 
 def _record_dropped_at_cap(key, value, cand) -> None:
@@ -577,7 +614,7 @@ def _learned_rows() -> list[dict]:
     return [r for r in rows if str(r.get("category", "")).lower() == CATEGORY]
 
 
-def learn_from_text(text) -> list[dict]:
+def learn_from_text(text, source: str = "learned") -> list[dict]:
     """Extract candidates from `text` and store the new/changed ones.
 
     Returns ONLY the facts actually stored by this call (the candidate
@@ -592,7 +629,25 @@ def learn_from_text(text) -> list[dict]:
     still lists only what was stored — unless the same key is
     already kept in another user-fact category, in which case
     there is nothing to announce.
+
+    `source` records WHERE the teaching came from (loophole batch
+    3, #11): "learned:voice" for a spoken turn, "learned:text"
+    for a typed one — the stored row carries it, so every taught
+    fact has its provenance. A secret-shaped teaching is REFUSED
+    before saving (L-30): it is never stored, and the refusal is
+    recorded for take_refused_secrets() (the chat layer announces
+    it — key only, never the secret value).
     """
+    # Loophole batch 5 (#5): private mode suppresses learning —
+    # a private turn teaches nothing and stores nothing (and
+    # records no refusal either: nothing about the turn is
+    # written anywhere). Returns []: nothing was stored.
+    try:
+        from ..private_mode import private_mode_on
+    except Exception:  # noqa: BLE001 — unreadable: not private
+        private_mode_on = None
+    if private_mode_on is not None and private_mode_on():
+        return []
     try:
         candidates = extract_candidates(text)
         if not candidates:
@@ -601,7 +656,12 @@ def learn_from_text(text) -> list[dict]:
     except Exception:  # noqa: BLE001 — learning must never break a conversation
         return []
     try:
-        capped_total = memory_store.count_facts(USER_FACT_CATEGORIES)
+        # Loophole batch 6 (#14): the cap counts the DB+file
+        # UNION, not the DB alone — a file-only fact is
+        # remembered and prompted while invisible to the old
+        # count_facts() count.
+        capped_total = memory_store.count_remembered_facts(
+            USER_FACT_CATEGORIES)
     except Exception:  # noqa: BLE001 — a broken count falls back to
         # the old learned-only count; learning never raises.
         capped_total = len(existing)
@@ -619,6 +679,14 @@ def learn_from_text(text) -> list[dict]:
             value = as_user_note(value)
             cand = dict(cand, value=value,
                         display=display_for(key, value))
+        if looks_like_credential(key, value):
+            # Loophole batch 3 (L-30): a secret-shaped teaching
+            # is refused, never stored — and recorded (key only)
+            # so the chat layer can say so. The store's own
+            # guard would raise too; the check here is what
+            # makes the refusal announceable instead of silent.
+            _record_refused_secret(key, source)
+            continue
         current = existing.get(key)
         if current is not None and _norm(str(current.get("value", ""))) == _norm(value):
             continue  # identical — already known
@@ -628,7 +696,7 @@ def learn_from_text(text) -> list[dict]:
             _record_dropped_at_cap(key, value, cand)
             continue  # at cap: only replacements get through
         try:
-            memory_store.save_fact(CATEGORY, key, value)
+            memory_store.save_fact(CATEGORY, key, value, source=source)
         except Exception:  # noqa: BLE001
             continue
         entry = dict(cand)
@@ -692,18 +760,41 @@ def get_learned_facts() -> list[dict]:
 def forget_learned_fact(fact_id) -> bool:
     """Delete ONE learned fact by store id. Refuses (returns False)
     when the id doesn't exist or belongs to another category — a
-    learned-fact control must never delete a hand-saved fact."""
+    learned-fact control must never delete a hand-saved fact.
+
+    Loophole batch 6 (#14): the migrated file copy (same
+    category/key) is deleted too. The old code deleted the DB
+    row only — the file copy survived and dual_read still
+    prompted it, so the fact was forgotten in one store and
+    still remembered in the other."""
     try:
         for r in _learned_rows():
             if r.get("id") == fact_id:
+                _delete_file_copy(r.get("category", ""),
+                                  r.get("key", ""))
                 return bool(memory_store.delete_fact(fact_id))
         return False
     except Exception:  # noqa: BLE001
         return False
 
 
+def _delete_file_copy(category: str, key: str) -> bool:
+    """Delete the file-store copy of one fact, if any. Returns
+    True when a copy existed and was removed. Never raises —
+    a broken file store must not block the DB forget."""
+    try:
+        from . import memory_files as _mf
+
+        return bool(_mf.delete_fact(category, key, base=None))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def forget_all_learned() -> int:
-    """Delete every learned fact; returns how many were removed."""
+    """Delete every learned fact; returns how many were removed.
+    Loophole batch 6 (#14): each fact's file-store copy is
+    deleted too, for the same reason as forget_learned_fact —
+    a migrated copy must not outlive the forget."""
     count = 0
     try:
         rows = _learned_rows()
@@ -711,6 +802,7 @@ def forget_all_learned() -> int:
         return 0
     for r in rows:
         try:
+            _delete_file_copy(r.get("category", ""), r.get("key", ""))
             if memory_store.delete_fact(r.get("id")):
                 count += 1
         except Exception:  # noqa: BLE001

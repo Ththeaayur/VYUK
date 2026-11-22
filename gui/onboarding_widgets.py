@@ -59,6 +59,14 @@ def _feature_cards() -> tuple:
         count = str(len(tools.get_declarations()))
     except Exception:  # noqa: BLE001
         count = "hundreds of"
+    # L-31 (loophole batch 8): the privacy card reads its
+    # sentence from core/privacy_copy.py (FEATURE_CARD_PRIVATE)
+    # through the facade — one wording, one place. The old line
+    # ("With the built-in brain, your voice and data never leave
+    # this PC") was shown to cloud-brain users too, and "your
+    # data" was overbroad even for the local brain (mail and
+    # calendar live at Google).
+    from voice_assistant.core.gui_facade import privacy_copy
     return (
         ("Hands on your whole PC",
          "VYUK opens apps, clicks, types, and manages files for you "
@@ -68,7 +76,7 @@ def _feature_cards() -> tuple:
         ("She remembers",
          "Facts you share are kept in a memory web you can explore and edit."),
         ("Private by design",
-         "With the built-in brain, your voice and data never leave this PC."),
+         privacy_copy.FEATURE_CARD_PRIVATE),
         ("Routines & briefings",
          "Wake to a spoken briefing; schedule routines that run themselves."),
         ("Summon her anywhere",
@@ -97,6 +105,12 @@ class _ChoiceCard(QFrame):
 
     def is_selected(self) -> bool:
         return self._selected
+
+    def click(self) -> None:
+        """Programmatic tap — the same signal a mouse press or
+        Space/Enter emits, so tests and the repro drive a card
+        exactly like a user tap."""
+        self.clicked.emit()
 
     def set_selected(self, value: bool):
         self._selected = bool(value)

@@ -28,7 +28,13 @@ from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
 
 class PagesMemoryMixin:
     def _build_memory_page(self) -> QWidget:
-        page, layout = self._page_shell("Memory", "Facts VYUK remembers about you. Stored only on this device.", kicker=True)
+        # L-31 (loophole batch 8): the subtitle lives in
+        # core/privacy_copy.py (MEMORY_PAGE_SUBTITLE). "Stored only
+        # on this device" is true of the storage; the qualification
+        # says what a cloud turn does with the stored facts.
+        from voice_assistant.core.gui_facade import privacy_copy
+        page, layout = self._page_shell(
+            "Memory", privacy_copy.MEMORY_PAGE_SUBTITLE, kicker=True)
         # Rethink Build 6 (§6.5, declutter move 7): one toolbar —
         # search + one Filter menu + the List/Web switcher + a "···"
         # overflow. The three control rows (search + count +

@@ -234,8 +234,21 @@ def backup_tick(now: datetime, data_dir: str, settings: dict) -> dict:
     stamp = now.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     def _run():
-        out_path = os.path.join(backups_dir, f"vyuk-backup-{stamp}.zip")
-        report = _backup.create_backup(data_dir, settings, out_path)
+        # Loophole batch 3 (#10): a scheduled backup runs only
+        # under the stored passphrase — without one the run
+        # refuses (the refusal is recorded on the schedule record
+        # by schedule_tick, never silent), and the bundle is an
+        # encrypted .vyukbak, never a plain .zip.
+        passphrase = _backup.get_backup_passphrase(data_dir)
+        if not passphrase:
+            raise ValueError(
+                "no backup passphrase is set — set one in "
+                "Settings (Advanced → Backup passphrase) "
+                "before scheduled backups can run")
+        out_path = os.path.join(backups_dir,
+                                f"vyuk-backup-{stamp}.vyukbak")
+        report = _backup.create_backup(data_dir, settings, out_path,
+                                       passphrase=passphrase)
         _backup.prune_backups(backups_dir, BACKUP_RETENTION_COUNT,
                               BACKUP_RETENTION_BYTES)
         return report

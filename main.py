@@ -125,6 +125,25 @@ def main():
     except Exception as exc:  # noqa: BLE001 — startup survives the log
         print(f"[milestones] startup record failed, starting normally: {exc}")
 
+    # Crash reports (loophole batch 7, #6): install the opt-in
+    # crash hook — an uncaught exception records only its
+    # signature (type + first app-tree frame, never the message,
+    # never what was said or done) to data/crash_signatures.jsonl,
+    # and only while Settings → Feedback & crash reports is on.
+    # The hook reads the config field live at crash time, so
+    # flipping the toggle on mid-session arms it at once. Same
+    # posture as the blocks around it: a failed install never
+    # stops VYUK from starting.
+    try:
+        from voice_assistant.core.feedback_report import (
+            install_crash_hook,
+        )
+
+        install_crash_hook()
+    except Exception as exc:  # noqa: BLE001 — startup survives
+        print(f"[feedback] crash hook install failed, "
+              f"starting normally: {exc}")
+
     # Windows-profile identity (Triage Wire Build 3 — BZ-7.6):
     # resolve whose OS profile the session runs as and report it.
     # Exactly the posture above — report, never block: on a

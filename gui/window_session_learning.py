@@ -62,14 +62,21 @@ class SessionLearningMixin:
         except Exception:  # noqa: BLE001
             return None
 
-    def _learn_from_utterance(self, text: str):
+    def _learn_from_utterance(self, text: str, spoken: bool = False):
         """The learning choke point. Every genuine user utterance —
         spoken (session transcripts) or typed (send_text echoes back
         through _on_transcript in BOTH clients) — passes through
         _on_transcript exactly once, so this is the one place
         learning hooks in. Off means off: with the master toggle
         disabled the learner is never even called. Fully guarded —
-        learning must never slow or break the chat path."""
+        learning must never slow or break the chat path.
+
+        Loophole batch 3 (#11): `spoken` threads the channel
+        through — a spoken turn is learned as "learned:voice",
+        a typed one as "learned:text", so every taught fact
+        carries its provenance. A secret-shaped teaching is
+        refused by the learn path and announced here (never
+        spoken back, never stored)."""
         try:
             text = (text or "").strip()
             if not text:
@@ -81,11 +88,38 @@ class SessionLearningMixin:
             module = self._learning_module()
             if module is None:
                 return
-            facts = module.learn_from_text(text) or []
+            source = "learned:voice" if spoken else "learned:text"
+            facts = module.learn_from_text(text, source=source) or []
             self._announce_learned(facts)
             self._announce_dropped_at_cap(module)
+            self._announce_refused_secrets(module)
         except Exception:  # noqa: BLE001
             pass
+
+    def _announce_refused_secrets(self, module):
+        """One line when a teaching was refused as a secret:
+        the user said something that looks like a password or
+        token, and it was never stored. The line names nothing
+        secret — the refusal record carries the key only, and
+        the line itself says only that a secret-shaped teaching
+        was not kept. Reads the drain defensively: a module
+        without the signal simply has nothing to announce."""
+        try:
+            take = getattr(module, "take_refused_secrets", None)
+            refused = take() if callable(take) else []
+        except Exception:  # noqa: BLE001
+            refused = []
+        if not refused:
+            return
+        for _i, _rec in enumerate(refused[:2]):
+            self._add_system(
+                "I didn't store that — it looks like a password "
+                "or secret, so I never keep those.")
+        extra = len(refused) - 2
+        if extra > 0:
+            self._add_system(
+                f"…and {extra} more secret-shaped thing"
+                f"{'s' if extra != 1 else ''} not stored.")
 
     def _announce_learned(self, facts):
         """One quiet line per newly learned fact (max two per turn,
@@ -404,7 +438,9 @@ class SessionLearningMixin:
                 return
             # She learns you (v2.6): spoken and typed utterances both
             # arrive here exactly once — see _learn_from_utterance.
-            self._learn_from_utterance(text)
+            # Loophole batch 3 (#11): the channel rides along, so
+            # a taught fact records whether it was spoken or typed.
+            self._learn_from_utterance(text, spoken=_spoken)
         else:
             # v5.49 (programme item 29): planner progress reaches
             # the GUI on THIS channel — every client's run_plan /

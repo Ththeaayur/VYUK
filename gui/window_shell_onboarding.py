@@ -106,6 +106,12 @@ class ShellOnboardingMixin:
         except Exception:  # noqa: BLE001 — the button just closes
             pass
         dlg.exec()
+        # Round-3 OAuth build: a sign-in made in the wizard shows
+        # on the Settings row the moment the user comes back.
+        try:
+            self._refresh_gemini_signin_row()
+        except Exception:  # noqa: BLE001 — the row refreshes on its own actions too
+            pass
         if choice_only:
             # Offered once, whatever the user did with it — the
             # Settings button can reopen the choice any time.
@@ -172,6 +178,29 @@ class ShellOnboardingMixin:
             self._apply_kokoro_voice(
                 str(getattr(config, "kokoro_voice", "bm_george")
                     or "bm_george"))
+        except Exception:  # noqa: BLE001 — onboarding already finished
+            pass
+        # Round-3 wizard expansion: the dialog may also have set
+        # the theme and the user's name — re-apply the theme (the
+        # same two calls the Settings theme card makes), refresh
+        # the Home greeting with the name, and refresh the two
+        # conditional Home cards (a skip-everything run shows the
+        # finish-setup card; a self-test fault shows the fix-it
+        # card). All guarded — onboarding already finished.
+        try:
+            self._apply_appearance()
+        except Exception:  # noqa: BLE001 — onboarding already finished
+            pass
+        try:
+            self._apply_theme_to_orb()
+        except Exception:  # noqa: BLE001 — onboarding already finished
+            pass
+        try:
+            self.home_greeting.setText(self._greeting())
+        except Exception:  # noqa: BLE001 — onboarding already finished
+            pass
+        try:
+            self._refresh_setup_cards()
         except Exception:  # noqa: BLE001 — onboarding already finished
             pass
         # The mini orb waits for first-run onboarding to finish.
@@ -259,7 +288,17 @@ class ShellOnboardingMixin:
     def _greeting(self) -> str:
         hour = datetime.datetime.now().hour
         if hour < 12:
-            return "Good morning"
-        if hour < 17:
-            return "Good afternoon"
-        return "Good evening"
+            base = "Good morning"
+        elif hour < 17:
+            base = "Good afternoon"
+        else:
+            base = "Good evening"
+        # Round-3 wizard expansion: the greeting uses the name
+        # she learned in the wizard (config.user_name, persisted
+        # at Finish) — "Good morning, Aayur". No name, no comma:
+        # the plain form stands.
+        try:
+            name = str(getattr(config, "user_name", "") or "").strip()
+        except Exception:  # noqa: BLE001 — the plain greeting stands
+            name = ""
+        return f"{base}, {name}" if name else base

@@ -234,6 +234,10 @@ _CURRENT: contextvars.ContextVar = contextvars.ContextVar(
 _NEVER_PLAN_KINDS = frozenset({
     # C-14 consequential: send / delete / purchase.
     "send_email", "create_calendar_event",
+    # Stage 0 features batch 2 (Group E): cancelling deletes
+    # an event and moving rewrites one — both consequential,
+    # never planned.
+    "cancel_calendar_event", "reschedule_calendar_event",
     "delete_plan", "delete_routine", "delete_snippet",
     "delete_window_layout", "finance_playbook_delete",
     "social_entry_delete", "continuous_delete_data",

@@ -18,7 +18,9 @@ Where each tool's truth lives — and what it honestly can't do:
   facts (core/memory/memory.py) under the fixed categories
   `envelopes` and `subscriptions`, so they survive restarts
   and show up in the user's memory like anything else
-  VYUK remembers.
+  VYUK remembers. `portfolio_tracker` persists the same way
+  under `portfolio`. `check_money_alerts` keeps its dedupe
+  ledger in data/money_alerts.json (core/money_alerts.py).
 - Amounts are plain numbers; no currency is ever assumed. A
   tool that prints money takes an optional `currency` label
   and prefixes it verbatim when one is given — the maths is
@@ -65,15 +67,21 @@ from .skills_money_growth import (
     savings_goal,
     tip_and_tax,
 )
+from .money_alerts import check_money_alerts
 from .skills_money_budget import (
     _ENVELOPES_CATEGORY,
+    _PORTFOLIO_CATEGORY,
     _SUBSCRIPTIONS_CATEGORY,
     _envelope_line,
     _find_envelope,
+    _find_holding,
     _find_subscription,
     _load_envelopes,
+    _load_portfolio,
     _load_subscriptions,
+    _next_renewal,
     budget_envelope,
+    portfolio_tracker,
     subscription_audit,
 )
 
@@ -255,7 +263,7 @@ def register_all(registry) -> None:
     )
     registry.register(
         name="subscription_audit",
-        description="Track subscriptions and what they quietly add up to. Actions: 'add' records a subscription at its monthly cost (adding the same name again updates it), 'remove' drops one, 'list' shows each with its yearly cost, the monthly and yearly totals, and names the biggest. Subscriptions persist as memory facts. Use when the user adds a subscription, cancels one, or asks what their subscriptions cost.",
+        description="Track subscriptions and what they quietly add up to. Actions: 'add' records a subscription at its monthly cost (adding the same name again updates it), 'remove' drops one, 'list' shows each with its yearly cost, the monthly and yearly totals, and names the biggest. 'add' takes an optional renewal_day (1–31, the day of the month it renews) and 'list' shows the next renewal date for any subscription that has one. Subscriptions persist as memory facts. Use when the user adds a subscription, cancels one, or asks what their subscriptions cost.",
         parameters={
             "type": "object",
             "properties": {
@@ -263,8 +271,35 @@ def register_all(registry) -> None:
                 "name": {"type": "string", "description": "The subscription's name, for 'add' and 'remove'"},
                 "monthly": {"type": "number", "description": "Its monthly cost, for 'add'"},
                 "currency": {"type": "string", "description": "Optional label printed before amounts, like '₹' or 'USD'"},
+                "renewal_day": {"type": "number", "description": "The day of the month it renews, 1 to 31, for 'add' (optional)"},
             },
             "required": ["action"],
         },
         handler=subscription_audit,
+    )
+    registry.register(
+        name="portfolio_tracker",
+        description="Track a portfolio of holdings: what you hold and what it's worth. Actions: 'add' records shares of a symbol (adding more of one you hold adds to the quantity; buy_price is the cost basis per unit, price is your own recorded current price per unit — both optional), 'remove' drops a holding, 'list' shows every holding with its value, 'total' sums what you put in and what it's worth now from the prices you recorded. Live quotes are off — no licensed price source is configured yet — so a holding with no recorded price is unvalued, never guessed. Holdings persist as memory facts. No advice, no trading. Use when the user records a holding or asks what their portfolio is worth.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "'add', 'remove', 'list' or 'total'"},
+                "symbol": {"type": "string", "description": "The holding's symbol, like 'AAPL', for 'add' and 'remove'"},
+                "quantity": {"type": "number", "description": "How many shares or units, for 'add'"},
+                "buy_price": {"type": "number", "description": "The cost basis per unit, for 'add' (optional)"},
+                "price": {"type": "number", "description": "Your own recorded current price per unit, for 'add' (optional)"},
+                "currency": {"type": "string", "description": "Optional label printed before amounts, like '₹' or 'USD'"},
+            },
+            "required": ["action"],
+        },
+        handler=portfolio_tracker,
+    )
+    registry.register(
+        name="check_money_alerts",
+        description="Check the money alerts and report the newly-due ones: budget envelopes gone over budget, price watches at or under target, subscriptions renewing within 7 days. Each alert fires once until its numbers change — a standing condition never nags. Checks run when you ask, when a scheduled routine runs them, and the morning briefing shows standing money alerts each morning. Use when the user asks what's due, what's over budget, or whether any watched price or renewal needs attention.",
+        parameters={
+            "type": "object",
+            "properties": {},
+        },
+        handler=check_money_alerts,
     )

@@ -6,9 +6,9 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from ..version import VERSION, version_newer
+from ..version import VERSION, parse_version, version_newer
 from .updater_manifest import _read_manifest_map, _verify_staged_manifest  # INTENTIONAL: shared helpers
-from .updater_paths import _APPLIED_NAME, _BACKUP_DIRNAME, _JOURNAL_NAME, _MANIFEST_NAME, _MANIFEST_SIG_NAME, _VERSION_REL, _data_dir, _log, _now_iso, _package_root, _sha256_of, _staging_dir  # INTENTIONAL: shared helpers/constants
+from .updater_paths import _APPLIED_NAME, _BACKUP_DIRNAME, _JOURNAL_NAME, _MANIFEST_NAME, _MANIFEST_SIG_NAME, _VERSION_REL, _data_dir, _log, _now_iso, _package_root, _read_version_file, _sha256_of, _staging_dir  # INTENTIONAL: shared helpers/constants
 from .updater_pending import _read_marker  # INTENTIONAL: shared helper
 from .updater_protect import _is_protected_rel, _protected_in_inventory  # INTENTIONAL: shared helpers
 
@@ -77,6 +77,77 @@ def _restore_from_backup(root: Path, backup_dir: Path,
         except Exception as exc:  # noqa: BLE001
             failures.append(f"{rel}: {exc}")
     return failures
+
+
+def _perform_rollback(journal: dict) -> dict:
+    """Completes a rollback requested by rollback_to_previous()
+    (loophole batch 6, #9). Restores the journal's backup over
+    the live tree with the journal's inventory (files the update
+    introduced are deleted; user files created since are never
+    in the inventory, so they are untouched), then verifies the
+    version file reads the target build. On verified success the
+    backup copy and the applied record are removed — the backup
+    IS the live tree now, so keeping it would waste a tree copy
+    and let the same rollback be requested twice. On any
+    failure the journal is still removed (a failed rollback must
+    not loop at every startup) but the backup and record are
+    KEPT, so the rollback can be retried or done by hand, and
+    the failure is logged + reported instead of silent. Never
+    raises."""
+    version = journal.get("version")
+    from_version = journal.get("from_version")
+    root = _package_root()
+    if not version or parse_version(version) is None:
+        _remove_journal()
+        _log("rollback request has no valid target version — "
+             "journal discarded, nothing changed")
+        return {"state": "error",
+                "message": "the rollback request is malformed — "
+                           "nothing was changed"}
+    backup_rel = journal.get("backup_dir")
+    backup_dir = _data_dir() / backup_rel \
+        if isinstance(backup_rel, str) and backup_rel else None
+    if backup_dir is None or not backup_dir.is_dir():
+        _remove_journal()
+        _log(f"rollback to {version} cannot run: its backup is "
+             f"missing")
+        return {"state": "error", "version": version,
+                "message": "the previous build's backup is missing "
+                           "— the install may have been cleaned; "
+                           "reinstall VYUK by hand to be safe"}
+    inventory = journal.get("inventory")
+    if not isinstance(inventory, list):
+        inventory = []
+    failures = _restore_from_backup(root, backup_dir,
+                                    [str(r) for r in inventory])
+    if failures:
+        _remove_journal()
+        _log(f"rollback to {version} was incomplete: {failures}")
+        return {"state": "error", "version": version,
+                "message": "the rollback was incomplete — "
+                           "reinstall VYUK by hand to be safe"}
+    live_version = _read_version_file(root / _VERSION_REL)
+    if live_version != version:
+        _remove_journal()
+        _log(f"rollback to {version} restored files but the "
+             f"version file reads {live_version!r}")
+        return {"state": "error", "version": version,
+                "message": "the rollback restored files but the "
+                           "version still reads differently — "
+                           "reinstall VYUK by hand to be safe"}
+    _clear_staging()
+    _remove_journal()
+    shutil.rmtree(backup_dir, ignore_errors=True)
+    try:
+        (_data_dir() / _APPLIED_NAME).unlink(missing_ok=True)
+    except OSError:
+        pass
+    _log(f"rolled back {from_version} -> {version}; restart to "
+         f"run the previous build")
+    return {"state": "rolled_back", "version": version,
+            "from": from_version,
+            "detail": "the previous build was restored — restart "
+                      "VYUK to run it"}
 
 
 def _recover_interrupted(journal: dict) -> dict:
@@ -261,6 +332,12 @@ def _apply_staged() -> dict:
                     "message": "the update journal is unreadable — "
                                "the install may be mid-update; "
                                "reinstall VYUK by hand to be safe"}
+        # Loophole batch 6 (#9): a rollback journal is a request
+        # the user made from the About card, not an interrupted
+        # apply — it completes here, at startup, before anything
+        # else is touched.
+        if journal.get("phase") == "rollback_requested":
+            return _perform_rollback(journal)
         return _recover_interrupted(journal)
     marker = _read_marker()
     if marker is None:
@@ -479,7 +556,15 @@ def _apply_staged() -> dict:
         _write_journal(journal)
     except Exception:  # noqa: BLE001 — the swap already succeeded
         pass
-    record = {"from": VERSION, "to": version, "at": _now_iso()}
+    # Loophole batch 6 (#9): the applied record carries the
+    # update's file inventory and backup location, so a later
+    # rollback knows exactly which files the update introduced
+    # (they are deleted on rollback) instead of guessing by
+    # diffing the live tree against the backup — a guess would
+    # delete user files whenever the backup is partial.
+    record = {"from": VERSION, "to": version, "at": _now_iso(),
+              "inventory": sorted(inventory),
+              "backup_dir": f"{_BACKUP_DIRNAME}/{VERSION}"}
     try:
         applied_path = data_dir / _APPLIED_NAME
         tmp = applied_path.with_suffix(".tmp")

@@ -198,6 +198,12 @@ class CommandPalette(QDialog):
         commands.append(go(5, "Go to Pulse"))
         commands.append(go(6, "Go to Senses"))
         commands.append(go(7, "Go to Doctor"))
+        # Stage 0 features batch 1 (Group D): the views — stack
+        # 8–11, same "Go to" shape as the other pages.
+        commands.append(go(8, "Go to Calendar"))
+        commands.append(go(9, "Go to Inbox"))
+        commands.append(go(10, "Go to Contacts"))
+        commands.append(go(11, "Go to Calls"))
         # Settings cards, in page order (derived, not hardcoded,
         # so a rename can never strand a palette row).
         try:

@@ -1178,6 +1178,33 @@ class GeminiLiveSessionReceiveMixin:
                                 server_content,
                                 model=getattr(self, "connected_model",
                                               None))
+                            # Loophole batch 7 (#7): the mid-session
+                            # quota check — the row just landed, so
+                            # the fraction moved. Warn exactly once
+                            # per session when it newly crosses the
+                            # warn line (or the cap is hit
+                            # mid-session: the spend is already
+                            # spent, so the session keeps running,
+                            # but the user is told the next one will
+                            # not start). Guarded like the ledger
+                            # row: a failed check never breaks the
+                            # receive loop.
+                            try:
+                                from .live_quota import (
+                                    live_quota_after_turn as _quota_warn)
+                                if not getattr(self, "_quota_warned",
+                                               False):
+                                    _qw = _quota_warn(
+                                        model=getattr(
+                                            self, "connected_model",
+                                            None),
+                                        warned=False)
+                                    if _qw:
+                                        self._quota_warned = True
+                                        self._notify_status(
+                                            "COST_WARNING: " + str(_qw))
+                            except Exception:  # noqa: BLE001 — never
+                                pass  # break the receive loop
                             self._notify_status(_note)
                             # P2 speed pass: the interaction ended
                             # — close the latency record (see the

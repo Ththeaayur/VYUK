@@ -17,6 +17,7 @@ except Exception:  # noqa: BLE001 — a build without google-genai must
 
 from .. import injection
 from ..config import config, save_env_setting
+from ..gemini_oauth import build_client_for_auth, resolve_auth
 from ..funnel.tools_registry import tools
 from ..languages import reply_language_directive
 from ..memory import episodes
@@ -706,9 +707,63 @@ class GeminiLiveSessionLifecycleMixin:
         when Google rejected the model name itself. A bad key or a
         network failure aborts immediately with the real error — the
         fallback chain must never mask those."""
-        if not config.api_key:
+        # Round-3 OAuth build (2026-11-21): the session's auth
+        # resolution — a stored Google sign-in wins over the legacy
+        # key; an unusable sign-in reports SIGN_IN_EXPIRED, never
+        # MISSING_API_KEY (the user HAS an auth method, it just
+        # needs renewing); neither available is MISSING_API_KEY,
+        # as before.
+        auth_kind, auth_value = resolve_auth()
+        if auth_kind == "oauth_expired":
+            self._notify_status(
+                "SIGN_IN_EXPIRED: Your Google sign-in has expired or "
+                "was revoked — sign in again in Settings.")
+            return
+        if auth_kind is None:
             self._notify_status("MISSING_API_KEY")
             return
+        # Loophole batch 7 (#7): the session-start quota check —
+        # the missing *before* for live turns (the text path has
+        # had its fail-closed preflight since section C). With no
+        # caps configured this always allows. At/over a cap the
+        # session does NOT start: the refusal is a COST_CAP
+        # status (a dedicated branch in _on_status presents it
+        # and returns early — it is a refusal, never a drop, so
+        # no reconnect episode starts). At the warn line the
+        # session starts and the warning is surfaced once, on
+        # screen, before connecting. A ledger that cannot be read
+        # fails closed the same way (live_quota_check returns
+        # allowed False with the cause in the warning).
+        # Each start() begins unwarned; the mid-session check in
+        # the receive loop sets the flag when it warns.
+        self._quota_warned = False
+        try:
+            from .live_quota import live_quota_check as _quota_check
+
+            _quota = _quota_check()
+        except Exception:  # noqa: BLE001 — a broken check refuses
+            _quota = {"allowed": False, "action": "blocked",
+                      "requires_confirm": False,
+                      "warning": "Cost cap check unavailable — the "
+                                 "cost ledger could not be read; live "
+                                 "sessions are paused until the ledger "
+                                 "is repaired."}
+        if not _quota.get("allowed"):
+            self._notify_status(
+                "COST_CAP: Cost cap reached — "
+                + str(_quota.get("warning") or
+                      "today's spend is at the cap, so this live "
+                      "session won't start. Raise the cap in "
+                      "Settings or wait for it to reset."))
+            return
+        if _quota.get("action") == "warn" and _quota.get("warning"):
+            self._quota_warned = True
+            try:
+                _log_line(f"Live quota: {_quota['warning']}")
+            except Exception:  # noqa: BLE001 — the log must not
+                pass  # break the connect
+            self._notify_status(
+                "COST_WARNING: " + str(_quota["warning"]))
         if genai is None:
             self._notify_status(
                 "ERROR: The Google library (google-genai) isn't installed "
@@ -752,7 +807,10 @@ class GeminiLiveSessionLifecycleMixin:
                   f"(budget {tools._GEMINI_DECL_BUDGET}).")
 
             proxy_value = _apply_system_proxy_env()
-            self._client = genai.Client(api_key=config.api_key)
+            # Round-3 OAuth build: the client for the resolved auth
+            # method — Bearer header-swap for a Google sign-in, key
+            # client (explicit v1beta) for the legacy key.
+            self._client = build_client_for_auth(auth_kind, auth_value)
             # v5.51 (item 13): record the API mode at construction
             # — it shapes the resumption config built below.
             self._enterprise_mode = _client_is_enterprise(self._client)
@@ -878,7 +936,10 @@ class GeminiLiveSessionLifecycleMixin:
                       "system proxy.")
                 # Round-3 fix #6 (#58): the retry shows on screen.
                 self._notify_retry("trying again without the system proxy.")
-                self._client = genai.Client(api_key=config.api_key)
+                # Round-3 OAuth build: rebuild the client for the
+                # SAME resolved auth method (the proxy retry must
+                # never fall back to a different auth).
+                self._client = build_client_for_auth(auth_kind, auth_value)
                 connected, timed_out, last_rejection = (
                     await self._try_candidates(
                         candidates, session_config, audio_manager,

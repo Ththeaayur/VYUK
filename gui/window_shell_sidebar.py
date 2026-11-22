@@ -103,6 +103,13 @@ class ShellSidebarMixin:
         self.pages.addWidget(self._build_pulse_page())
         self.pages.addWidget(self._build_senses_page())
         self.pages.addWidget(self._build_doctor_page())
+        # Stage 0 features batch 1 (Group D): the views — Calendar,
+        # Inbox, Contacts, Calls. Stack indices 0–7 are FROZEN;
+        # these take 8–11, in that order.
+        self.pages.addWidget(self._build_calendar_page())
+        self.pages.addWidget(self._build_inbox_page())
+        self.pages.addWidget(self._build_contacts_page())
+        self.pages.addWidget(self._build_calls_page())
         # v5.57 (redo): the home voice chip can read the Settings
         # combos now that every page is built.
         try:
@@ -289,7 +296,7 @@ class ShellSidebarMixin:
         # _show_page keeps stack-index semantics and
         # the checked state is computed through
         # _nav_page_indices (see window_chat._show_page).
-        # 7 nav buttons, 8 pages: Skills (stack 3) has no sidebar
+        # 11 nav buttons, 12 pages: Skills (stack 3) has no sidebar
         # button — it is reached from the command palette
         # (Ctrl+K, "Go to Skills"), which already listed it
         # before S1. Internal names are NOT renamed (CX-06
@@ -299,7 +306,10 @@ class ShellSidebarMixin:
         # Settings-card, tray, and palette routes are unchanged.
         # No doctor glyph exists in gui/icons.py, so Doctor uses
         # "check" — the closest existing glyph (Doctor runs
-        # health checks).
+        # health checks). The four views (Stage 0 features batch
+        # 1) use the closest existing glyphs the same way: a grid
+        # for the Calendar month, "send" for Inbox mail, a square
+        # card for Contacts, "mic" for Calls (voice calls).
         # INTENTIONAL (world-view removal, 2026-11-05): the Globe
         # button is gone, so its "globe" icon leaves this list with
         # it; the icon template itself stays in gui/icons.py as part
@@ -307,11 +317,13 @@ class ShellSidebarMixin:
         # the Phosphor bundle does not cover — B-R1-6).
         self._nav_icon_names = ["spark", "clock", "database",
                                 "pulse", "senses", "check",
+                                "grid", "send", "square", "mic",
                                 "sliders"]
-        self._nav_page_indices = [0, 1, 2, 5, 6, 7, 4]
+        self._nav_page_indices = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4]
         self.nav_buttons: list[QPushButton] = []
         # (label, icon, stack page) in VISUAL order: the primary
-        # three, the Advanced four, then the footer Settings.
+        # three, the Advanced four, the Views four, then the
+        # footer Settings.
         # _nav_page_indices above is aligned to this same order.
         _nav_defs = [("Home", "spark", 0),
                      ("Activity", "clock", 1),
@@ -319,6 +331,10 @@ class ShellSidebarMixin:
                      ("System Pulse", "pulse", 5),
                      ("Senses", "senses", 6),
                      ("Doctor", "check", 7),
+                     ("Calendar", "grid", 8),
+                     ("Inbox", "send", 9),
+                     ("Contacts", "square", 10),
+                     ("Calls", "mic", 11),
                      ("Settings", "sliders", 4)]
         for label, icon, page in _nav_defs:
             btn = QPushButton(label)
@@ -338,11 +354,13 @@ class ShellSidebarMixin:
         # indices, same navigation behaviour. CORE groups Home,
         # MISSION groups Activity, ARCHIVE groups Memory, SYSTEM
         # groups System Pulse / Senses / Doctor
-        # (replacing the "Advanced / Explore" label). There is
-        # deliberately NO CAPABILITIES label: Skills has no
-        # sidebar button (S1 pin: palette only), so a
-        # CAPABILITIES label would group nothing, and adding a
-        # button would break the labels-only scope.
+        # (replacing the "Advanced / Explore" label). Stage 0
+        # features batch 1 adds VIEWS for Calendar / Inbox /
+        # Contacts / Calls (stack 8–11). There is deliberately
+        # NO CAPABILITIES label: Skills has no sidebar button
+        # (S1 pin: palette only), so a CAPABILITIES label would
+        # group nothing, and adding a button would break the
+        # labels-only scope.
         _core_label = QLabel("CORE")
         _core_label.setObjectName("muted")
         layout.addWidget(_core_label)
@@ -363,12 +381,21 @@ class ShellSidebarMixin:
         layout.addWidget(_system_label)
         for btn in self.nav_buttons[3:6]:
             layout.addWidget(btn)
+        layout.addSpacing(12)
+        # Stage 0 features batch 1 (Group D): the VIEWS section
+        # for Calendar / Inbox / Contacts / Calls (stack 8–11).
+        _views_label = QLabel("VIEWS")
+        _views_label.setObjectName("muted")
+        layout.addWidget(_views_label)
+        for btn in self.nav_buttons[6:10]:
+            layout.addWidget(btn)
+        layout.addSpacing(12)
         self.nav_buttons[0].setChecked(True)
         self._refresh_nav_icons(0)
 
         layout.addStretch()
         # Footer: Settings lives here, not in the primary list.
-        layout.addWidget(self.nav_buttons[6])
+        layout.addWidget(self.nav_buttons[10])
 
         wake_label = QLabel("Wake word")
         wake_label.setObjectName("muted")
@@ -392,7 +419,13 @@ class ShellSidebarMixin:
         p_layout.setSpacing(4)
         p_title = QLabel("Private by design")
         p_title.setObjectName("privacyTitle")
-        p_body = QLabel("Memory stays on this device. The mic is off until you talk to VYUK")
+        # L-31 (loophole batch 8): the promise sentence lives in
+        # core/privacy_copy.py (PRIVACY_PROMISE), shared with the
+        # Settings privacy promise so the two cannot drift apart.
+        # "Memory stays on this device" hid that a cloud turn
+        # sends the facts she needs to answer to the cloud brain.
+        from voice_assistant.core.gui_facade import privacy_copy
+        p_body = QLabel(privacy_copy.PRIVACY_PROMISE)
         p_body.setObjectName("privacyBody")
         p_body.setWordWrap(True)
         p_layout.addWidget(p_title)
@@ -404,11 +437,12 @@ class ShellSidebarMixin:
     def _refresh_nav_icons(self, active: int):
         # `active` is a STACK page index. Nav buttons map through
         # _nav_page_indices (S1 order: Home 0, Activity 1, Memory
-        # 2, System Pulse 5, Senses 6, Doctor 7, Settings
-        # 4 — visual order, NOT stack order), so the highlighted
-        # button is the one whose page matches, not the button at
-        # position `active`. Skills (stack 3, no button) still
-        # highlights nothing, as Doctor did before S1.
+        # 2, System Pulse 5, Senses 6, Doctor 7, Calendar 8,
+        # Inbox 9, Contacts 10, Calls 11, Settings 4 — visual
+        # order, NOT stack order), so the highlighted button is
+        # the one whose page matches, not the button at position
+        # `active`. Skills (stack 3, no button) still highlights
+        # nothing, as Doctor did before S1.
         _pages = getattr(self, "_nav_page_indices", None)
         for i, btn in enumerate(self.nav_buttons):
             _page = _pages[i] if _pages and i < len(_pages) else i

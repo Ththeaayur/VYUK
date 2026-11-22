@@ -231,7 +231,8 @@ def verify_install(tree_root: str, manifest_path: str) -> dict:
 
 
 def restore_data(bundle_path: str, target_data_dir: str,
-                 settings_store=None) -> dict:
+                 settings_store=None, passphrase: str | None = None
+                 ) -> dict:
     """Restore a PF-27 backup bundle (see core/backup.py).
 
     The bundle format is defined once in backup and imported
@@ -241,6 +242,12 @@ def restore_data(bundle_path: str, target_data_dir: str,
     ``settings_store`` when one is supplied). Nothing here
     restarts the app: the coordinator applies the report and
     decides what restarts, if anything.
+
+    Loophole batch 3 (#10): ``passphrase`` is the bundle's
+    backup passphrase — without it (or for a legacy plain
+    bundle, or when the integrity check fails) restore refuses
+    and applies nothing.
     """
     return _restore_bundle(bundle_path, target_data_dir,
-                           settings_store=settings_store)
+                           settings_store=settings_store,
+                           passphrase=passphrase)

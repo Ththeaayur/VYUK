@@ -4,9 +4,11 @@ Page builders, card/row helpers, and page-content updaters for the
 first-run dialog. Composed into OnboardingDialog by gui/onboarding.py.
 """
 
+import datetime
 import threading
 
 from PySide6.QtCore import QDir, QEvent, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -14,6 +16,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -34,6 +37,7 @@ from voice_assistant.core.gui_facade import (
     qsettings_get,
 )
 from voice_assistant.core.gui_facade import LANGUAGES, set_preferred_language
+from voice_assistant.core.gui_facade import wizard_strings as _wizard_strings
 from .style import (
     ACCENT,
     AMBER,
@@ -156,13 +160,57 @@ class PagesMixin:
         lbl.setStyleSheet(style)
         return lbl
 
+    @staticmethod
+    def _pill_row(recommended: bool) -> QHBoxLayout:
+        """The RECOMMENDED pill row, present on EVERY card.
+
+        Wizard polish: the pill itself shows only on the
+        recommended card; the other cards carry the same row
+        with a blank pill of the same font and padding, so
+        every card's tagline starts at the same y — a
+        side-by-side comparison with staggered taglines reads
+        as sloppy. The blank pill is transparent text on a
+        transparent fill (never visible, never focusable) and
+        its height is identical to the real pill by
+        construction: same font-size, weight, letter-spacing,
+        padding — and the same 2px border-width (transparent,
+        so nothing draws; see the note below)."""
+        row = QHBoxLayout()
+        pill = QLabel("RECOMMENDED" if recommended else "")
+        if recommended:
+            pill.setStyleSheet(
+                f"background: {PRIMARY_WASH}; color: {TEXT};"
+                f" border-radius: {RADIUS_BTN}px; padding: 2px 8px;"
+                f" font-size: {TYPE_MICRO}px; font-weight: 700;"
+                " letter-spacing: 1px;")
+        else:
+            # QLabel IS a QFrame subclass, so the card's own
+            # `QFrame { border: 2px solid ... }` rule matches this
+            # label too: without an explicit border it inherits
+            # the 2px outline (a visible empty box) — and, worse,
+            # its height then depends on that border. A 2px
+            # TRANSPARENT border keeps the box model identical to
+            # the real pill (same height, taglines aligned) with
+            # nothing drawn. `border: none` was tried first: it
+            # removed the box but shrank the row by 4 px, which
+            # put the taglines 4 px out of line again.
+            pill.setStyleSheet(
+                "background: transparent; color: transparent;"
+                " border: 2px solid transparent;"
+                f" border-radius: {RADIUS_BTN}px; padding: 2px 8px;"
+                f" font-size: {TYPE_MICRO}px; font-weight: 700;"
+                " letter-spacing: 1px;")
+        row.addWidget(pill)
+        row.addStretch()
+        return row
+
     def _choice_card(self, choice: str, title: str, tagline: str,
                      pros: list, cons: list, footnote: str = None,
                      recommended: bool = False) -> _ChoiceCard:
         card = _ChoiceCard()
         lay = QVBoxLayout(card)
-        lay.setContentsMargins(16, 14, 16, 14)
-        lay.setSpacing(6)
+        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setSpacing(3)
         header = QHBoxLayout()
         t = QLabel(title)
         t.setStyleSheet(f"font-size: {TYPE_BODY}px; font-weight: 600;"
@@ -176,17 +224,7 @@ class PagesMixin:
         marker.setVisible(False)
         header.addWidget(marker)
         lay.addLayout(header)
-        if recommended:
-            pill_row = QHBoxLayout()
-            pill = QLabel("RECOMMENDED")
-            pill.setStyleSheet(
-                f"background: {PRIMARY_WASH}; color: {TEXT};"
-                f" border-radius: {RADIUS_BTN}px; padding: 2px 8px;"
-                f" font-size: {TYPE_MICRO}px; font-weight: 700;"
-                " letter-spacing: 1px;")
-            pill_row.addWidget(pill)
-            pill_row.addStretch()
-            lay.addLayout(pill_row)
+        lay.addLayout(self._pill_row(recommended))
         tag = QLabel(tagline)
         tag.setObjectName("muted")
         tag.setWordWrap(True)
@@ -214,7 +252,7 @@ class PagesMixin:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.addWidget(self._title_block(
             "How should she think?",
             "One decision, three honest options. Her hands, eyes, "
@@ -234,16 +272,15 @@ class PagesMixin:
              "best is larger",
              "The first load takes a few minutes"]), stretch=1)
         cards.addWidget(self._choice_card(
-            "cloud", "Cloud key", "Her brain lives at Google.",
+            "cloud", "Cloud", "Her brain lives at Google.",
             ["Google's Gemini Live — her sharpest mind",
              "The most natural, human-grade voice",
              "Starts in seconds — nothing to download",
              "Every tool still runs on your PC",
-             "Free key from Google AI Studio — we'll walk you "
-             "through it"],
+             "Sign in with Google — one tap, no key to copy"],
             ["Needs an internet connection",
              "Your voice is processed by Google (their terms apply)",
-             "Needs the free key pasted in on the next step"],
+             "Needs a Google sign-in on the next step"],
             footnote="Prefer Llama 3.3 70B? Groq is available in "
                      "Settings."), stretch=1)
         cards.addWidget(self._choice_card(
@@ -254,7 +291,7 @@ class PagesMixin:
              "Works offline too, once the one-time download lands",
              "The download starts only after you choose, in the "
              "background"],
-            ["Uses the one-time download and the key",
+            ["Uses the one-time download and a Google sign-in",
              "Needs internet for the sharpest brain"],
             recommended=True), stretch=1)
         layout.addLayout(cards, stretch=1)
@@ -271,8 +308,8 @@ class PagesMixin:
         the two choices never entangle."""
         card = _ChoiceCard()
         lay = QVBoxLayout(card)
-        lay.setContentsMargins(16, 14, 16, 14)
-        lay.setSpacing(6)
+        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setSpacing(3)
         header = QHBoxLayout()
         t = QLabel(title)
         t.setStyleSheet(f"font-size: {TYPE_BODY}px; font-weight: 600;"
@@ -286,17 +323,7 @@ class PagesMixin:
         marker.setVisible(False)
         header.addWidget(marker)
         lay.addLayout(header)
-        if recommended:
-            pill_row = QHBoxLayout()
-            pill = QLabel("RECOMMENDED")
-            pill.setStyleSheet(
-                f"background: {PRIMARY_WASH}; color: {TEXT};"
-                f" border-radius: {RADIUS_BTN}px; padding: 2px 8px;"
-                f" font-size: {TYPE_MICRO}px; font-weight: 700;"
-                " letter-spacing: 1px;")
-            pill_row.addWidget(pill)
-            pill_row.addStretch()
-            lay.addLayout(pill_row)
+        lay.addLayout(self._pill_row(recommended))
         tag = QLabel(tagline)
         tag.setObjectName("muted")
         tag.setWordWrap(True)
@@ -322,7 +349,7 @@ class PagesMixin:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.addWidget(self._title_block(
             "What should she keep at hand?",
             "The tools loaded and ready the moment she connects. "
@@ -362,188 +389,490 @@ class PagesMixin:
         self._select_profile(self.profile_choice)
         return page
 
-    def _clear_key_no_key_warning(self, _text: str = "") -> None:
-        """Any edit to the key field re-arms the empty-key
-        warning (round-2 N4 FAIL 2): a warned-then-edited field
-        must warn again on Continue, never ride the old warning
-        through to an advance."""
-        self._key_no_key_warned = False
+    def _theme_card(self, name: str, theme: dict) -> _ChoiceCard:
+        """One theme swatch card — a _ChoiceCard (the same
+        selectable frame the brain/profile pages use) with the
+        theme's two accents as a swatch bar. The swatch is
+        painted through QPalette, not a stylesheet, and the
+        title/marker are bold through their font — so the
+        stylesheet ceiling does not move."""
+        card = _ChoiceCard()
+        card.theme_name = name
+        # A real Qt property too (not just the Python attribute):
+        # suites and the repro read it with .property("theme_name").
+        card.setProperty("theme_name", name)
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(6)
+        header = QHBoxLayout()
+        t = QLabel(name)
+        _t_font = t.font()
+        _t_font.setBold(True)
+        t.setFont(_t_font)
+        header.addWidget(t)
+        header.addStretch()
+        marker = QLabel("✓ Selected")
+        _m_font = marker.font()
+        _m_font.setBold(True)
+        marker.setFont(_m_font)
+        marker.setVisible(False)
+        header.addWidget(marker)
+        lay.addLayout(header)
+        swatch_row = QHBoxLayout()
+        swatch_row.setSpacing(4)
+        for key in ("accent", "accent_2"):
+            # QWidget, not QFrame: the card's own stylesheet is
+            # a `QFrame { background: ... }` rule, which cascades
+            # onto QFrame children and paints over their palette
+            # — the bars rendered as the card's dark glass. A
+            # plain QWidget matches no background rule (the house
+            # QWidget rule sets font/colour only), so the palette
+            # fill below is what paints.
+            swatch = QWidget()
+            swatch.setFixedHeight(12)
+            pal = QPalette()
+            pal.setColor(QPalette.ColorRole.Window,
+                         QColor(str(theme.get(key) or TEXT_MUTED)))
+            swatch.setAutoFillBackground(True)
+            swatch.setPalette(pal)
+            swatch_row.addWidget(swatch, stretch=1)
+        lay.addLayout(swatch_row)
+        card.clicked.connect(
+            lambda _n=name: self._select_theme(_n))
+        self._theme_markers[name] = marker
+        return card
 
-    def _save_key(self):
-        key = self.ob_api_key.text().strip()
-        if not key:
-            # An empty key is fine, not an error — but say what it
-            # means for the brain the user just chose.
-            if self.brain_choice in ("cloud", "both"):
-                self.ob_key_status.setText(
-                    "No key added — she needs one for the cloud brain. "
-                    "You can paste it any time in Settings.")
-            else:
-                self.ob_key_status.setText(
-                    "No key added — VYUK will think on this PC. You can add one later in Settings.")
-            self.ob_key_status.setStyleSheet(f"color: {OK};")
-            return
-        if len(key) < 10:
-            self.ob_key_status.setText("That doesn't look like a full key yet — paste the whole thing.")
-            self.ob_key_status.setStyleSheet(f"color: {DANGER};")
-            return
-        config.save_api_key(key)
-        if self.brain_choice == "cloud":
-            self.ob_key_status.setText(
-                "Saved — this key becomes her cloud brain when you "
-                "finish setup.")
-        elif self.brain_choice == "both":
-            self.ob_key_status.setText(
-                "Saved — she'll think in the cloud first, with the "
-                "on-PC brain as backup.")
-        else:
-            engine = str(getattr(config, "brain_engine", "local")
-                         or "local").strip().lower()
-            if engine == "local":
-                # Brain audit round 2, defect 7: this page saves the key
-                # while the engine stays on the on-PC brain by design —
-                # say both halves, or "Saved" reads as "the key worked"
-                # when Connect will never use it on this engine.
-                self.ob_key_status.setText(
-                    "Saved. VYUK is set to think on this PC, so Connect "
-                    "will use the built-in brain — this cloud key applies "
-                    "when she's set to Cloud in Settings, under "
-                    "“How VYUK thinks”.")
-            else:
-                self.ob_key_status.setText("Saved — you're ready to connect.")
-        self.ob_key_status.setStyleSheet(f"color: {OK};")
+    def _page_theme(self) -> QWidget:
+        """Round-3 wizard expansion: pick a colour — the 11
+        built-in themes (gui/style.py THEMES), as swatch cards
+        in a grid. The pick stages until Finish (like the
+        profile pick) and then sets the same "theme" QSettings
+        key Settings writes (see _persist_theme_choice); the
+        main window re-applies it after the dialog closes. Skip
+        records nothing — Cyan, the shipped default, stands."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self._title_block(
+            "Pick a colour",
+            "Her accent, the orb's glow, the highlights — one "
+            "colour for the whole app. You can change it any "
+            "time in Settings → Appearance."))
+        try:
+            from .style import THEMES as _THEMES
+        except Exception:  # noqa: BLE001 — no themes, no picker
+            _THEMES = {}
+        self.ob_theme_buttons: list[_ChoiceCard] = []
+        grid = QGridLayout()
+        grid.setSpacing(12)
+        for idx, (name, theme) in enumerate(_THEMES.items()):
+            card = self._theme_card(name, theme)
+            self.theme_cards[name] = card
+            self.ob_theme_buttons.append(card)
+            grid.addWidget(card, idx // 3, idx % 3)
+        layout.addLayout(grid, stretch=1)
+        layout.addStretch()
+        self._select_theme(getattr(self, "theme_choice", "Cyan"))
+        return page
 
-    def _test_ob_key(self):
-        """Test the pasted key on this screen (Settings redesign
-        §4a): the same two-door cloud diagnostic the Settings
-        card runs, on a worker thread, with the plain-words
-        verdict from gui/connect_dialog.key_test_verdict."""
-        if getattr(self, "_ob_key_testing", False):
+    def _refresh_signin_page(self):
+        """Syncs the sign-in page with the stored sign-in: the
+        status line, and which buttons are live. Read-only —
+        showing the page never signs anyone in or out."""
+        try:
+            from voice_assistant.core.gui_facade import gemini_oauth as _oauth
+
+            signed_in = _oauth.is_signed_in()
+            email = _oauth.signed_in_email() if signed_in else None
+        except Exception:  # noqa: BLE001 — no sign-in readable = signed out
+            signed_in, email = False, None
+        status = getattr(self, "ob_signin_status", None)
+        if status is not None:
+            if signed_in:
+                status.setText(
+                    f"Signed in as {email}." if email else
+                    "Signed in with Google.")
+                status.setStyleSheet(f"color: {OK};")
+            else:
+                status.setText("Not signed in yet.")
+                status.setStyleSheet(f"color: {TEXT_MUTED};")
+        signout = getattr(self, "ob_btn_signout", None)
+        if signout is not None:
+            signout.setVisible(signed_in)
+        test = getattr(self, "ob_btn_test_signin", None)
+        if test is not None:
+            test.setVisible(signed_in)
+
+    def _signin_google(self):
+        """\"Continue with Google\" (round-3 OAuth build): runs the
+        installed-app OAuth flow on a worker thread (it opens the
+        browser and waits for consent), then validates the sign-in
+        with one models.get, and reports back on signin_completed
+        so the status lands on the GUI thread. A second click
+        while a flow runs is a no-op."""
+        if getattr(self, "_ob_signin_running", False):
             return
-        key = self.ob_api_key.text().strip()
-        if not key:
-            self.ob_key_test_label.setText(
-                "Paste a key first — there's nothing to test yet.")
-            return
-        self._ob_key_testing = True
-        self.ob_btn_test_key.setEnabled(False)
-        self.ob_btn_test_key.setText("Testing…")
-        self.ob_key_test_label.setText("Testing the key with Google…")
+        self._ob_signin_running = True
+        btn = getattr(self, "ob_btn_signin", None)
+        if btn is not None:
+            btn.setEnabled(False)
+            btn.setText("Waiting for Google…")
+        label = getattr(self, "ob_signin_status", None)
+        if label is not None:
+            label.setText(
+                "Your browser should have opened Google's sign-in — "
+                "approve it there, then come back here.")
+            label.setStyleSheet(f"color: {TEXT_MUTED};")
 
         def run():
             try:
-                from .connect_dialog import diagnose_key as _diag
+                from voice_assistant.core.gui_facade import (
+                    gemini_oauth as _oauth)
 
-                kind, message = _diag(key, "gemini")
+                message = _oauth.connect()
+                if not _oauth.is_signed_in():
+                    self.signin_completed.emit("auth", message)
+                    return
+                ok, kind, detail = _oauth.validate_token()
+                self.signin_completed.emit(
+                    "ok" if ok else kind,
+                    message if ok else detail)
             except Exception as exc:  # noqa: BLE001
-                kind, message = "unknown", str(exc)
-            self.key_test_completed.emit(str(kind), str(message))
+                self.signin_completed.emit("unknown", str(exc))
 
         threading.Thread(target=run, daemon=True).start()
 
-    def _on_ob_key_test_completed(self, kind: str, message: str):
-        self._ob_key_testing = False
-        btn = getattr(self, "ob_btn_test_key", None)
+    def _on_signin_completed(self, kind: str, message: str):
+        self._ob_signin_running = False
+        btn = getattr(self, "ob_btn_signin", None)
         if btn is not None:
             btn.setEnabled(True)
-            btn.setText("Test key")
-        label = getattr(self, "ob_key_test_label", None)
+            btn.setText("Continue with Google")
+        self._refresh_signin_page()
+        if kind != "ok":
+            # The refresh above shows the signed-in line when a
+            # token exists; a failed validation still says so,
+            # in full, on the status line.
+            label = getattr(self, "ob_signin_status", None)
+            if label is not None:
+                label.setText(message)
+                label.setStyleSheet(f"color: {DANGER};")
+
+    def _test_signin(self):
+        """Re-checks the stored sign-in (one models.get, the same
+        verdict the Settings card runs) on a worker thread;
+        reports on signin_test_completed."""
+        if getattr(self, "_ob_signin_testing", False):
+            return
+        self._ob_signin_testing = True
+        btn = getattr(self, "ob_btn_test_signin", None)
+        if btn is not None:
+            btn.setEnabled(False)
+            btn.setText("Testing…")
+        label = getattr(self, "ob_signin_test_label", None)
         if label is not None:
+            label.setText("Testing the sign-in with Google…")
+
+        def run():
             try:
-                from .connect_dialog import key_test_verdict as _verdict
+                from voice_assistant.core.gui_facade import (
+                    gemini_oauth as _oauth)
 
-                label.setText(_verdict(kind, message))
-            except Exception:  # noqa: BLE001 — never blank on a verdict
-                label.setText("Couldn't verify the key.")
+                _ok, kind, message = _oauth.validate_token()
+            except Exception as exc:  # noqa: BLE001
+                kind, message = "unknown", str(exc)
+            self.signin_test_completed.emit(str(kind), str(message))
 
-    def _page_api_key(self) -> QWidget:
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_signin_test_completed(self, kind: str, message: str):
+        self._ob_signin_testing = False
+        btn = getattr(self, "ob_btn_test_signin", None)
+        if btn is not None:
+            btn.setEnabled(True)
+            btn.setText("Test sign-in")
+        label = getattr(self, "ob_signin_test_label", None)
+        if label is not None:
+            label.setText(message)
+            label.setStyleSheet(
+                f"color: {OK if kind == 'ok' else DANGER};")
+
+    def _signout_google(self):
+        """Signs out of Google (revokes + deletes the local token)
+        and refreshes the page. Sync — disconnect() is local work
+        plus one best-effort revoke with a 3 s timeout."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                gemini_oauth as _oauth)
+
+            message = _oauth.disconnect()
+        except Exception as exc:  # noqa: BLE001
+            message = f"Couldn't sign out ({exc})."
+        self._refresh_signin_page()
+        label = getattr(self, "ob_signin_status", None)
+        if label is not None:
+            label.setText(message)
+            label.setStyleSheet(f"color: {TEXT_MUTED};")
+
+    def _page_signin(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        # v5.23: this page is reached only when the pending choice
-        # is cloud or both (see _page_applies), so the key is no
-        # longer an abstract "optional upgrade" — it's the brain
-        # the user just picked. Round-2 N4 FAIL 2: Continue no
-        # longer sails through with an empty field — it saves a
-        # pasted key, warns once on an empty field with no stored
-        # key, and advances only on the second, deliberate press
-        # (see FlowMixin._advance_from_key_page). Skip setup
-        # remains in the nav.
+        # Round-3 OAuth build: the key page is gone — the wizard
+        # offers one "Continue with Google" button running the
+        # standard installed-app OAuth flow. No key to copy, no
+        # paste step; quota stays on the user's own Google
+        # account, the same free tier as a key. The wizard wall
+        # stays: this page is reached only when the pending choice
+        # is cloud or both (see _page_applies), and Continue
+        # without a sign-in warns once and stays (see
+        # FlowMixin._advance_from_signin_page).
         layout.addWidget(self._title_block(
-            "Your Gemini key",
-            "It's free and takes about two minutes: open Google AI "
-            "Studio, choose “Create API key”, and paste it here."))
-        self.ob_api_key = QLineEdit(config.api_key)
-        self.ob_api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ob_api_key.setAccessibleName("Gemini API key")
-        self.ob_api_key.setPlaceholderText("Paste your Google key…")
-        layout.addWidget(self.ob_api_key)
-        # Round-2 N4 FAIL 2: any edit re-arms the empty-key
-        # warning — a warned-then-edited field must warn again,
-        # never ride the old warning through.
-        self.ob_api_key.textChanged.connect(
-            self._clear_key_no_key_warning)
-        key_hint = QLabel("From Google AI Studio — stored only on this device, never anywhere else.")
-        key_hint.setObjectName("muted")
-        key_hint.setWordWrap(True)
-        layout.addWidget(key_hint)
-        # Settings redesign §4a: the link opens the exact Google
-        # page — no hunting for where a key comes from.
-        key_link = QLabel(
-            '<a href="https://aistudio.google.com/apikey">'
-            "Get a free key from Google AI Studio</a>")
-        key_link.setOpenExternalLinks(True)
-        key_link.setWordWrap(True)
-        key_link.setAccessibleName("Get a free key from Google AI Studio")
-        layout.addWidget(key_link)
-        # v5.54 (Wave 0): free-tier steering, in plain words and
-        # with no dark pattern — a free key is never blocked or
-        # nagged about again after this page; the note exists
-        # because Google's terms for unpaid use (product
-        # improvement, possible human review) are a fact a
-        # person should hear BEFORE they paste, not after.
+            "Sign in with Google",
+            "One tap, no key to copy: VYUK thinks with your Google "
+            "account, on the same free tier as a key. Your sign-in "
+            "is stored only on this device, never anywhere else."))
+        self.ob_signin_status = QLabel("")
+        self.ob_signin_status.setObjectName("muted")
+        # The status line carries long single lines (the no-sign-in
+        # warning is ~200 chars); without wrapping its sizeHint
+        # blows out the shared QStackedWidget's minimum width and
+        # every later wizard page renders cut off at the right
+        # edge — the E-F303 lesson, kept for this label.
+        self.ob_signin_status.setWordWrap(True)
+        layout.addWidget(self.ob_signin_status)
+        self.ob_btn_signin = QPushButton("Continue with Google")
+        self.ob_btn_signin.setObjectName("primaryBtn")
+        self.ob_btn_signin.setMinimumHeight(34)  # v5.54 (DPI rule)
+        self.ob_btn_signin.setAccessibleName("Continue with Google")
+        self.ob_btn_signin.clicked.connect(self._signin_google)
+        layout.addWidget(self.ob_btn_signin)
+        # The sign-in is checked here, on this screen, before
+        # Continue is trusted — a broken sign-in must say so now,
+        # not on the first Connect.
+        self.ob_btn_test_signin = QPushButton("Test sign-in")
+        self.ob_btn_test_signin.setAccessibleName("Onboarding test sign-in")
+        self.ob_btn_test_signin.setMinimumHeight(34)
+        self.ob_btn_test_signin.clicked.connect(self._test_signin)
+        layout.addWidget(self.ob_btn_test_signin)
+        self.ob_signin_test_label = QLabel("")
+        self.ob_signin_test_label.setObjectName("muted")
+        self.ob_signin_test_label.setWordWrap(True)
+        self.ob_signin_test_label.setAccessibleName("Onboarding sign-in test result")
+        layout.addWidget(self.ob_signin_test_label)
+        self.ob_btn_signout = QPushButton("Sign out")
+        self.ob_btn_signout.setMinimumHeight(34)
+        self.ob_btn_signout.clicked.connect(self._signout_google)
+        layout.addWidget(self.ob_btn_signout)
+        # Round-3 wizard expansion: the middle of this page was
+        # dead space at 1280/1920 — three honest lines on what the
+        # sign-in unlocks, through the existing _choice_row helper
+        # (no new stylesheet literals — the ceiling holds).
+        # No filler, no fake content: each line is a real
+        # consequence of the Gemini sign-in. The heading is bold
+        # through its font, not a stylesheet.
+        unlocks_head = QLabel("What this unlocks")
+        _head_font = unlocks_head.font()
+        _head_font.setBold(True)
+        unlocks_head.setFont(_head_font)
+        layout.addWidget(unlocks_head)
+        layout.addWidget(self._choice_row(
+            "✓", OK,
+            "The cloud brain answers with Gemini — longer, sharper "
+            "replies than the on-device brain."))
+        layout.addWidget(self._choice_row(
+            "✓", OK,
+            "Her voice switches to Gemini's voices for the cloud "
+            "brain, in your home language."))
+        layout.addWidget(self._choice_row(
+            "✓", OK,
+            "Sign-in stays on this device only — sign out any time "
+            "from this page or Settings."))
+        # One honest note about the free tier (the old key page's
+        # free-key note, kept): Google may use conversations on a
+        # free account to improve its products, and its reviewers
+        # may read some of them.
         tier_hint = QLabel(
-            "One honest note about free keys: Google may use "
-            "conversations on a free key to improve its products, "
-            "and its reviewers may read some of them. A paid-tier "
-            "key (billing turned on for the key's project in AI "
-            "Studio) is never used that way. Either key works "
-            "here — the paid one is the private choice.")
+            "One honest note about the free tier: Google may use "
+            "conversations on a free account to improve its "
+            "products, and its reviewers may read some of them. A "
+            "Google account with billing turned on is never used "
+            "that way.")
         tier_hint.setObjectName("muted")
         tier_hint.setWordWrap(True)
         layout.addWidget(tier_hint)
-        self.ob_key_status = QLabel("")
-        self.ob_key_status.setObjectName("muted")
-        # E-F303: the warning this label carries is a long single
-        # line (~200 chars); without wrapping its sizeHint blows
-        # out the shared QStackedWidget's minimum width and every
-        # later wizard page renders cut off at the right edge. The
-        # neighbouring labels on this page all wrap — this one does
-        # too.
-        self.ob_key_status.setWordWrap(True)
-        layout.addWidget(self.ob_key_status)
-        self.ob_btn_save_key = QPushButton("Save key")
-        self.ob_btn_save_key.setObjectName("primaryBtn")
-        self.ob_btn_save_key.setMinimumHeight(34)  # v5.54 (DPI rule)
-        self.ob_btn_save_key.clicked.connect(self._save_key)
-        layout.addWidget(self.ob_btn_save_key)
-        # Settings redesign §4a: the key is tested here, on this
-        # screen, before Save is trusted — a bad key must say so
-        # now, not on the first Connect.
-        self.ob_btn_test_key = QPushButton("Test key")
-        self.ob_btn_test_key.setAccessibleName("Onboarding test key")
-        self.ob_btn_test_key.setMinimumHeight(34)
-        self.ob_btn_test_key.clicked.connect(self._test_ob_key)
-        layout.addWidget(self.ob_btn_test_key)
-        self.ob_key_test_label = QLabel("")
-        self.ob_key_test_label.setObjectName("muted")
-        self.ob_key_test_label.setWordWrap(True)
-        self.ob_key_test_label.setAccessibleName("Onboarding key test result")
-        layout.addWidget(self.ob_key_test_label)
         layout.addStretch()
+        self._refresh_signin_page()
         return page
+
+    def _page_google_services(self) -> QWidget:
+        """Round-3 wizard expansion: Gmail + Calendar, offered
+        in the wizard for the first time — through the EXISTING
+        google_services_token machinery (core/google_services.py
+        connect(), separate token data/google_token.json), the
+        same flow Settings → Your world uses. No new OAuth stack,
+        and the Gemini sign-in flow is untouched (its token is a
+        different file, its scopes a different set). A skip is a
+        clean skip: nothing is recorded, and the briefing card
+        stays honest about the missing connection. When no client
+        codes are configured, connect() returns _NO_CODES at once
+        — no browser opens — and the page says so honestly with a
+        Settings pointer (see _on_google_services_completed)."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        # L-32 (loophole batch 8): the subtitle lives in
+        # core/privacy_copy.py (GOOGLE_SERVICES_SUBTITLE). "Only
+        # ever on your say-so" hid who can say so; the shared
+        # approval route says it plainly.
+        from voice_assistant.core.gui_facade import privacy_copy
+        layout.addWidget(self._title_block(
+            "Your calendar and mail",
+            privacy_copy.GOOGLE_SERVICES_SUBTITLE))
+        self._google_status = QLabel("")
+        self._google_status.setObjectName("muted")
+        self._google_status.setWordWrap(True)
+        layout.addWidget(self._google_status)
+        page._google_status = self._google_status
+        self._google_connect_btn = QPushButton(
+            "Connect Gmail and Calendar")
+        self._google_connect_btn.setObjectName("primaryBtn")
+        self._google_connect_btn.setMinimumHeight(34)
+        self._google_connect_btn.setAccessibleName(
+            "Connect Gmail and Calendar")
+        self._google_connect_btn.clicked.connect(
+            self._connect_google_services)
+        layout.addWidget(self._google_connect_btn)
+        page._google_connect_btn = self._google_connect_btn
+        self._google_skip_btn = QPushButton("Not now")
+        self._google_skip_btn.setObjectName("chipBtn")
+        self._google_skip_btn.setAccessibleName(
+            "Skip Gmail and Calendar")
+        self._google_skip_btn.clicked.connect(
+            lambda _checked=False: self._on_google_services_skipped())
+        layout.addWidget(self._google_skip_btn)
+        page._google_skip_btn = self._google_skip_btn
+        note = QLabel(
+            "Skipping is fine — your briefing simply says what's "
+            "missing instead of sitting empty, and you can connect "
+            "any time in Settings → Your world.")
+        note.setObjectName("muted")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        layout.addStretch()
+        self._refresh_google_page()
+        return page
+
+    def _refresh_google_page(self):
+        """Syncs the Google-services page with the stored
+        connection: the status line, and whether Connect is
+        live. Read-only — showing the page never connects
+        anyone."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                google_services as _gs)
+
+            connected = bool(_gs.is_connected())
+        except Exception:  # noqa: BLE001 — no state = not connected
+            connected = False
+        status = getattr(self, "_google_status", None)
+        if status is not None:
+            # The label stays muted-styled; the text carries the
+            # state (no new stylesheet literal — the ceiling
+            # holds). The connected line names what is on.
+            status.setText(
+                "Connected — Gmail and Calendar are on."
+                if connected else "Not connected yet.")
+        btn = getattr(self, "_google_connect_btn", None)
+        if btn is not None:
+            btn.setVisible(not connected)
+
+    def _connect_google_services(self):
+        """Connect Gmail + Calendar on a worker thread (the flow
+        opens the browser and waits for consent), reporting back
+        on google_services_completed so the verdict lands on the
+        GUI thread. A second click while a flow runs is a no-op.
+        When no client codes are configured, connect() returns
+        _NO_CODES at once — no browser opens (see the OAuth
+        spike's no-codes leg)."""
+        if getattr(self, "_ob_google_running", False):
+            return
+        self._ob_google_running = True
+        btn = getattr(self, "_google_connect_btn", None)
+        if btn is not None:
+            btn.setEnabled(False)
+            btn.setText("Waiting for Google…")
+        label = getattr(self, "_google_status", None)
+        if label is not None:
+            label.setText(
+                "Your browser should have opened Google's sign-in — "
+                "approve it there, then come back here.")
+
+        def run():
+            try:
+                from voice_assistant.core.gui_facade import (
+                    google_services as _gs)
+
+                result = _gs.connect()
+            except Exception as exc:  # noqa: BLE001
+                result = f"Couldn't connect: {exc}"
+            self.google_services_completed.emit(str(result))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_google_services_completed(self, message: str):
+        self._ob_google_running = False
+        btn = getattr(self, "_google_connect_btn", None)
+        if btn is not None:
+            btn.setEnabled(True)
+            btn.setText("Connect Gmail and Calendar")
+        self._refresh_google_page()
+        label = getattr(self, "_google_status", None)
+        if label is None:
+            return
+        try:
+            from voice_assistant.core.gui_facade import (
+                google_services as _gs)
+
+            no_codes = str(getattr(_gs, "_NO_CODES", "") or "")
+        except Exception:  # noqa: BLE001 — the message stands as-is
+            no_codes = ""
+        if message == no_codes and no_codes:
+            # No client codes configured: connect() returned at
+            # once with no browser opened. Say so honestly, with
+            # the Settings pointer — never a silent nothing.
+            label.setText(
+                message + " Nothing was opened; nothing was recorded.")
+        elif not str(message or "").strip():
+            label.setText("Couldn't connect — try again, or skip for now.")
+        else:
+            label.setText(str(message))
+
+    def _on_google_services_skipped(self):
+        """A clean skip: nothing is recorded, the status says so,
+        and Continue moves on — the briefing card stays honest
+        about the missing connection.
+        Loophole batch 7 (#18): skipping IS the explicit decline
+        of the Gmail + Calendar pieces — recorded durably, so the
+        Home card stops naming them (it only ever returns for
+        the pieces still open). The skip itself stays clean: no
+        token is stored, no grant is written."""
+        label = getattr(self, "_google_status", None)
+        if label is not None:
+            label.setText(
+                "Skipped — no Gmail or Calendar. Your briefing will "
+                "say what's missing instead of sitting empty.")
+        try:
+            from voice_assistant.core.gui_facade import (
+                setup_pieces as _sp)
+
+            _sp.record_declines({"gmail", "calendar"})
+        except Exception:  # noqa: BLE001 — the skip stands
+            pass
 
     def _page_mic(self) -> QWidget:
         # First-run onboarding (2026-11-16, D8): the mic ask moved
@@ -935,8 +1264,19 @@ class PagesMixin:
             if rb.isChecked():
                 picked = rb.text()
                 break
-        sentence = ("Hello, I'm VYUK — your voice assistant. I can "
-                    "help with your day, your files, and your computer.")
+        sentence = None
+        try:
+            from voice_assistant.core.gui_facade import (
+                wizard_strings as _ws)
+
+            sentence = _ws.sample_sentence(
+                str(getattr(config, "preferred_language", "en-gb")
+                    or "en-gb"))
+        except Exception:  # noqa: BLE001 — English stands
+            sentence = None
+        if not sentence:
+            sentence = ("Hello, I'm VYUK — your voice assistant. I can "
+                        "help with your day, your files, and your computer.")
         try:
             from voice_assistant.core.gui_facade import speak_text as _speak
 
@@ -969,10 +1309,21 @@ class PagesMixin:
     def _page_language(self) -> QWidget:
         # v5.41: the home-language step. The pick becomes her
         # home — its curated Kokoro voice (core/languages) becomes
-        # hers and she answers in that language by default. It is
-        # applied only at Finish (see _next), exactly like the
-        # brain choice: Skip records nothing, and installs that
-        # already onboarded never see this page again.
+        # hers and she answers in that language by default.
+        # Round-3 wizard expansion: this is the FIRST page of the
+        # main flow, not a detour page — and the pick applies to
+        # the session at once (apply_language_session sets the
+        # in-process language + voice and re-labels the wizard
+        # chrome, so the nav buttons and stage names follow it).
+        # The durable write still happens only at Finish (see _next),
+        # exactly like the brain choice: Skip records nothing,
+        # and installs that already onboarded never see it again.
+        # Loophole batch 7 (#17): the chrome is ALL that follows
+        # the pick — page titles and bodies stay English. The old
+        # comment here said "the rest of the wizard follows it";
+        # it does not, and the page now says so plainly (the
+        # scope note below), instead of letting the pick imply a
+        # fully translated wizard.
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -986,6 +1337,20 @@ class PagesMixin:
         current = str(getattr(config, "preferred_language", "en-gb")
                       or "en-gb")
         self.ob_language_buttons: list[QRadioButton] = []
+
+        def _pick_language(code: str) -> None:
+            try:
+                from voice_assistant.core.gui_facade import (
+                    apply_language_session)
+
+                apply_language_session(code)
+            except Exception:  # noqa: BLE001 — the pick stands
+                pass
+            try:
+                self._apply_wizard_language()
+            except Exception:  # noqa: BLE001 — chrome is a nicety
+                pass
+
         for entry in LANGUAGES:
             rb = QRadioButton(entry.label)
             rb.setStyleSheet(
@@ -994,8 +1359,68 @@ class PagesMixin:
                 f" border-radius: {RADIUS_BTN}px; }}")
             rb.setChecked(entry.code == current)
             rb.setProperty("language_code", entry.code)
+            rb.toggled.connect(
+                lambda _checked, _code=entry.code: (
+                    _pick_language(_code) if _checked else None))
             self.ob_language_buttons.append(rb)
             layout.addWidget(rb)
+        # Loophole batch 7 (#17): the scope note — what the pick
+        # does and does not translate, stated on the page itself.
+        # The sentence is the wizard_strings constant, never a
+        # retyped copy, so the suite pins the exact words the
+        # user reads.
+        self.ob_language_scope_note = QLabel(
+            _wizard_strings.LANGUAGE_PAGE_SCOPE_NOTE)
+        self.ob_language_scope_note.setObjectName("muted")
+        self.ob_language_scope_note.setWordWrap(True)
+        self.ob_language_scope_note.setAccessibleName(
+            "Language scope note")
+        layout.addWidget(self.ob_language_scope_note)
+        layout.addStretch()
+        return page
+
+    def _page_name(self) -> QWidget:
+        """Round-3 wizard expansion: the name ask — no name ask
+        existed anywhere in the wizard (the detour "profile"
+        page is a tool-profile picker, not a name ask). The name
+        stages in _pending_name until Finish (like the brain
+        pick) and then persists as USER_NAME in .env (see
+        _persist_name_choice); the Home greeting and the
+        briefing header read config.user_name. Leaving it blank
+        records nothing — she greets you without a name, and
+        you can add it any time in Settings."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        # L-31 (loophole batch 8): the subtitle lives in
+        # core/privacy_copy.py (NAME_PAGE_SUBTITLE). "She never
+        # shares it anywhere" was false: the name rides the
+        # memory block and the briefing tool result in a cloud turn.
+        from voice_assistant.core.gui_facade import privacy_copy
+        layout.addWidget(self._title_block(
+            "What should she call you?",
+            privacy_copy.NAME_PAGE_SUBTITLE))
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("Your first name")
+        self._name_edit.setAccessibleName("Your name")
+        try:
+            stored = str(getattr(config, "user_name", "") or "").strip()
+        except Exception:  # noqa: BLE001 — a blank field stands
+            stored = ""
+        if stored:
+            self._name_edit.setText(stored)
+            self._pending_name = stored
+        self._name_edit.textChanged.connect(
+            lambda text: setattr(
+                self, "_pending_name", str(text or "").strip()))
+        layout.addWidget(self._name_edit)
+        note = QLabel(
+            "Leave it blank and she'll greet you without a name — "
+            "you can add it any time in Settings.")
+        note.setObjectName("muted")
+        note.setWordWrap(True)
+        layout.addWidget(note)
         layout.addStretch()
         return page
 
@@ -1016,12 +1441,25 @@ class PagesMixin:
         page.widget = widget
         page.ask_result = "unanswered"
         # Build 5 (§9.1 step 0): "Not now" records the skip and
-        # nothing else — the browser stays unknown, so a later
-        # browser use still asks again. The widget already shows
-        # the confirm line and hides its buttons; Continue moves
-        # on from here, as after the other asks' Skip.
-        widget.not_now_requested.connect(
-            lambda: setattr(page, "ask_result", "skipped"))
+        # nothing else about the connection — the browser stays
+        # unknown, so a later browser use still asks again. The
+        # widget already shows the confirm line and hides its
+        # buttons; Continue moves on from here, as after the
+        # other asks' Skip. Loophole batch 7 (#18): the skip IS
+        # the explicit decline of the browser piece for the Home
+        # card (recorded durably); it changes nothing about the
+        # connection itself.
+        def _on_browser_not_now():
+            page.ask_result = "skipped"
+            try:
+                from voice_assistant.core.gui_facade import (
+                    setup_pieces as _sp)
+
+                _sp.record_declines({"browser"})
+            except Exception:  # noqa: BLE001 — the skip stands
+                pass
+
+        widget.not_now_requested.connect(_on_browser_not_now)
         # Rethink Build 6: a connected browser in this walk is a
         # walk grant — the permissions page's browser row offers
         # Take back for it.
@@ -1030,12 +1468,14 @@ class PagesMixin:
 
     # Rethink Build 6 (§6.9): the ask pages whose grants this
     # walk can take back, and the wizard page each one asks on.
+    # Round-3 wizard expansion: home_devices joins them.
     _ASK_PAGE_ATTRS = {
         "microphone": "_mic_page",
         "browser": "_browser_page",
         "camera": "_camera_page",
         "screen": "_screen_page",
         "files": "_files_page",
+        "home_devices": "_home_devices_page",
     }
 
     def _record_walk_grant(self, pid: str, kind: str) -> None:
@@ -1072,6 +1512,14 @@ class PagesMixin:
 
     def _page_files(self) -> QWidget:
         return self._page_ask("files")
+
+    def _page_home_devices(self) -> QWidget:
+        """Round-3 wizard expansion: the home-devices ask — the
+        sixth permission id, asked up front like the other five.
+        The copy (core/first_run_asks.py) is honest about the
+        D10 honest-empty: no home-device tools exist yet, so
+        saying yes changes nothing today."""
+        return self._page_ask("home_devices")
 
     def _page_ask(self, permission_id: str) -> QWidget:
         """One first-run ask page (camera / screen / files).
@@ -1168,6 +1616,13 @@ class PagesMixin:
                         "Permissions.")
             return ("Keeping what she sees is switched off. You can "
                     "switch it on any time in Settings → Permissions.")
+        if permission_id == "home_devices":
+            if state == "granted":
+                return ("Done — your home devices are already "
+                        "connected. You can switch them off any time "
+                        "in Settings → Permissions.")
+            return ("Home devices are switched off. You can switch "
+                    "them on any time in Settings → Permissions.")
         if state == "granted":
             return ("Done — VYUK can already use your files. You can "
                     "add more folders later in Settings → Permissions.")
@@ -1297,9 +1752,14 @@ class PagesMixin:
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
-        title = QLabel("Permissions — your call")
-        title.setObjectName("pageTitle")
-        layout.addWidget(title)
+        # Wizard polish: the page used to jump straight from its
+        # title into the rows. The one-line body names what the
+        # list is — the same title block every other wizard page
+        # uses, so the page no longer reads as the odd one out.
+        layout.addWidget(self._title_block(
+            "Permissions — your call",
+            "One row per permission — what's on, what's off, and "
+            "what you've never decided."))
         self._perm_rows: dict[str, dict] = {}
         try:
             from .pf_permissions import permissions_model
@@ -1346,6 +1806,13 @@ class PagesMixin:
         row_layout.addWidget(state)
         action = QPushButton("Details")
         action.setObjectName("chipBtn")
+        # Wizard polish: every row action the same width
+        # ("Details" / "Ask me" / "Turn on" / "Take back" size
+        # differently by text, which left the state column's
+        # right edge ragged). 96 covers the widest label,
+        # "Take back" (90 on the lab metrics), so the column
+        # lines up on every row.
+        action.setMinimumWidth(96)
         action.clicked.connect(
             lambda _checked=False, p=pid: self._on_perm_row_action(p))
         row_layout.addWidget(action)
@@ -1434,6 +1901,9 @@ class PagesMixin:
         row_layout.addWidget(self._sounds_state)
         self._sounds_action = QPushButton("Turn on")
         self._sounds_action.setObjectName("chipBtn")
+        # Wizard polish: the same fixed width as the permission
+        # rows' actions, so the Sounds row lines up with them.
+        self._sounds_action.setMinimumWidth(96)
         self._sounds_action.clicked.connect(self._on_sounds_toggle)
         row_layout.addWidget(self._sounds_action)
         layout.addWidget(row)
@@ -1675,7 +2145,133 @@ class PagesMixin:
                 "Self-test",
                 "Real checks, run now. A FAULT line names what failed "
                 "— the full Doctor with fixes lives in Diagnostics."),
-            run_first_run_self_tests)
+            run_first_run_self_tests,
+            on_done=self._on_selftest_done)
+
+    def _on_selftest_done(self, results) -> None:
+        """Round-3 wizard expansion (parent ruling): a self-test
+        failure is pinned to Home as a fix-it card until it
+        passes. The failing check names go to QSettings
+        ``firstrun/selftest_faults`` (documented in QSETTINGS_FIELDS,
+        like ``firstrun/stage/*``); an all-pass run clears it. The
+        Home card reads the key
+        (see window_shell_assistant._refresh_setup_cards)."""
+        try:
+            names = [str(name) for name, ok, _detail in (results or [])
+                     if not ok]
+        except Exception:  # noqa: BLE001 — nothing to record
+            names = []
+        try:
+            from voice_assistant.core.gui_facade import qsettings_set
+
+            if names:
+                qsettings_set("firstrun/selftest_faults",
+                              "; ".join(names))
+            else:
+                qsettings_set("firstrun/selftest_faults", "")
+        except Exception:  # noqa: BLE001 — the pin is a nicety
+            pass
+
+    def _page_first_try(self) -> QWidget:
+        """Round-3 wizard expansion: the guided first try — one
+        small REAL thing before the wizard ends (the first
+        mission was a self-test only). Set your first reminder:
+        it persists through scheduler.add_reminder (the same call
+        the Memory page uses), fires on schedule, and shows in
+        the morning briefing card. The Done page names what was
+        just set (see _sync_nav); skipping leaves the default
+        first-mission suggestion."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self._title_block(
+            "Try her out — set your first reminder",
+            "One small real thing before you finish: ask her to "
+            "remind you of something. She'll tell you when it "
+            "fires — and it'll show in your morning briefing."))
+        self._first_try_edit = QLineEdit()
+        self._first_try_edit.setPlaceholderText(
+            "What should she remind you of?")
+        self._first_try_edit.setAccessibleName("First reminder")
+        layout.addWidget(self._first_try_edit)
+        page._first_try_edit = self._first_try_edit
+        self._first_try_when = QComboBox()
+        self._first_try_when.setAccessibleName("When to be reminded")
+        self._first_try_when.addItem("In 5 minutes", 5)
+        self._first_try_when.addItem("In 1 hour", 60)
+        self._first_try_when.addItem("Tomorrow at 9:00", "tomorrow9")
+        layout.addWidget(self._first_try_when)
+        page._first_try_when = self._first_try_when
+        self._first_try_set_btn = QPushButton("Set the reminder")
+        self._first_try_set_btn.setObjectName("primaryBtn")
+        self._first_try_set_btn.setAccessibleName("Set the reminder")
+        self._first_try_set_btn.clicked.connect(
+            self._set_first_try_reminder)
+        layout.addWidget(self._first_try_set_btn)
+        page._first_try_set_btn = self._first_try_set_btn
+        self._first_try_status = QLabel("")
+        self._first_try_status.setObjectName("muted")
+        self._first_try_status.setWordWrap(True)
+        self._first_try_status.setAccessibleName("First reminder status")
+        layout.addWidget(self._first_try_status)
+        page._first_try_status = self._first_try_status
+        layout.addStretch()
+        return page
+
+    def _set_first_try_reminder(self):
+        """Set the first-try reminder through the scheduler (the
+        same add_reminder call the Memory page uses). A set
+        reminder disables its own button — one first try, not a
+        pile of them — and records the Done-page line."""
+        msg = str(getattr(self, "_first_try_edit", None) and
+                  self._first_try_edit.text() or "").strip()
+        status = getattr(self, "_first_try_status", None)
+
+        def _say(text: str) -> None:
+            if status is not None:
+                status.setText(text)
+
+        if not msg:
+            _say("Type the reminder first — e.g. “Call the lab”.")
+            return
+        mode = self._first_try_when.currentData()
+        now = datetime.datetime.now()
+        if mode == "tomorrow9":
+            fire_at = now.replace(hour=9, minute=0, second=0,
+                                  microsecond=0)
+            if fire_at <= now:
+                fire_at += datetime.timedelta(days=1)
+            when_text = ("today at 9:00"
+                         if fire_at.date() == now.date()
+                         else "tomorrow at 9:00")
+        else:
+            try:
+                minutes = int(mode)
+            except (TypeError, ValueError):
+                minutes = 5
+            fire_at = now + datetime.timedelta(minutes=minutes)
+            when_text = ("in 1 hour" if minutes == 60
+                         else f"in {minutes} minutes")
+        label = f"first_try_{msg[:60]}"
+        try:
+            from voice_assistant.core.gui_facade import scheduler as _sched
+
+            _sched.add_reminder(label=label, fire_at=fire_at,
+                                message=msg, repeat=False)
+        except ValueError:
+            _say("That time has already passed — pick a later one.")
+            return
+        except Exception:  # noqa: BLE001 — a failed set says so
+            _say("Couldn't set the reminder — try again, or skip "
+                 "this step.")
+            return
+        self._first_try_line = f"reminder “{msg}” {when_text}"
+        _say(f"Done — she'll remind you {when_text}: “{msg}”. "
+             "It'll show in your morning briefing.")
+        btn = getattr(self, "_first_try_set_btn", None)
+        if btn is not None:
+            btn.setEnabled(False)
 
     @staticmethod
     def _pack_incomplete() -> bool:
@@ -1848,15 +2444,34 @@ class PagesMixin:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
+        # Wizard polish: the three text blocks used to run
+        # together on the default 6 px spacing with no hierarchy
+        # — the brain recap deserves its own air.
+        layout.setSpacing(10)
         layout.addWidget(self._title_block(
             "You're all set",
             f"Press Connect, then just talk. Try: “Hey {config.assistant_name}, "
             "what can you do?” — or hold Space anywhere in the window to talk."))
+        # Round-3 wizard expansion: the Done greeting — the
+        # localized hello + the name she learned, filled in by
+        # _sync_nav when this page shows. It reads in the full
+        # text colour, semibold, like the brain recap below.
+        self.done_greeting_line = QLabel("")
+        self.done_greeting_line.setWordWrap(True)
+        self.done_greeting_line.setStyleSheet(
+            f"color: {TEXT}; font-size: {TYPE_BODY}px; font-weight: 600;"
+            " background: transparent; border: none;")
+        layout.addWidget(self.done_greeting_line)
         # v5.23: one line naming the brain the user actually chose
         # (filled in by _sync_nav when this page shows).
+        # Wizard polish: the recap is the point of this page, so
+        # it reads in the full text colour, semibold — not as a
+        # third muted line under the title body.
         self.done_brain_line = QLabel("")
-        self.done_brain_line.setObjectName("muted")
         self.done_brain_line.setWordWrap(True)
+        self.done_brain_line.setStyleSheet(
+            f"color: {TEXT}; font-size: {TYPE_BODY}px; font-weight: 600;"
+            " background: transparent; border: none;")
         layout.addWidget(self.done_brain_line)
         # Phase G: the first real mission is a suggestion, not a
         # script — and the coach marks that follow are named here

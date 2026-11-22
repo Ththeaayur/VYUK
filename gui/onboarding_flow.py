@@ -6,70 +6,72 @@ gui/onboarding.py as FlowMixin. No behaviour change.
 """
 
 from voice_assistant.core.gui_facade import config
+from voice_assistant.core.gui_facade import gemini_oauth
 from voice_assistant.core.gui_facade import qsettings_set_noted
 from voice_assistant.core.gui_facade import set_preferred_language
 
 from .firstrun_g import FIRST_RUN_STAGES
-from .style import ACCENT, AMBER, DANGER, OK, TEXT_MUTED, TYPE_CAPTION
+from .style import ACCENT, AMBER, OK, TEXT_MUTED, TYPE_CAPTION
 
 
 class FlowMixin:
     """Stage/nav/persist flow for OnboardingDialog (GUI split #13)."""
 
-    def _key_stored(self) -> bool:
-        """True when a Gemini key is stored (the in-memory config
-        field, which save_api_key keeps in step with .env +
-        os.environ). The wizard's key page and done lines promise
-        a Gemini key specifically, so this is the api_key field,
-        not the selected provider's key (round-2 N4 FAIL 2)."""
+    def _cloud_auth_ready(self) -> bool:
+        """True when the cloud brain has an auth method: a stored
+        Google sign-in (the round-3 OAuth build's primary path)
+        or a legacy Gemini key (kept working — the Settings key
+        field and the Connect dialog still save one). The Done
+        page and the sign-in page's advance gate both read this,
+        so the two surfaces can never disagree about whether the
+        cloud brain is ready."""
+        if gemini_oauth.is_signed_in():
+            return True
         return bool(str(getattr(config, "api_key", "") or "").strip())
 
     def _done_brain_line(self) -> str:
         """The done page names the brain the user actually has:
-        the cloud lines claim 'your Gemini key' only when one is
-        stored. Without a key they say so plainly and name
-        Settings as the way back (round-2 N4 FAIL 2)."""
+        the cloud lines claim the cloud brain only when an auth
+        method is stored. Without one they say so plainly and
+        name Settings as the way back (round-2 N4 FAIL 2)."""
         choice = self.brain_choice or ""
-        if choice in ("cloud", "both") and not self._key_stored():
-            return self._BRAIN_LINES_NO_KEY[choice]
+        if choice in ("cloud", "both") and not self._cloud_auth_ready():
+            return self._BRAIN_LINES_NO_SIGNIN[choice]
         return self._BRAIN_LINES.get(choice, "")
 
-    def _advance_from_key_page(self) -> bool:
-        """Continue from the key page (round-2 N4 FAIL 2). A pasted
-        key is saved on Continue — Continue never silently drops
-        a key the user pasted but did not press Save for. A short
-        key stays, with the same 'doesn't look like a full key'
-        line the Save button gives. An empty field with no stored
-        key warns once and stays; the second, deliberate press
-        advances. A stored key (from an earlier run) needs no
-        warning: the empty field just keeps it."""
-        field = getattr(self, "ob_api_key", None)
-        status = getattr(self, "ob_key_status", None)
-        key = field.text().strip() if field is not None else ""
-        if key:
-            if len(key) < 10:
-                if status is not None:
-                    status.setText(
-                        "That doesn't look like a full key yet — "
-                        "paste the whole thing.")
-                    status.setStyleSheet(f"color: {DANGER};")
-                return False
-            self._save_key()
+    def _advance_from_signin_page(self) -> bool:
+        """Continue from the sign-in page (round-2 N4 FAIL 2, kept
+        shape, new auth). A stored sign-in — or a legacy key from
+        an earlier run — advances at once. With neither, the first
+        press warns once and stays; the second, deliberate press
+        advances (the user may finish setup and sign in later,
+        in Settings)."""
+        if self._cloud_auth_ready():
             return True
-        if self._key_stored():
-            return True
-        if not getattr(self, "_key_no_key_warned", False):
-            self._key_no_key_warned = True
+        status = getattr(self, "ob_signin_status", None)
+        if not getattr(self, "_signin_no_signin_warned", False):
+            self._signin_no_signin_warned = True
             if status is not None:
                 status.setText(
-                    "No key saved yet — you picked the cloud brain, "
-                    "so she'll think on this PC until you add your "
-                    "Gemini key in Settings. Press Continue again "
-                    "to go on without a key, or paste your key "
-                    "above.")
+                    "You haven't signed in yet — you picked the cloud "
+                    "brain, so she'll think on this PC until you sign "
+                    "in with Google in Settings. Press Continue again "
+                    "to go on without signing in, or press Continue "
+                    "with Google above.")
                 status.setStyleSheet(f"color: {AMBER};")
             return False
-        self._key_no_key_warned = False
+        self._signin_no_signin_warned = False
+        # Loophole batch 7 (#18): going on without signing in is
+        # an explicit decline of the Google piece — recorded
+        # durably, so the Home card stops naming it (the card
+        # only ever returns for the pieces still open).
+        try:
+            from voice_assistant.core.gui_facade import (
+                setup_pieces as _sp)
+
+            _sp.record_declines({"google"})
+        except Exception:  # noqa: BLE001 — the advance stands
+            pass
         return True
 
     def _persist_profile_choice(self):
@@ -89,6 +91,46 @@ class FlowMixin:
         except Exception:  # noqa: BLE001
             pass
         config.tool_profile = profile
+
+    def _persist_theme_choice(self):
+        """Round-3 wizard expansion: Finish makes the theme pick
+        durable — the same "theme" QSettings key Settings writes
+        (window_settings_appearance._on_theme_selected), so the
+        wizard's pick and the Settings card set the same config.
+        The main window re-applies the appearance after the
+        dialog closes (see _run_onboarding). Skipping never
+        reaches this method: no pick, no record."""
+        name = getattr(self, "theme_choice", "Cyan") or "Cyan"
+        try:
+            from voice_assistant.core.gui_facade import (
+                migrate_theme_name as _mig_theme)
+
+            name = _mig_theme(str(name))
+        except Exception:  # noqa: BLE001 — the raw name stands
+            pass
+        try:
+            qsettings_set_noted("theme", name)
+        except Exception:  # noqa: BLE001 — noted, never swallowed
+            pass
+
+    def _persist_name_choice(self):
+        """Round-3 wizard expansion: Finish makes the name pick
+        durable — USER_NAME in .env through save_env_setting (the
+        same one-field pattern the brain/profile picks use), plus
+        the in-process config field so this very run agrees. An
+        empty name records nothing: she never learned it, and
+        the greeting reads the plain form. Skipping never reaches
+        this method."""
+        name = str(getattr(self, "_pending_name", "") or "").strip()
+        if not name:
+            return
+        try:
+            from voice_assistant.core.gui_facade import save_env_setting
+
+            save_env_setting("USER_NAME", name)
+        except Exception:  # noqa: BLE001
+            pass
+        config.user_name = name
     def _stage_of_page(self, widget) -> str | None:
         """The required stage a page belongs to, or None for
         advanced-detour pages (which carry no stage)."""
@@ -106,25 +148,25 @@ class FlowMixin:
         return None
     def _page_applies(self, widget) -> bool:
         """Whether `widget` is part of the flow for the pending
-        choice and the detour state: the key page only for
-        cloud/both, the Setting up page only for local/both (it
-        exists only when the pack is incomplete), the advanced
-        pages only while the detour is open. Everything else
-        always applies."""
-        if widget is self._key_page:
+        choice: the sign-in page only for cloud/both, the Setting
+        up page only for local/both (it exists only when the pack
+        is incomplete). Round-3 wizard expansion: the voice,
+        language and profile pages are main flow now — the
+        Advanced detour is empty — so no page is detour-gated
+        any more. Everything else always applies."""
+        if widget is self._signin_page:
             return self.brain_choice in ("cloud", "both")
         if self._setup_page is not None and widget is self._setup_page:
             return self.brain_choice in ("local", "both")
-        if widget in (self._voice_page, self._language_page,
-                      self._profile_page):
-            if not self._detour:
-                return False
         if getattr(self, "choice_only", False) and widget in (
-                self._welcome_page, self._mic_page, self._voice_page,
-                self._language_page, self._profile_page,
+                self._welcome_page, self._mic_page, self._name_page,
+                self._voice_page, self._language_page,
+                self._profile_page, self._google_page,
+                self._theme_page,
                 self._browser_page, self._camera_page, self._screen_page,
-                self._files_page, self._permissions_page,
-                self._selftest_page):
+                self._files_page, self._home_devices_page,
+                self._permissions_page,
+                self._selftest_page, self._first_try_page):
             # v5.25: the choice-only flow skips these. v5.49
             # (programme item 34 completion): the profile page
             # joins the skipped set — the brain-choice dialog is
@@ -132,15 +174,21 @@ class FlowMixin:
             # permissions + self-test pages to the same set.
             # First-run onboarding (2026-11-16): the ask pages
             # are permissions-stage pages, so they skip with it.
+            # Round-3 wizard expansion: the new first-run pages
+            # (name, theme, Google services, home devices, first
+            # try) join the same set — the choice-only dialog is
+            # still about the brain only.
             return False
         return True
     def _applicable_pages(self) -> list:
         return [w for w in self._page_order if self._page_applies(w)]
     def _toggle_advanced(self) -> None:
-        """Advanced setup is a detour, not a stage: opening it
-        jumps to the deferred pages (voice, language, profile)
-        and remembers where to return; closing it returns there.
-        The shipped defaults stand unless the user changes them."""
+        """Round-3 wizard expansion: the Advanced detour is empty
+        — every deferred page (voice, language, profile) moved
+        into the main flow — and its link is hidden, so this
+        handler is unreachable from the UI. It stays (with the
+        button object) so no caller breaks; with _ADVANCED_PAGES
+        empty, opening it sets the flag and finds no page."""
         if self._detour:
             self._detour = False
             self.btn_advanced.setText("Advanced setup")
@@ -231,14 +279,25 @@ class FlowMixin:
         has_prev = any(self._page_applies(w) for w in order[:idx])
         self.btn_back.setVisible(has_prev)
         on_done = current is self._done_page
-        if current is self._key_page:
-            # Re-entering the key page re-arms the empty-key
+        if current is self._signin_page:
+            # Re-entering the sign-in page re-arms the no-sign-in
             # warning: the warning belongs to this visit, never to
             # a past one (round-2 N4 FAIL 2). This cannot clobber
             # a just-shown warning — the warning path returns from
-            # _next before _sync_nav runs.
-            self._key_no_key_warned = False
-        self.btn_next.setText("Finish" if on_done else "Continue")
+            # _next before _sync_nav runs. The page itself is
+            # refreshed too, so a sign-in made on this visit (or
+            # taken back) shows the moment the user comes back.
+            self._signin_no_signin_warned = False
+            self._refresh_signin_page()
+        if current is self._google_page:
+            # The Google-services page re-reads its connection
+            # state on show, like the sign-in page above.
+            self._refresh_google_page()
+        # Round-3 wizard expansion: the Next label follows the
+        # session language (Finish on the Done page, Continue
+        # everywhere else).
+        self.btn_next.setText(self._wizard_chrome(
+            "finish" if on_done else "continue"))
         # The one hard gate in the flow: the choice page needs a
         # choice before Continue does anything (Skip stays live).
         self.btn_next.setEnabled(
@@ -279,6 +338,24 @@ class FlowMixin:
                     self._progress.mark_done(name)
         if on_done:
             self.done_brain_line.setText(self._done_brain_line())
+            # Round-3 wizard expansion: the Done page greets the
+            # user by name in the language they picked, and names
+            # the first try they actually did (or the default
+            # mission when they skipped it).
+            try:
+                _hello = self._wizard_chrome("hello")
+                _name = str(getattr(self, "_pending_name", "") or "").strip()
+                _greet = (f"{_hello}, {_name}" if _name else _hello)
+                self.done_greeting_line.setText(_greet)
+            except Exception:  # noqa: BLE001 — the greeting is a nicety
+                pass
+            try:
+                _try = str(getattr(self, "_first_try_line", "") or "").strip()
+                if _try:
+                    self.done_mission_line.setText(
+                        f"First mission done: {_try}")
+            except Exception:  # noqa: BLE001 — the default line stands
+                pass
             # Conversion Wave 9: refresh the proof run from live
             # evidence (mic peak so far) when the done page shows.
             _proof = getattr(self, "_w9_proof_widget", None)
@@ -358,6 +435,10 @@ class FlowMixin:
                 # visits the page, so it must not persist the
                 # page's default either.
                 self._persist_profile_choice()
+                # Round-3 wizard expansion: the theme and name
+                # picks persist at Finish the same way.
+                self._persist_theme_choice()
+                self._persist_name_choice()
                 self._persist_sound_choice()
                 for name in FIRST_RUN_STAGES:
                     self._progress.mark_done(name)
@@ -369,31 +450,8 @@ class FlowMixin:
         if (current is self._choice_page
                 and self.brain_choice is None):
             return  # the gate (the button is disabled too — belt and braces)
-        if current is self._key_page and not self._advance_from_key_page():
-            return  # warned (or short key) — stay on the key page
-        if current in (self._voice_page, self._language_page,
-                       self._profile_page):
-            # Detour navigation stays inside the detour: the next
-            # deferred page, or back to where the detour opened
-            # (closing the detour) when the last one is passed.
-            seen = False
-            for attr in self._ADVANCED_PAGES:
-                page = getattr(self, attr, None)
-                if page is current:
-                    seen = True
-                    continue
-                if seen and page is not None and self._page_applies(page):
-                    self.pages.setCurrentWidget(page)
-                    self._sync_nav()
-                    return
-            self._detour = False
-            self.btn_advanced.setText("Advanced setup")
-            target = self._return_page
-            self._return_page = None
-            if target is not None:
-                self.pages.setCurrentWidget(target)
-            self._sync_nav()
-            return
+        if current is self._signin_page and not self._advance_from_signin_page():
+            return  # warned — stay on the sign-in page
         idx = self._page_order.index(current)
         for nxt in self._page_order[idx + 1:]:
             if self._page_applies(nxt):
@@ -404,28 +462,6 @@ class FlowMixin:
         self._sync_nav()
     def _back(self):
         current = self.pages.currentWidget()
-        if current in (self._voice_page, self._language_page,
-                       self._profile_page):
-            # Detour Back walks the deferred pages backwards; from
-            # the first one it returns to where the detour opened.
-            prev_page = None
-            for attr in self._ADVANCED_PAGES:
-                page = getattr(self, attr, None)
-                if page is current:
-                    break
-                if page is not None and self._page_applies(page):
-                    prev_page = page
-            if prev_page is not None:
-                self.pages.setCurrentWidget(prev_page)
-            else:
-                self._detour = False
-                self.btn_advanced.setText("Advanced setup")
-                target = self._return_page
-                self._return_page = None
-                if target is not None:
-                    self.pages.setCurrentWidget(target)
-            self._sync_nav()
-            return
         idx = self._page_order.index(current)
         for prev in reversed(self._page_order[:idx]):
             if self._page_applies(prev):

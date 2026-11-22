@@ -82,10 +82,15 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
     # The dialog accepts on that press, so the page is visible
     # instead of hidden behind the modal dialog.
     open_permissions_requested = Signal()
-    # Settings redesign §4a: the key page's Test button runs the
-    # cloud diagnostic on a worker thread and reports back on
-    # this signal, so the verdict lands on the GUI thread.
-    key_test_completed = Signal(str, str)
+    # Round-3 OAuth build: the sign-in page's buttons run on worker
+    # threads and report back on these signals, so the verdicts
+    # land on the GUI thread — signin_completed for the connect
+    # flow, signin_test_completed for the Test sign-in check.
+    signin_completed = Signal(str, str)
+    signin_test_completed = Signal(str, str)
+    # Round-3 wizard expansion: the Google-services page's
+    # Connect button reports the same way.
+    google_services_completed = Signal(str)
     """First-run onboarding dialog (GUI split #13).
 
     Shell lives here; page builders live in
@@ -99,37 +104,45 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
     _BRAIN_LINES = {
         "local": "She'll think on this PC — private, offline, and "
                  "always available.",
-        "cloud": "She'll think in the cloud with your Gemini key — "
+        "cloud": "She'll think in the cloud with your Google sign-in — "
                  "her sharpest mind.",
         "both": "She'll think in the cloud first, with the on-PC "
                 "brain as her safety net.",
     }
 
-    # Round-2 N4 FAIL 2: the Done page must not claim a cloud
-    # brain the user does not have. When no Gemini key is stored,
-    # these lines replace the _BRAIN_LINES ones for cloud/both.
-    _BRAIN_LINES_NO_KEY = {
-        "cloud": "You picked the cloud brain, but no Gemini key is "
-                 "saved yet — she'll think on this PC until you add "
-                 "one in Settings.",
-        "both": "She'll think on this PC for now — add your Gemini "
-                "key in Settings and she'll think in the cloud "
+    # Round-2 N4 FAIL 2, reworded for the OAuth build: the Done
+    # page must not claim a cloud brain the user does not have.
+    # When no Google sign-in (and no legacy key) is stored, these
+    # lines replace the _BRAIN_LINES ones for cloud/both.
+    _BRAIN_LINES_NO_SIGNIN = {
+        "cloud": "You picked the cloud brain, but you haven't signed "
+                 "in with Google yet — she'll think on this PC until "
+                 "you sign in, in Settings.",
+        "both": "She'll think on this PC for now — sign in with "
+                "Google in Settings and she'll think in the cloud "
                 "first, with the on-PC brain as her safety net.",
     }
 
     # Phase G stage map: every built page belongs to exactly one
-    # required stage; the advanced pages ride the detour only.
-    # First-run onboarding (2026-11-16): the permissions stage
-    # is the ask sequence now — browser, camera, screen, files,
-    # then the sounds + mic-row page.
+    # required stage. Round-3 wizard expansion: the language page
+    # opens the flow (the pick drives the rest of the wizard), the
+    # voice and tool-profile pages left the Advanced detour for the
+    # main flow, and the new name / theme / Google-services /
+    # home-devices / first-try pages join their stages. The
+    # Advanced detour is empty now — every deferred page is main
+    # flow — so the Advanced setup link hides (see __init__).
     _STAGE_PAGES = {
-        "interaction": ("_welcome_page", "_mic_page"),
-        "brain": ("_choice_page", "_key_page", "_setup_page"),
+        "interaction": ("_language_page", "_welcome_page", "_mic_page",
+                        "_name_page", "_voice_page"),
+        "brain": ("_choice_page", "_profile_page", "_signin_page",
+                  "_setup_page", "_google_page", "_theme_page"),
         "permissions": ("_browser_page", "_camera_page", "_screen_page",
-                        "_files_page", "_permissions_page"),
-        "first_mission": ("_selftest_page", "_done_page"),
+                        "_files_page", "_home_devices_page",
+                        "_permissions_page"),
+        "first_mission": ("_selftest_page", "_first_try_page",
+                          "_done_page"),
     }
-    _ADVANCED_PAGES = ("_voice_page", "_language_page", "_profile_page")
+    _ADVANCED_PAGES = ()
 
     def __init__(self, parent=None, choice_only: bool = False,
                  initial_choice: str | None = None):
@@ -176,10 +189,10 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         self.choice_cards: dict[str, _ChoiceCard] = {}
         self._card_markers: dict[str, QLabel] = {}
         self._downloads_kicked = False
-        # Round-2 N4 FAIL 2: whether the empty-key warning has
-        # been shown on this visit to the key page (see
-        # FlowMixin._advance_from_key_page).
-        self._key_no_key_warned = False
+        # Round-2 N4 FAIL 2, reworded for the OAuth build: whether
+        # the no-sign-in warning has been shown on this visit to
+        # the sign-in page (see FlowMixin._advance_from_signin_page).
+        self._signin_no_signin_warned = False
         # v5.49 (programme item 34 completion): the pending tool-
         # profile choice — starts at the configured profile (a
         # fresh install's new default, "desktop"), persisted only
@@ -189,6 +202,24 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         self.profile_choice: str = self._current_profile()
         self.profile_cards: dict[str, _ChoiceCard] = {}
         self._profile_markers: dict[str, QLabel] = {}
+        # Round-3 wizard expansion: the pending theme pick —
+        # starts at the stored theme (Cyan on a fresh install),
+        # persisted only at Finish like the profile pick.
+        try:
+            from voice_assistant.core.gui_facade import (
+                migrate_theme_name as _mig_theme)
+            from voice_assistant.core.gui_facade import qsettings_get
+
+            self.theme_choice = _mig_theme(str(
+                qsettings_get("theme") or "Cyan"))
+        except Exception:  # noqa: BLE001 — Cyan is the safe read
+            self.theme_choice = "Cyan"
+        self.theme_cards: dict[str, object] = {}
+        self._theme_markers: dict[str, QLabel] = {}
+        # Round-3 wizard expansion: the pending name pick and
+        # the guided first try's result line for the Done page.
+        self._pending_name = ""
+        self._first_try_line = ""
         # Phase G: resumable progress + the advanced detour.
         self._progress = FirstRunProgress(
             _QSettingsStore(qsettings_store()))
@@ -215,19 +246,30 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         # with an incomplete pack). _sync_nav/_next/_back key off
         # widget identity, never raw indexes.
         self.pages = QStackedWidget()
+        # Round-3 wizard expansion: the build order IS the flow
+        # order — language first (the pick drives the rest of the
+        # wizard), then meet her (welcome, mic, name, voice), the
+        # brain (choice, profile, sign-in, setup, Google services,
+        # theme), the permissions asks, and the first mission.
+        self._language_page = self._page_language()
+        self.pages.addWidget(self._language_page)
         self._welcome_page = self._page_welcome()
         self.pages.addWidget(self._welcome_page)
         self._mic_page = self._page_mic()
         self.pages.addWidget(self._mic_page)
+        self._name_page = self._page_name()
+        self.pages.addWidget(self._name_page)
+        self._voice_page = self._page_voice()
+        self.pages.addWidget(self._voice_page)
         self._choice_page = self._page_choice()
         self.pages.addWidget(self._choice_page)
         # v5.49 (programme item 34 completion): the tool-profile
-        # page rides with the advanced detour in Phase G — the
-        # shipped desktop default stands unless the user opens it.
+        # page — main flow since the wizard expansion (the shipped
+        # desktop default stands unless the user picks otherwise).
         self._profile_page = self._page_profile()
         self.pages.addWidget(self._profile_page)
-        self._key_page = self._page_api_key()
-        self.pages.addWidget(self._key_page)
+        self._signin_page = self._page_signin()
+        self.pages.addWidget(self._signin_page)
         # The Setting up page exists only while the pack is
         # incomplete (pure pack state — the choice hasn't persisted
         # yet at build time, so no engine check belongs here).
@@ -235,15 +277,16 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         if self._pack_incomplete():
             self._setup_page = self._page_setup()
             self.pages.addWidget(self._setup_page)
-        self._voice_page = self._page_voice()
-        self.pages.addWidget(self._voice_page)
-        self._language_page = self._page_language()
-        self.pages.addWidget(self._language_page)
+        self._google_page = self._page_google_services()
+        self.pages.addWidget(self._google_page)
+        self._theme_page = self._page_theme()
+        self.pages.addWidget(self._theme_page)
         # First-run onboarding (2026-11-16): the ask sequence —
-        # browser, camera, screen, files — sits between the
-        # language page and the permissions (sounds) page, in the
-        # scope §2 order (Mic → Voice → Cloud → Browser → Camera
-        # → Screen → Files → Sounds → screen-watching last).
+        # browser, camera, screen, files, home devices — sits
+        # between the theme page and the permissions (sounds)
+        # page, in the scope §2 order (Mic → Voice → Cloud →
+        # Browser → Camera → Screen → Files → Home devices →
+        # Sounds → screen-watching last).
         self._browser_page = self._page_browser()
         self.pages.addWidget(self._browser_page)
         self._camera_page = self._page_camera()
@@ -252,18 +295,27 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         self.pages.addWidget(self._screen_page)
         self._files_page = self._page_files()
         self.pages.addWidget(self._files_page)
+        self._home_devices_page = self._page_home_devices()
+        self.pages.addWidget(self._home_devices_page)
         self._permissions_page = self._page_permissions()
         self.pages.addWidget(self._permissions_page)
         self._selftest_page = self._page_selftest()
         self.pages.addWidget(self._selftest_page)
+        self._first_try_page = self._page_first_try()
+        self.pages.addWidget(self._first_try_page)
         self._done_page = self._page_done()
         self.pages.addWidget(self._done_page)
         self._page_order = [self.pages.widget(i)
                             for i in range(self.pages.count())]
-        # Settings redesign §4a: the key page's Test button
-        # reports its verdict here (see _on_ob_key_test_completed
-        # in onboarding_pages).
-        self.key_test_completed.connect(self._on_ob_key_test_completed)
+        # Round-3 OAuth build: the sign-in page's buttons report
+        # their verdicts here (see _on_signin_completed and
+        # _on_signin_test_completed in onboarding_pages).
+        self.signin_completed.connect(self._on_signin_completed)
+        self.signin_test_completed.connect(self._on_signin_test_completed)
+        # Round-3 wizard expansion: the Google-services page's
+        # Connect button reports the same way.
+        self.google_services_completed.connect(
+            self._on_google_services_completed)
         # Phase G: the INITIALIZING step rail sits above the pages
         # — the four required stages with their state, plus the
         # current stage's title. It replaces the old dot row.
@@ -301,10 +353,10 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
 
         # Field-check #10: Skip keeps the answers already given
         # (ask taps write on tap) — the hint must say so, not
-        # imply nothing was recorded. The brain, language, voice
-        # and profile picks stage until Finish, so they are the
-        # exception the hint names. Choice-only has no ask pages,
-        # so its hint says nothing is kept.
+        # imply nothing was recorded. The brain, language, voice,
+        # profile, theme and name picks stage until Finish, so
+        # they are the exception the hint names. Choice-only has
+        # no ask pages, so its hint says nothing is kept.
         if self.choice_only:
             nav_hint = QLabel(
                 "Every step is optional — Not now exits without "
@@ -314,9 +366,9 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
             nav_hint = QLabel(
                 "Every step is optional — Continue moves ahead. "
                 "Skip setup exits and keeps the answers you already "
-                "gave; your brain, language, voice and profile "
-                "picks are only saved when you Finish. Only the "
-                "brain choice gates Continue.")
+                "gave; your brain, language, voice, profile, theme "
+                "and name picks are only saved when you Finish. "
+                "Only the brain choice gates Continue.")
         nav_hint.setObjectName("muted")
         nav_hint.setWordWrap(True)
         root.addWidget(nav_hint)
@@ -356,11 +408,11 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         nav.addWidget(self.btn_next)
         root.addLayout(nav)
 
-        # Rethink Build 6 (§6.9 / §3.9): the bottom row loses
-        # "Advanced setup" — it duplicates the choices. It becomes
-        # a quiet link under the buttons, same detour, same button
-        # object (its text still toggles to "Back to setup" while
-        # the detour is open).
+        # Round-3 wizard expansion: the Advanced detour is empty
+        # — every deferred page moved into the main flow — so the
+        # link hides. The button object stays (and _toggle_advanced
+        # stays its handler) so no caller breaks; with
+        # _ADVANCED_PAGES empty the detour opens nothing.
         self.btn_advanced = QPushButton("Advanced setup")
         self.btn_advanced.setStyleSheet(
             "background: transparent; border: none; "
@@ -368,11 +420,15 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
             "text-decoration: underline; "
             "color: %s;" % TEXT_MUTED)
         self.btn_advanced.clicked.connect(self._toggle_advanced)
+        self.btn_advanced.setVisible(False)
         adv_row = QHBoxLayout()
         adv_row.setContentsMargins(0, 0, 0, 0)
         adv_row.addWidget(self.btn_advanced)
         adv_row.addStretch()
         root.addLayout(adv_row)
+        # Round-3 wizard expansion: the nav chrome follows the
+        # session language (see _apply_wizard_language).
+        self._apply_wizard_language()
 
         self._mic_timer = QTimer(self)
         self._mic_timer.timeout.connect(self._update_mic_level)
@@ -382,7 +438,7 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         self._feature_timer.setInterval(4000)
         self._feature_timer.timeout.connect(self._advance_feature_card)
         if self.choice_only:
-            self.btn_skip.setText("Not now")
+            self.btn_skip.setText(self._wizard_chrome("not_now"))
             self.btn_advanced.setVisible(False)
             self.pages.setCurrentWidget(self._choice_page)
             if self._initial_choice in ("local", "cloud", "both"):
@@ -461,6 +517,52 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
         """The pending tool-profile choice (v5.49, programme
         item 34 completion): "desktop" | "assistant" | "full"."""
         return self.profile_choice
+    def _wizard_chrome(self, key: str) -> str:
+        """One wizard-chrome string in the session language
+        (round-3 wizard expansion): the language the user picked
+        on the first page — the stored home language before any
+        pick — English on any miss. Page titles and bodies stay
+        English (full localization is an owed follow-up)."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                wizard_strings as _ws)
+
+            return _ws.chrome(
+                str(getattr(config, "preferred_language", "en-gb")
+                    or "en-gb"), key)
+        except Exception:  # noqa: BLE001 — English is the fallback
+            return {
+                "continue": "Continue", "back": "Back",
+                "skip": "Skip setup", "finish": "Finish",
+                "not_now": "Not now", "advanced": "Advanced setup",
+                "stage_interaction": "Interaction",
+                "stage_brain": "Brain",
+                "stage_permissions": "Permissions",
+                "stage_first_mission": "First mission",
+                "hello": "Hello",
+            }.get(key, key)
+
+    def _apply_wizard_language(self) -> None:
+        """Re-label the dialog chrome in the session language:
+        the nav buttons and the stage-rail titles. Called at
+        build and on every language pick. _sync_nav owns the
+        Continue/Finish switch on the Next button; it reads the
+        same table (see onboarding_flow._sync_nav)."""
+        try:
+            self.btn_skip.setText(self._wizard_chrome("skip"))
+            self.btn_back.setText(self._wizard_chrome("back"))
+            self.btn_next.setText(self._wizard_chrome("continue"))
+            self.btn_advanced.setText(self._wizard_chrome("advanced"))
+        except Exception:  # noqa: BLE001 — labels are a nicety
+            pass
+        for stage, label in getattr(self, "_rail_labels", {}).items():
+            try:
+                label.setText(
+                    f"{FIRST_RUN_STAGES.index(stage) + 1} · "
+                    f"{self._wizard_chrome(f'stage_{stage}')}")
+            except Exception:  # noqa: BLE001 — rail text is a nicety
+                pass
+
     def _select_profile(self, profile: str):
         self.profile_choice = profile
         for name, card in self.profile_cards.items():
@@ -468,3 +570,25 @@ class OnboardingDialog(PagesMixin, FlowMixin, QDialog):
             marker = self._profile_markers.get(name)
             if marker is not None:
                 marker.setVisible(name == profile)
+
+    def _select_theme(self, theme_name: str):
+        """Round-3 wizard expansion: stage a theme pick — the
+        same shape as _select_profile (pending choice, persisted
+        only at Finish). An unknown name is ignored, so a stale
+        stored theme can never break the picker."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                migrate_theme_name as _mig_theme)
+
+            theme_name = _mig_theme(str(theme_name))
+        except Exception:  # noqa: BLE001 — the raw name stands
+            pass
+        cards = getattr(self, "theme_cards", {}) or {}
+        if cards and theme_name not in cards:
+            return
+        self.theme_choice = theme_name
+        for name, card in cards.items():
+            card.set_selected(name == theme_name)
+            marker = self._theme_markers.get(name)
+            if marker is not None:
+                marker.setVisible(name == theme_name)

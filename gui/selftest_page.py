@@ -67,9 +67,11 @@ class _SelfTestPage(QWidget):
     """The Self-test page widget. The dialog owns it; it only
     runs the injected check function and paints its rows."""
 
-    def __init__(self, header: QWidget, check_fn=None, parent=None):
+    def __init__(self, header: QWidget, check_fn=None, parent=None,
+                 on_done=None):
         super().__init__(parent)
         self._check_fn = check_fn or _default_checks
+        self._on_done_cb = on_done
         self._worker = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -95,6 +97,19 @@ class _SelfTestPage(QWidget):
         self._detail.setObjectName("muted")
         self._detail.setWordWrap(True)
         layout.addWidget(self._detail)
+        # Round-3 wizard expansion (parent ruling: a self-test
+        # failure never blocks and is never silent): the
+        # continue-anyway line shows only when a run has faults
+        # — the self-test never gates Continue, and the failing
+        # check is pinned to Home as a fix-it card until it
+        # passes (see _on_selftest_done in onboarding_pages).
+        self._continue_note = QLabel(
+            "You can continue anyway — the failing check is pinned "
+            "to Home until it passes.")
+        self._continue_note.setObjectName("muted")
+        self._continue_note.setWordWrap(True)
+        self._continue_note.setVisible(False)
+        layout.addWidget(self._continue_note)
         self._run_btn = QPushButton("Run again")
         self._run_btn.setObjectName("chipBtn")
         self._run_btn.clicked.connect(self.run_selftest)
@@ -159,9 +174,10 @@ class _SelfTestPage(QWidget):
                 row.addStretch()
                 row.addWidget(lbl)
                 # Insert above the detail label: the detail is
-                # the layout item just before the button row.
+                # the layout item four from the end (detail,
+                # continue-anyway note, Run again, stretch).
                 self._rows_layout.insertLayout(
-                    self._rows_layout.count() - 3, row)
+                    self._rows_layout.count() - 4, row)
                 self._rows[name] = lbl
             lbl.setText("✓ Pass" if ok else "FAULT")
             lbl.setStyleSheet(f"color: {OK if ok else DANGER};")
@@ -170,3 +186,14 @@ class _SelfTestPage(QWidget):
         self._detail.setText(
             "All checks pass." if not failed else
             "Needs attention — " + "; ".join(failed))
+        # Round-3 wizard expansion: the continue-anyway line
+        # shows only while a run has faults, and the run's full
+        # results go to the on_done hook (the wizard records the
+        # failing check names for the Home fix-it card; an
+        # all-pass run clears them).
+        self._continue_note.setVisible(bool(failed))
+        if self._on_done_cb is not None:
+            try:
+                self._on_done_cb(list(results))
+            except Exception:  # noqa: BLE001 — a hook never breaks paint
+                pass

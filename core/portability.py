@@ -120,7 +120,8 @@ def _collect_milestones(data_dir: str) -> tuple[bytes, int]:
     return blob, skipped
 
 
-def export_bundle(data_dir: str, settings: dict, out_path: str) -> dict:
+def export_bundle(data_dir: str, settings: dict, out_path: str,
+                  passphrase: str | None = None) -> dict:
     """Write a portability bundle and return an export report.
 
     ``data_dir`` is the install's data/ directory (memories and
@@ -128,7 +129,18 @@ def export_bundle(data_dir: str, settings: dict, out_path: str) -> dict:
     is a JSON-serialisable snapshot dict (e.g. SettingsStore
     snapshot). Raises ValueError when settings are not JSON
     serialisable, rather than exporting a lossy bundle.
+
+    Loophole batch 3 (#10): ``passphrase`` is REQUIRED — without
+    it the export refuses (ValueError, plain words) and nothing
+    is written. With it, the bundle is encrypted with the same
+    ``VYUKBK1`` envelope as a scheduled backup (see
+    core/backup.py); the report carries ``encrypted: True``.
     """
+    from .backup import _NO_PASSPHRASE_MSG
+    from .backup import encrypt_backup_blob
+
+    if not passphrase:
+        raise ValueError(_NO_PASSPHRASE_MSG)
     try:
         settings_blob = json.dumps(settings, indent=2, sort_keys=True).encode("utf-8")
     except (TypeError, ValueError) as exc:
@@ -152,13 +164,17 @@ def export_bundle(data_dir: str, settings: dict, out_path: str) -> dict:
 
     parent = os.path.dirname(os.path.abspath(out_path))
     os.makedirs(parent, exist_ok=True)
-    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
+    inner = io.BytesIO()
+    with zipfile.ZipFile(inner, "w", zipfile.ZIP_DEFLATED) as zf:
         for name in sorted(entries):
             zf.writestr(name, entries[name])
         zf.writestr(MANIFEST_NAME, manifest_blob)
+    with open(out_path, "wb") as fh:
+        fh.write(encrypt_backup_blob(inner.getvalue(), passphrase))
     return {
         "bundle": out_path,
         "format": BUNDLE_FORMAT,
+        "encrypted": True,
         "settings_keys": len(settings),
         "memory_files": len(memories),
         "milestone_lines": manifest["milestone_lines"],
@@ -167,7 +183,8 @@ def export_bundle(data_dir: str, settings: dict, out_path: str) -> dict:
     }
 
 
-def verify_bundle(bundle_path: str) -> dict:
+def verify_bundle(bundle_path: str, passphrase: str | None = None
+                  ) -> dict:
     """Check a bundle's manifest hashes without applying anything.
 
     Returns {"ok": bool, "manifest": dict|None, "failed": [...],
@@ -175,11 +192,21 @@ def verify_bundle(bundle_path: str) -> dict:
     whose bytes do not match the manifest; ``extra`` lists ZIP
     entries absent from the manifest; ``missing`` lists manifest
     entries absent from the ZIP.
+
+    Loophole batch 3 (#10): the bundle is decrypted first with
+    ``passphrase`` — without one, or for a legacy plain ZIP, or
+    when the integrity check fails, verification fails.
     """
+    from .backup import _read_bundle_zip
+
     result: dict = {"ok": False, "manifest": None, "failed": [],
                     "extra": [], "missing": []}
+    inner, error = _read_bundle_zip(bundle_path, passphrase)
+    if error is not None:
+        result["failed"] = [error]
+        return result
     try:
-        zf = zipfile.ZipFile(bundle_path)
+        zf = zipfile.ZipFile(io.BytesIO(inner))
     except (zipfile.BadZipFile, OSError) as exc:
         result["failed"] = [f"bundle-unreadable: {exc}"]
         return result
@@ -216,7 +243,8 @@ def verify_bundle(bundle_path: str) -> dict:
     return result
 
 
-def import_bundle(bundle_path: str, target_data_dir: str) -> dict:
+def import_bundle(bundle_path: str, target_data_dir: str,
+                  passphrase: str | None = None) -> dict:
     """Restore a bundle into a fresh install's data/ directory.
 
     Verifies hashes first; on ANY verification failure nothing is
@@ -228,12 +256,19 @@ def import_bundle(bundle_path: str, target_data_dir: str) -> dict:
     here. Sections absent from the bundle (e.g. a hand-made bundle
     with no milestones file) are ``missing``; the other sections
     still restore.
+
+    Loophole batch 3 (#10): the bundle is decrypted with
+    ``passphrase`` — without it, or for a legacy plain ZIP, or
+    when the integrity check fails, import refuses and applies
+    nothing.
     """
+    from .backup import _read_bundle_zip
+
     report: dict = {"applied": [], "missing": [], "extra": [],
                     "failed": [], "settings": None,
                     "memory_files": 0, "milestone_lines": 0,
                     "milestones_skipped_malformed": 0}
-    check = verify_bundle(bundle_path)
+    check = verify_bundle(bundle_path, passphrase=passphrase)
     manifest = check["manifest"]
     if manifest is None:
         report["failed"] = check["failed"]
@@ -250,7 +285,11 @@ def import_bundle(bundle_path: str, target_data_dir: str) -> dict:
     report["extra"] = check["extra"]
     report["missing"] = check["missing"]
 
-    with zipfile.ZipFile(bundle_path) as zf:
+    inner, error = _read_bundle_zip(bundle_path, passphrase)
+    if error is not None:
+        report["failed"] = [error]
+        return report
+    with zipfile.ZipFile(io.BytesIO(inner)) as zf:
         names = set(zf.namelist())
         # Settings.
         if SETTINGS_NAME in names:

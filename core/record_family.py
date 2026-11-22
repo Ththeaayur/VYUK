@@ -187,8 +187,24 @@ def append_event(kind: str, data: dict) -> str:
 
 
 def read_events(kind: str, limit: int = 50) -> list:
-    """Read events of one kind, newest-first."""
-    return _chain.read(kind=kind, limit=limit)
+    """Read events of one kind, newest-first — the VERIFIED prefix
+    only (loophole batch 6, #12): entries at and after the chain's
+    first break are never returned as trusted values. See
+    read_events_detail() for the break itself."""
+    return _chain.read_trusted(kind=kind, limit=limit)["entries"]
+
+
+def read_events_detail(kind: str, limit: int = 50) -> dict:
+    """read_events() plus the verification: {"entries", "ok",
+    "first_break", "warnings"} — the break is None when intact."""
+    return _chain.read_trusted(kind=kind, limit=limit)
+
+
+def chain_break() -> dict | None:
+    """The chain's first break, or None when it verifies intact
+    (loophole batch 6, #12 — the Activity feed shows this
+    instead of silently returning fewer entries)."""
+    return _chain.chain_break()
 
 
 def verify_chain() -> bool:
@@ -230,7 +246,17 @@ def log_egress(when: str, where: str, why: str) -> str:
     ``when`` is an ISO timestamp string, ``where`` the
     destination in human terms (host/service, never a secret),
     ``why`` the plain-language reason the call was made.
-    Returns the event id."""
+    Returns the event id.
+
+    Loophole batch 5 (#5): private mode suppresses the egress
+    ledger — a private turn's network call is part of the turn
+    and is not recorded. Returns "" (no event)."""
+    try:
+        from .private_mode import private_mode_on
+    except Exception:  # noqa: BLE001 — unreadable: not private
+        private_mode_on = None
+    if private_mode_on is not None and private_mode_on():
+        return ""
     return append_event("egress", {"when": when, "where": where,
                                    "why": why})
 
@@ -252,7 +278,18 @@ def log_activity_human(text: str, reversible=None,
     PF-2 undo object, and the surface marks it irreversible so
     no fake undo is ever implied); True + ``undo_action_id``
     marks a registered undoable action; None (default) means
-    reversibility is unknown and the surface marks nothing."""
+    reversibility is unknown and the surface marks nothing.
+
+    Loophole batch 5 (#5): private mode suppresses the Activity
+    feed — a private turn leaves no activity event in the chain
+    (the plain-text data/activity.log line is suppressed at its
+    own seam, _log_activity). Returns "" (no event)."""
+    try:
+        from .private_mode import private_mode_on
+    except Exception:  # noqa: BLE001 — unreadable: not private
+        private_mode_on = None
+    if private_mode_on is not None and private_mode_on():
+        return ""
     data: dict = {"text": text}
     if reversible is not None:
         data["reversible"] = bool(reversible)

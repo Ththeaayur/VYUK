@@ -76,6 +76,35 @@ class SettingsAdvCardsMixin:
         self.settings_file_label.setWordWrap(True)
         self.settings_file_label.setVisible(False)
         settings_file.addWidget(self.settings_file_label)
+        # Loophole batch 3 (#10): the backup passphrase card.
+        # Backups are encrypted with a passphrase the user sets;
+        # without one, every backup (scheduled or exported)
+        # refuses. The passphrase itself is protected by the
+        # secrets store and never enters a backup.
+        backup_pp = self._settings_card(
+            more_layout, "Backup passphrase",
+            "Backups are encrypted with this passphrase — without "
+            "one, no backup runs. Keep it somewhere safe: a "
+            "backup cannot be restored without it, and VYUK "
+            "cannot recover it for you.")
+        pp_row = QHBoxLayout()
+        self.btn_set_backup_passphrase = QPushButton("Set passphrase")
+        self.btn_set_backup_passphrase.setObjectName("chipBtn")
+        self.btn_set_backup_passphrase.clicked.connect(
+            self._set_backup_passphrase)
+        pp_row.addWidget(self.btn_set_backup_passphrase)
+        self.btn_clear_backup_passphrase = QPushButton("Clear passphrase")
+        self.btn_clear_backup_passphrase.setObjectName("chipBtn")
+        self.btn_clear_backup_passphrase.clicked.connect(
+            self._clear_backup_passphrase)
+        pp_row.addWidget(self.btn_clear_backup_passphrase)
+        pp_row.addStretch()
+        backup_pp.addLayout(pp_row)
+        self.backup_passphrase_label = QLabel("")
+        self.backup_passphrase_label.setObjectName("cardHint")
+        self.backup_passphrase_label.setWordWrap(True)
+        backup_pp.addWidget(self.backup_passphrase_label)
+        self._refresh_backup_passphrase_status()
         # S12 (S3): the real shortcuts, in one place. Only
         # what the code actually binds is listed here.
         shortcuts = self._settings_card(
@@ -246,6 +275,63 @@ class SettingsAdvCardsMixin:
         except Exception:  # noqa: BLE001 — Settings must still build
             pass
 
+    def _refresh_backup_passphrase_status(self):
+        """Loophole batch 3 (#10): the backup-passphrase card's
+        status line — set or not set, never the passphrase itself."""
+        try:
+            from voice_assistant.core.gui_facade import backup as _backup
+            from voice_assistant.core.gui_facade import config_module as _cfg_mod
+            has = _backup.has_backup_passphrase(str(_cfg_mod.DATA_DIR))
+            self.backup_passphrase_label.setText(
+                "A backup passphrase is set — backups are encrypted "
+                "with it." if has else
+                "No backup passphrase is set — backups are refused "
+                "until you set one.")
+        except Exception:  # noqa: BLE001 — a status line never
+            pass  # breaks Settings
+
+    def _set_backup_passphrase(self):
+        """Loophole batch 3 (#10): ask for a passphrase (typed
+        twice, masked), store it protected, refresh the status."""
+        try:
+            from PySide6.QtWidgets import QInputDialog, QLineEdit
+            from voice_assistant.core.gui_facade import backup as _backup
+            from voice_assistant.core.gui_facade import config_module as _cfg_mod
+            first, ok = QInputDialog.getText(
+                self, "Set backup passphrase",
+                "Backups will be encrypted with this passphrase.\n"
+                "Keep it somewhere safe — a backup cannot be "
+                "restored without it.",
+                QLineEdit.EchoMode.Password)
+            if not ok or not (first or "").strip():
+                return
+            second, ok2 = QInputDialog.getText(
+                self, "Set backup passphrase",
+                "Type the passphrase again to confirm.",
+                QLineEdit.EchoMode.Password)
+            if not ok2 or second != first:
+                self.backup_passphrase_label.setText(
+                    "The two passphrases did not match — nothing "
+                    "was changed.")
+                return
+            _backup.set_backup_passphrase(str(_cfg_mod.DATA_DIR), first)
+            self._refresh_backup_passphrase_status()
+        except Exception:  # noqa: BLE001 — Settings must still work
+            pass
+
+    def _clear_backup_passphrase(self):
+        """Loophole batch 3 (#10): clear the stored passphrase.
+        Existing bundles keep working only with the passphrase
+        they were written under; new backups refuse until a new
+        one is set."""
+        try:
+            from voice_assistant.core.gui_facade import backup as _backup
+            from voice_assistant.core.gui_facade import config_module as _cfg_mod
+            _backup.set_backup_passphrase(str(_cfg_mod.DATA_DIR), "")
+            self._refresh_backup_passphrase_status()
+        except Exception:  # noqa: BLE001 — Settings must still work
+            pass
+
     def _build_adv_cards2(self, more_layout):
         # Refactor Phase 1 step 5: section moved verbatim from SettingsMixin._build_settings_page.
 
@@ -334,6 +420,37 @@ class SettingsAdvCardsMixin:
         self.btn_report_problem = QPushButton("Report a problem…")
         self.btn_report_problem.clicked.connect(self._open_report_problem)
         report.addWidget(self.btn_report_problem)
+
+        # Loophole batch 7 (#6): feedback & crash reporting —
+        # opt-in, off by default, separate from sign-in. The
+        # toggle writes the config field + FEEDBACK_REPORTING_ENABLED
+        # in .env (the same persist shape as the Privacy card's
+        # private-mode toggle). The status line says what is
+        # recorded right now, and how many crash signatures sit
+        # locally.
+        feedback = self._settings_card(
+            more_layout, "Feedback & crash reports",
+            "Sends only the feedback label and a hash of the turn "
+            "— never the words. Crash reports carry only the crash "
+            "signature — never what you said or did. Off unless "
+            "you turn it on; separate from sign-in.")
+        self.chk_feedback_reporting = QCheckBox(
+            "Send feedback & crash reports")
+        try:
+            from voice_assistant.core.gui_facade import config as _cfg
+
+            self.chk_feedback_reporting.setChecked(
+                bool(getattr(_cfg, "feedback_reporting_enabled", False)))
+        except Exception:  # noqa: BLE001 — a broken read reads off
+            self.chk_feedback_reporting.setChecked(False)
+        self.chk_feedback_reporting.toggled.connect(
+            self._on_feedback_reporting_toggled)
+        feedback.addWidget(self.chk_feedback_reporting)
+        self._feedback_reporting_status = QLabel("")
+        self._feedback_reporting_status.setObjectName("cardHint")
+        self._feedback_reporting_status.setWordWrap(True)
+        feedback.addWidget(self._feedback_reporting_status)
+        self._refresh_feedback_reporting_status()
 
         # v5.65 (Wave 10 — PF-4 / PF-13 / PF-6): distribution cards.
         # Data portability: export a complete bundle (settings +
@@ -480,6 +597,24 @@ class SettingsAdvCardsMixin:
                 "restart VYUK to install it.")
             self.btn_updates.setEnabled(False)
             self.btn_updates.setText("Ready to install on restart")
+        # Loophole batch 6 (#9): the update's two undo seams.
+        # Roll back to the previous build (only when an update
+        # backup exists) and discard a downloaded update (only
+        # when one is staged). Both are plain buttons on this
+        # card — never voice-triggered, never automatic. Their
+        # visibility is refreshed by _refresh_update_buttons()
+        # after any update action.
+        update_actions = QHBoxLayout()
+        self.btn_rollback = QPushButton("Roll back to previous build")
+        self.btn_rollback.clicked.connect(self._on_rollback_clicked)
+        update_actions.addWidget(self.btn_rollback)
+        self.btn_discard_update = QPushButton("Discard downloaded update")
+        self.btn_discard_update.clicked.connect(
+            self._on_discard_update_clicked)
+        update_actions.addWidget(self.btn_discard_update)
+        update_actions.addStretch()
+        about.addLayout(update_actions)
+        self._refresh_update_buttons()
 
 
     # ------------------------------------------------- v5.56 trust surfaces
@@ -574,13 +709,85 @@ class SettingsAdvCardsMixin:
             pass
 
     def _open_report_problem(self):
-        """PF-10 report-a-problem dialog."""
+        """PF-10 report-a-problem dialog. Loophole batch 7 (#6):
+        the dialog is given the last assistant turn, so it can
+        offer the answer-feedback row (label + turn hash, never
+        the words); without a turn the row stays hidden."""
         try:
             from voice_assistant.gui.window_trust import (
-                show_report_problem_dialog)
-            show_report_problem_dialog(self)
+                last_assistant_turn,
+                show_report_problem_dialog,
+            )
+
+            turn = ""
+            try:
+                _thread_get = getattr(self, "_chat_thread", None)
+                if callable(_thread_get):
+                    turn = last_assistant_turn(_thread_get())
+            except Exception:  # noqa: BLE001 — no turn, no row
+                turn = ""
+            show_report_problem_dialog(self, turn_text=turn)
         except Exception:  # noqa: BLE001
             pass
+
+    def _on_feedback_reporting_toggled(self, on: bool):
+        # Loophole batch 7 (#6): persists like the Privacy
+        # card's private-mode toggle (config field +
+        # FEEDBACK_REPORTING_ENABLED in .env). The crash hook
+        # reads the config field live at crash time, so flipping
+        # it on mid-session arms the hook at once. Lives HERE,
+        # beside the card that connects it — a bare
+        # SettingsAdvancedCardsMixin builds this card, and a
+        # handler on another mixin leaves the build raising
+        # AttributeError (loophole batch 5's lesson).
+        try:
+            from voice_assistant.core.gui_facade import config
+
+            config.feedback_reporting_enabled = bool(on)
+        except Exception:  # noqa: BLE001 — the toggle still shows
+            pass
+        try:
+            self._persist_config_setting(
+                "FEEDBACK_REPORTING_ENABLED", "true" if on else "false")
+        except Exception:  # noqa: BLE001 — the in-memory field
+            pass  # already carries the choice
+        self._refresh_feedback_reporting_status()
+
+    def _refresh_feedback_reporting_status(self):
+        """Loophole batch 7 (#6): the feedback card's status line
+        — plain words for what is recorded right now. Never
+        raises (a broken read reads as off)."""
+        label = getattr(self, "_feedback_reporting_status", None)
+        if label is None:
+            return
+        try:
+            from voice_assistant.core.gui_facade import config
+
+            on = bool(getattr(config, "feedback_reporting_enabled",
+                              False))
+        except Exception:  # noqa: BLE001 — a broken read reads off
+            on = False
+        try:
+            from voice_assistant.core.gui_facade import (
+                feedback_report as _fr)
+
+            crash_count = _fr.count_crash_signatures()
+        except Exception:  # noqa: BLE001 — an unreadable store
+            crash_count = 0  # reads as empty
+        if on:
+            text = ("On — feedback labels and crash signatures may "
+                    "be recorded locally.")
+        else:
+            text = ("Off — nothing is recorded. Turn it on to send "
+                    "feedback on an answer or record a crash.")
+        if crash_count:
+            text += (f" {crash_count} crash signature"
+                     f"{'s' if crash_count != 1 else ''} recorded "
+                     "locally.")
+        try:
+            label.setText(text)
+        except Exception:  # noqa: BLE001 — a status line never
+            pass  # breaks Settings
 
 def _about_hint_text(skill_count, engine: str) -> str:
     """About-page hint, pure (no Qt): the count is live-or-absent,

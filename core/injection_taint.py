@@ -82,6 +82,19 @@ _SOFT_TAINT_SOURCES = frozenset({
 # the lists let a refusal name everything that fed the session.
 _sources_seen: list[str] = []
 _taint_sources: list[str] = []
+
+# Tainted passages (loophole batch 5, L-25): the actual TEXT of
+# each noted piece of untrusted content, kept so the speech guard
+# (core/speech_guard.py) can attribute a quote to its source —
+# or refuse an instruction span — instead of speaking it as
+# VYUK's own words. One entry per note: {"source", "text"}.
+# Capped: 8 passages, 2000 characters each (16 KB worst case);
+# the oldest drops when the cap is hit. Cleared on every
+# _apply_clear, with the rest of the taint state. All taint state
+# lives in this module — this list included.
+_TAINTED_PASSAGES: list[dict] = []
+_MAX_TAINTED_PASSAGES = 8
+_MAX_TAINTED_PASSAGE_CHARS = 2000
 # Taint-clear deferral (v5.45, H18): a clear must never outrun a
 # tool still executing — a result landing mid-turn could re-taint
 # (or be judged) under trust state that was cleared beneath it.
@@ -151,6 +164,20 @@ def note_untrusted(source: str, text: str) -> None:
             _tainted = True
             _taint_source = source
             _taint_kind = "soft"
+        # Loophole batch 5 (L-25): retain the passage itself, so
+        # the speech guard can attribute a quote to this source
+        # or refuse an instruction span in it. Retained whether
+        # or not the screen tripped — provenance-only content is
+        # still untrusted, and a quote of it still needs its
+        # source named. Capped (8 passages, 2000 chars each);
+        # the oldest drops when the cap is hit.
+        if text and str(text).strip():
+            passage = str(text)[:_MAX_TAINTED_PASSAGE_CHARS]
+            _TAINTED_PASSAGES.append(
+                {"source": str(source or "untrusted content"),
+                 "text": passage})
+            while len(_TAINTED_PASSAGES) > _MAX_TAINTED_PASSAGES:
+                _TAINTED_PASSAGES.pop(0)
 
 
 def note_image_frame() -> None:
@@ -328,7 +355,18 @@ def _apply_clear() -> None:
         _taint_segment_counter += 1
         _taint_sources.clear()
         _sources_seen.clear()
+        _TAINTED_PASSAGES.clear()
         _clear_pending = False
+
+
+def tainted_passages() -> list[dict]:
+    """The retained tainted passages (loophole batch 5, L-25):
+    a copy of {"source", "text"} per noted piece of untrusted
+    content, oldest first. Empty when nothing was noted since
+    the last clear. The speech guard reads this — never the
+    raw taint globals."""
+    with _taint_lock:
+        return [dict(p) for p in _TAINTED_PASSAGES]
 
 
 def clear_taint(force: bool = False) -> bool:

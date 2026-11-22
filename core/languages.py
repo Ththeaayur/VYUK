@@ -112,6 +112,23 @@ def language_by_code(code: str | None) -> Language | None:
     return _BY_CODE.get(str(code).strip().lower())
 
 
+def apply_language_session(code: str) -> Language | None:
+    """The session-only language apply (round-3 wizard expansion):
+    the language page is FIRST in the wizard, so the pick must
+    drive the rest of the flow (voice page, sample sentence, Done
+    greeting) while the wizard is still open — but Skip records
+    nothing, so the durable write stays at Finish (the existing
+    set_preferred_language call in the flow's _next). Sets
+    config.preferred_language AND config.kokoro_voice in-process
+    only; writes nothing to .env. Unknown codes change nothing."""
+    entry = language_by_code(code)
+    if entry is None:
+        return None
+    config.preferred_language = entry.code
+    config.kokoro_voice = entry.voice
+    return entry
+
+
 def set_preferred_language(code: str) -> Language | None:
     """The one write path for the home language (onboarding +
     Settings both come through here): sets config.preferred_

@@ -42,7 +42,20 @@ from .tool_receipts_normalize import (
 # fails, the load still succeeds and the prune still runs; the
 # failure is logged and recorded here too — the loss is
 # announced either way, never silent.
+#
+# Loophole batch 6 (#15): the archive itself was uncapped —
+# every prune added a dated file and nothing ever removed one,
+# so the "bounded" live file just moved its growth into the
+# archive directory. The archive directory is now capped at
+# _MAX_ARCHIVE_BYTES total: after each archive write the oldest
+# archive files are removed (oldest-first) until the directory
+# is back under the cap, and the removal is recorded in the
+# same sticky prune-archive state ("archive_rotated") so the
+# Activity feed announces it instead of silently losing rows.
+# The cap is a disk bound, not a retention promise: a row the
+# rotation removes is gone, and the marker says so.
 _ARCHIVE_DIRNAME = "tool_receipts_archive"
+_MAX_ARCHIVE_BYTES = 10 * 1024 * 1024
 _PRUNE_ARCHIVE: dict[str, dict] = {}
 
 
@@ -252,6 +265,7 @@ class ReceiptStore:
             print(f"[Receipts] archived {len(dropped)} receipt "
                   f"rows pruned past the {self._max_lines}-line "
                   f"cap to {target}")
+            self._rotate_archive()
         except Exception as exc:  # noqa: BLE001 — an archive
             # failure must never break a load; the loss is
             # announced through the sticky state instead.
@@ -259,6 +273,57 @@ class ReceiptStore:
                                 count=len(dropped), error=str(exc))
             print(f"[Receipts] could not archive {len(dropped)} "
                   f"pruned receipt rows: {exc}")
+
+    def _rotate_archive(self) -> None:
+        """Cap the archive directory at _MAX_ARCHIVE_BYTES total,
+        oldest archive file first. Never raises: a rotation
+        failure is logged, and the archive simply stays over
+        the cap until the next prune retries it. Every removal
+        is recorded in the sticky prune-archive state under
+        "archive_rotated" (row count + archive dir), so the
+        Activity feed announces the loss instead of silently
+        losing rows."""
+        try:
+            archive_dir = self.path.parent / _ARCHIVE_DIRNAME
+            if not archive_dir.is_dir():
+                return
+            files = sorted(archive_dir.glob("*.jsonl"))
+            total = 0
+            sizes: dict[object, int] = {}
+            for p in files:
+                try:
+                    sizes[p] = p.stat().st_size
+                    total += sizes[p]
+                except OSError:
+                    continue
+            removed_rows = 0
+            removed_files = 0
+            while total > _MAX_ARCHIVE_BYTES and files:
+                oldest = files.pop(0)
+                try:
+                    rows = len(oldest.read_text(
+                        encoding="utf-8").splitlines())
+                except OSError:
+                    rows = 0
+                try:
+                    oldest.unlink()
+                except OSError:
+                    break
+                total -= sizes.get(oldest, 0)
+                removed_rows += rows
+                removed_files += 1
+            if removed_files:
+                _note_prune_archive("archive_rotated",
+                                    count=removed_rows,
+                                    archive_path=str(archive_dir))
+                print(f"[Receipts] rotated the receipts archive: "
+                      f"removed {removed_files} oldest archive "
+                      f"file(s) ({removed_rows} receipt rows) to "
+                      f"keep it under {_MAX_ARCHIVE_BYTES} bytes")
+        except Exception as exc:  # noqa: BLE001 — rotation
+            # must never break a load; the next prune retries.
+            print(f"[Receipts] could not rotate the receipts "
+                  f"archive: {exc}")
 
     def _append(self, record: dict, *, fsync: bool = False) -> None:
         self._ensure_loaded()
@@ -318,6 +383,17 @@ class ReceiptStore:
                 "tool receipts: snapshot_stamp must be a string")
         clean_compensations = _validate_compensations(compensations)
         clean_manual = _validate_manual_steps(manual_steps)
+        # Loophole batch 3 (L-33): the journal must never hold a
+        # secret — a compensation's args and a manual step can
+        # carry the same credential a call's own args can. Scrub
+        # them the same way the preview is scrubbed (below), so
+        # the receipt file and the prune archive hold no secret.
+        clean_compensations = [
+            {"tool": comp["tool"],
+             "args": _sanitize(comp["args"]),
+             "note": _sanitize(comp["note"])}
+            for comp in clean_compensations]
+        clean_manual = [_sanitize(step) for step in clean_manual]
         signatures = effect_signatures(tool, args)
         preview = _canonical_args(_sanitize(args))[:_MAX_PREVIEW_CHARS]
         attempt = {
@@ -405,6 +481,11 @@ class ReceiptStore:
                           "cancelled"):
             raise ValueError(f"tool receipts: bad outcome status {status!r}")
         summary = summary if isinstance(summary, str) else str(summary)
+        # Loophole batch 3 (L-33): the outcome summary is often
+        # the tool's own output — an `echo` of a command carrying
+        # a credential repeats the secret verbatim. Scrub it the
+        # same way the preview is scrubbed, before it is written.
+        summary = _sanitize(summary)
         record = {
             "type": "outcome",
             "receipt_id": str(receipt_id),

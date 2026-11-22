@@ -87,6 +87,7 @@ _EXPORTS = {
     "audio": (".voice.audio", None),
     "audio_manager": (".voice.audio", "audio_manager"),
     "audit": (".audit", None),
+    "backup": (".backup", None),
     "boot_sequence": (".desktop.boot_sequence", None),
     "browser_enable": (".desktop.browser_enable", None),
     "build_manifest": (".icon_manifest", "build_manifest"),
@@ -117,6 +118,10 @@ _EXPORTS = {
     "explicit_confirmation_prompt": (".brain.turn_machine", "explicit_confirmation_prompt"),
     "failsafe": (".failsafe", None),
     "failure_script": (".funnel.failure_script", None),
+    # Loophole batch 7 (#6): the feedback/crash reports — the
+    # Settings card, the report dialog and the bundle builder
+    # reach them through here (gui never imports core directly).
+    "feedback_report": (".feedback_report", None),
     "filter_entries": (".command_palette", "filter_entries"),
     "first_open_prompt": (".firstopen_optin", "first_open_prompt"),
     "first_run_asks": (".first_run_asks", None),
@@ -124,6 +129,7 @@ _EXPORTS = {
     "format_bytes": (".voice.local_assets", "format_bytes"),
     "gate_custom_accent": (".tokens", "gate_custom_accent"),
     "generate_session_summary": (".memory.session_summary", "generate_session_summary"),
+    "gemini_oauth": (".gemini_oauth", None),
     "google_services": (".google_services", None),
     "hotkey_daemon": (".desktop.hotkeys", "hotkey_daemon"),
     "integration_harness_tools": (".integration_harness_tools", None),
@@ -154,6 +160,10 @@ _EXPORTS = {
     "power_policy": (".power_policy", None),
     "presence": (".presence", None),
     "privacy": (".memory.privacy", None),
+    # Loophole batch 8 (L-31, L-32): the privacy copy in one
+    # place — every user-facing sentence about what leaves this
+    # PC, read through here (gui never imports core directly).
+    "privacy_copy": (".privacy_copy", None),
     "qsettings_contains": (".config_spec", "qsettings_contains"),
     "qsettings_get": (".config_spec", "qsettings_get"),
     "qsettings_remove": (".config_spec", "qsettings_remove"),
@@ -181,10 +191,27 @@ _EXPORTS = {
     "service_host": (".service_host", "ServiceHost"),
     "set_frame_sink": (".funnel.tools_handlers", "set_frame_sink"),
     "set_preferred_language": (".languages", "set_preferred_language"),
+    "apply_language_session": (".languages", "apply_language_session"),
+    "wizard_strings": (".wizard_strings", None),
     "set_session_provenance": (".funnel.tools_gate", "set_session_provenance"),
+    "session_owner_proven": (".funnel.tools_gate", "session_owner_proven"),
+    "session_owner_proof_reason": (".funnel.tools_gate", "session_owner_proof_reason"),
+    "session_owner_proof_status": (".funnel.tools_gate", "session_owner_proof_status"),
+    "mark_session_owner_proven": (".funnel.tools_gate", "mark_session_owner_proven"),
+    "mark_session_owner_unproven": (".funnel.tools_gate", "mark_session_owner_unproven"),
+    "voice_confirm_allowed": (".funnel.tools_gate", "voice_confirm_allowed"),
+    "voice_pin": (".voice_pin", None),
     "set_status_strip_sink": (".status_strip", "set_status_strip_sink"),
     "settings_search": (".settings_search", None),
     "settings_voice": (".settings_voice", None),
+    # Loophole batch 7 (#8 + #18): the per-piece setup-card
+    # state — the Home card and the wizard skip handlers reach
+    # it through here (gui never imports core directly).
+    "setup_pieces": (".setup_pieces", None),
+    # Stage 0 features batch 1 (Group D views): the Contacts
+    # list view reads the contact store through here (gui never
+    # imports core directly).
+    "skills_admin_schedules": (".skills_admin_schedules", None),
     "sound_pools_v564": (".sound_pools_v564", None),
     "speak_text": (".skills_plus", "speak_text"),
     "state_bus": (".state_bus", None),
@@ -204,6 +231,10 @@ _EXPORTS = {
     "validate_icon_name": (".icon_manifest", "validate_icon_name"),
     "validate_manifest": (".icon_manifest", "validate_manifest"),
     "vision_manager": (".desktop.vision", "vision_manager"),
+    # Stage 0 features batch 1 (Group D views): the Call history
+    # view reads the voice-agent call ledger through here (gui
+    # never imports core directly).
+    "voice_agent": (".voice_agent", None),
     "voice_live_session": (".voice.live_client", "live_session"),
     "voice_text_bridge": (".voice.voice_text_bridge", None),
     "w10_wiring": (".w10_wiring", None),
@@ -215,7 +246,7 @@ _EXPORTS = {
 }
 
 
-__all__ = ['AdvisorySpeakerVerifier', 'AudioManager', 'DATA_DIR', 'DICTATION_BANNER_TEXT', 'DICTATION_ENTER_ANNOUNCEMENT', 'DICTATION_EXIT_ANNOUNCEMENT', 'DictationMode', 'DirectednessGate', 'FLUENT_WINDOWS_ACTIONS', 'INTERRUPTED_STATES', 'IconRef', 'LADDER_LEVELS', 'LANGUAGES', 'LessonPanelState', 'LocalLiveSession', 'ManifestProblem', 'MediaDucking', 'MemoryStore', 'ORB_STYLES', 'PRIMARY_SYSTEM', 'PTT_BUTTON_LABEL', 'PTT_BUTTON_TOOLTIP', 'PushToTalk', 'RoutineScheduler', 'ScreenWatcher', 'TRANSCRIPTION_PROFILES', 'TaskLedger', 'TurnCoordinator', 'VERSION', 'VoiceFailoverGate', 'WatcherEngine', '_KOKORO_VOICE_ROSTER', '_stored_env_file_value', 'action_journal', 'activity_feed', 'always_allow', 'ambient', 'asset_repair', 'audio', 'audio_manager', 'audit', 'boot_sequence', 'browser_enable', 'build_manifest', 'cancel_waking', 'capture_guard', 'catalogue_groups_data', 'changelog', 'chat_thread', 'clipboard_monitor', 'clipboard_notice', 'cloud_diag', 'cloud_text_client', 'config', 'config_module', 'config_spec', 'confirm_gate', 'confirm_gate_scrub', 'confirmation_shape', 'cost_ledger', 'current_profile_name', 'cursor', 'daily_count', 'developer_telemetry_doctor', 'diagnose_downloads', 'discover_plugins', 'downloads', 'evaluate_spoken_diagnostic_notice', 'explicit_confirmation_prompt', 'failsafe', 'failure_script', 'filter_entries', 'first_open_prompt', 'first_run_asks', 'firstopen_surface', 'format_bytes', 'gate_custom_accent', 'generate_session_summary', 'google_services', 'hotkey_daemon', 'integration_harness_tools', 'is_non_success', 'kill_chain', 'last_download_error', 'learning', 'lifecycle', 'live_client', 'live_session', 'local_assets', 'loop_action_entries', 'memory_store', 'migrate_legacy_briefing_records', 'migrate_orb_style', 'migrate_theme_name', 'model_manager', 'music_player', 'note_image_frame', 'on_this_day', 'perf', 'permission_grants', 'plan_approval', 'planner', 'platform_permission_probe', 'plugin_loader', 'portability', 'power_policy', 'presence', 'privacy', 'qsettings_contains', 'qsettings_get', 'qsettings_remove', 'qsettings_remove_noted', 'qsettings_set', 'qsettings_set_noted', 'qsettings_store', 'read_memory', 'record_family', 'remove_offline_pack', 'resilience_gate', 'resolve', 'resolve_provider', 'resume_goal', 'routine_templates', 'run_routine', 'save_env_setting', 'save_session_summary', 'scheduled_agents', 'scheduler', 'screen_watch', 'senses', 'senses_log', 'session_epoch', 'service_host', 'set_frame_sink', 'set_preferred_language', 'set_session_provenance', 'set_status_strip_sink', 'settings_search', 'settings_voice', 'sound_pools_v564', 'speak_text', 'state_bus', 'storage_report', 'suggestions', 'system_audio_active', 'task_coordinator', 'terms', 'theme_sync', 'tokens', 'tool_labels', 'tool_receipts', 'tools', 'undo_completion', 'undo_producers_p1', 'updater', 'validate_icon_name', 'validate_manifest', 'vision_manager', 'voice_live_session', 'voice_text_bridge', 'w10_wiring', 'w8_wiring', 'w9_wiring', 'w9_wiring_lan', 'wake_word_detector', 'watchers']
+__all__ = ['AdvisorySpeakerVerifier', 'AudioManager', 'DATA_DIR', 'DICTATION_BANNER_TEXT', 'DICTATION_ENTER_ANNOUNCEMENT', 'DICTATION_EXIT_ANNOUNCEMENT', 'DictationMode', 'DirectednessGate', 'FLUENT_WINDOWS_ACTIONS', 'INTERRUPTED_STATES', 'IconRef', 'LADDER_LEVELS', 'LANGUAGES', 'LessonPanelState', 'LocalLiveSession', 'ManifestProblem', 'MediaDucking', 'MemoryStore', 'ORB_STYLES', 'PRIMARY_SYSTEM', 'PTT_BUTTON_LABEL', 'PTT_BUTTON_TOOLTIP', 'PushToTalk', 'RoutineScheduler', 'ScreenWatcher', 'TRANSCRIPTION_PROFILES', 'TaskLedger', 'TurnCoordinator', 'VERSION', 'VoiceFailoverGate', 'WatcherEngine', '_KOKORO_VOICE_ROSTER', '_stored_env_file_value', 'action_journal', 'activity_feed', 'always_allow', 'ambient', 'apply_language_session', 'asset_repair', 'audio', 'audio_manager', 'audit', 'backup', 'boot_sequence', 'browser_enable', 'build_manifest', 'cancel_waking', 'capture_guard', 'catalogue_groups_data', 'changelog', 'chat_thread', 'clipboard_monitor', 'clipboard_notice', 'cloud_diag', 'cloud_text_client', 'config', 'config_module', 'config_spec', 'confirm_gate', 'confirm_gate_scrub', 'confirmation_shape', 'cost_ledger', 'current_profile_name', 'cursor', 'daily_count', 'developer_telemetry_doctor', 'diagnose_downloads', 'discover_plugins', 'downloads', 'evaluate_spoken_diagnostic_notice', 'explicit_confirmation_prompt', 'failsafe', 'failure_script', 'feedback_report', 'filter_entries', 'first_open_prompt', 'first_run_asks', 'firstopen_surface', 'format_bytes', 'gate_custom_accent', 'gemini_oauth', 'generate_session_summary', 'google_services', 'hotkey_daemon', 'integration_harness_tools', 'is_non_success', 'kill_chain', 'last_download_error', 'learning', 'lifecycle', 'live_client', 'live_session', 'local_assets', 'loop_action_entries', 'mark_session_owner_proven', 'mark_session_owner_unproven', 'memory_store', 'migrate_legacy_briefing_records', 'migrate_orb_style', 'migrate_theme_name', 'model_manager', 'music_player', 'note_image_frame', 'on_this_day', 'perf', 'permission_grants', 'plan_approval', 'planner', 'platform_permission_probe', 'plugin_loader', 'portability', 'power_policy', 'presence', 'privacy', 'privacy_copy', 'qsettings_contains', 'qsettings_get', 'qsettings_remove', 'qsettings_remove_noted', 'qsettings_set', 'qsettings_set_noted', 'qsettings_store', 'read_memory', 'record_family', 'remove_offline_pack', 'resilience_gate', 'resolve', 'resolve_provider', 'resume_goal', 'routine_templates', 'run_routine', 'save_env_setting', 'save_session_summary', 'scheduled_agents', 'scheduler', 'screen_watch', 'senses', 'senses_log', 'session_epoch', 'service_host', 'set_frame_sink', 'set_preferred_language', 'set_session_provenance', 'session_owner_proof_reason', 'session_owner_proof_status', 'session_owner_proven', 'set_status_strip_sink', 'settings_search', 'settings_voice', 'setup_pieces', 'skills_admin_schedules', 'sound_pools_v564', 'speak_text', 'state_bus', 'storage_report', 'suggestions', 'system_audio_active', 'task_coordinator', 'terms', 'theme_sync', 'tokens', 'tool_labels', 'tool_receipts', 'tools', 'undo_completion', 'undo_producers_p1', 'updater', 'validate_icon_name', 'validate_manifest', 'vision_manager', 'voice_agent', 'voice_confirm_allowed', 'voice_live_session', 'voice_pin', 'voice_text_bridge', 'w10_wiring', 'w8_wiring', 'w9_wiring', 'w9_wiring_lan', 'wake_word_detector', 'watchers', 'wizard_strings']
 
 
 def __getattr__(name):

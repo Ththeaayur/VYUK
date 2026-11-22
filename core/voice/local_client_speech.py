@@ -60,6 +60,26 @@ class LocalLiveSessionSpeechMixin:
                 text = _replacement
         except Exception:  # noqa: BLE001 — the net must not break speech
             pass
+        # Loophole batch 5 (L-25): the speech guard — the choke
+        # point every local / lite / cloud-text voice funnels
+        # through. Tainted content is never spoken verbatim and
+        # never quoted as the assistant's own answer: a quote is
+        # spoken only with its source named, an instruction span
+        # is replaced by a refusal clause, and envelope markers
+        # are stripped. Runs after the spoken-errors replacement
+        # (a butler line is the assistant's own words, never
+        # tainted) and before chunking, so the chunks the TTS
+        # chain synthesises are already guarded. The guard never
+        # raises and never silences a reply — a broken guard
+        # returns the marker-stripped text.
+        try:
+            from ..speech_guard import guard_spoken_text
+
+            text = guard_spoken_text(text)
+        except Exception:  # noqa: BLE001 — the net must not break speech
+            pass
+        if not text:
+            return
         self._speaking = True
         self._notify_status("SPEAKING")
         # B-R1-3s: a stale rung from a previous reply must never

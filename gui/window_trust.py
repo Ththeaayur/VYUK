@@ -176,7 +176,8 @@ def render_degraded_mode_text(summary):
         return "Status unavailable."
 
 
-def build_report_bundle(*, extra=None, state=None, policy=None):
+def build_report_bundle(*, extra=None, state=None, policy=None,
+                         feedback=None, crash=None):
     """PF-10 bundle snapshot: version, platform, generated_at,
     degradation state, power policy. NO logs, NO memory, NO
     user content — the bundle is only what the preview shows,
@@ -184,7 +185,22 @@ def build_report_bundle(*, extra=None, state=None, policy=None):
     user-typed note supplied BEFORE preview) is merged under
     "note" only when given — it is part of the frozen preview
     like everything else, never appended after. Never raises;
-    on total failure returns a minimal bundle saying so."""
+    on total failure returns a minimal bundle saying so.
+    Loophole batch 7 (#6): `feedback` and `crash` are report
+    dicts from core/feedback_report — a label + turn hash, or
+    a crash signature only — merged under their own keys. They
+    are validated BEFORE assembly: a report that carries
+    content raises ValueError and nothing is sent (a refused
+    report is never silently downgraded to a minimal bundle)."""
+    for _key, _report in (("feedback", feedback), ("crash", crash)):
+        if _report is not None:
+            from voice_assistant.core.gui_facade import (
+                feedback_report as _fr,
+            )
+
+            if not _fr.report_carries_no_content(_report):
+                raise ValueError(
+                    f"refusing {_key} report that carries content")
     try:
         version = "unknown"
         try:
@@ -210,6 +226,10 @@ def build_report_bundle(*, extra=None, state=None, policy=None):
         }
         if isinstance(extra, dict) and extra:
             bundle["note"] = copy.deepcopy(extra)
+        if feedback is not None:
+            bundle["feedback"] = dict(feedback)
+        if crash is not None:
+            bundle["crash"] = dict(crash)
         return bundle
     except Exception:  # noqa: BLE001
         return {"app": "VYUK", "version": "unknown",
@@ -387,22 +407,52 @@ def show_degraded_mode_dialog(parent=None):
     return dlg.exec()
 
 
-def build_report_problem_dialog(parent=None):
+def last_assistant_turn(thread) -> str:
+    """The last finished assistant turn's text from a ChatThread
+    ("" when there is none). The feedback row rates exactly this
+    turn — its hash, never its words, leaves the app. Pure: no Qt,
+    so the suite can drive it without a window."""
+    try:
+        if thread is None:
+            return ""
+        visible = thread.visible_thread()
+    except Exception:  # noqa: BLE001 — no turn on any failure
+        return ""
+    for msg in reversed(visible):
+        try:
+            if getattr(msg, "role", "") == "assistant" \
+                    and getattr(msg, "kind", "") == "text" \
+                    and getattr(msg, "status", "done") == "done" \
+                    and str(getattr(msg, "text", "") or "").strip():
+                return str(msg.text)
+        except Exception:  # noqa: BLE001 — skip a broken node
+            continue
+    return ""
+
+
+def build_report_problem_dialog(parent=None, *, turn_text=None):
     """PF-10 dialog: frozen preview (read-only), consent
     checkbox, Export + mailto buttons. Consent gates the
     FROZEN bundle: Export/mailto stay disabled until the box
     is checked, and rebuilding the bundle (Refresh) resets
     consent — a new bundle always needs a new consent.
-    Returns (dialog, widgets dict)."""
+    Loophole batch 7 (#6): when `turn_text` is given (the last
+    assistant turn), the dialog gains an answer-feedback row —
+    three labels, none pre-selected. Picking one rebuilds the
+    bundle with a feedback report (label + turn hash, never the
+    words). No turn, no row. Returns (dialog, widgets dict)."""
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import (
+        QButtonGroup,
         QCheckBox,
         QDialog,
         QFileDialog,
+        QGroupBox,
         QHBoxLayout,
         QLabel,
         QPlainTextEdit,
         QPushButton,
+        QRadioButton,
         QVBoxLayout,
     )
     from PySide6.QtGui import QDesktopServices
@@ -428,6 +478,39 @@ def build_report_problem_dialog(parent=None):
     preview.setReadOnly(True)
     preview.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
     lay.addWidget(preview, stretch=1)
+    # Loophole batch 7 (#6): the answer-feedback row — only when
+    # the dialog was given a turn to rate. Three labels, none
+    # pre-selected; the pick adds a feedback report (label +
+    # turn hash, never the words) to the frozen bundle, and
+    # rebuilds it (which resets consent, per the PF-10 rule).
+    state = {"prepared": None, "feedback_label": None,
+             "turn_text": turn_text}
+    feedback_radios = []
+    feedback_group = None
+    if turn_text is not None and str(turn_text).strip():
+        feedback_group = QGroupBox("Feedback on the last answer")
+        fb_layout = QVBoxLayout(feedback_group)
+        fb_note = QLabel(
+            "Sends only the label and a hash of the turn — "
+            "never the words. Off unless you pick a label.")
+        fb_note.setObjectName("muted")
+        fb_note.setWordWrap(True)
+        fb_layout.addWidget(fb_note)
+        fb_buttons = QButtonGroup(dlg)
+        for _label, _title in (
+                ("helpful", "Helpful"),
+                ("not_helpful", "Not helpful"),
+                ("wrong", "Wrong")):
+            _rb = QRadioButton(_title)
+            _rb.setAccessibleName(f"Feedback: {_label}")
+            _rb.toggled.connect(
+                lambda _checked, _l=_label: (
+                    _on_feedback_picked(_l)
+                    if _checked else None))
+            fb_buttons.addButton(_rb)
+            fb_layout.addWidget(_rb)
+            feedback_radios.append(_rb)
+        lay.addWidget(feedback_group)
     consent = QCheckBox(
         "I have reviewed the bundle above and consent to "
         "exporting it.")
@@ -441,10 +524,25 @@ def build_report_problem_dialog(parent=None):
     for btn in (btn_refresh, btn_export, btn_mailto, btn_close):
         btn_row.addWidget(btn)
     lay.addLayout(btn_row)
-    state = {"prepared": None}
+
+    def _on_feedback_picked(label):
+        state["feedback_label"] = label
+        _rebuild()
 
     def _rebuild():
-        bundle = build_report_bundle()
+        feedback = None
+        label = state.get("feedback_label")
+        turn = state.get("turn_text")
+        if label and turn is not None and str(turn).strip():
+            try:
+                from voice_assistant.core.gui_facade import (
+                    feedback_report as _fr,
+                )
+
+                feedback = _fr.build_feedback_report(label, turn)
+            except Exception:  # noqa: BLE001 — the bundle stays
+                feedback = None  # feedback-free on a build failure
+        bundle = build_report_bundle(feedback=feedback)
         state["prepared"] = prepare_report_export(bundle)
         preview.setPlainText(state["prepared"]["preview"])
         consent.setChecked(False)
@@ -493,11 +591,14 @@ def build_report_problem_dialog(parent=None):
                "export": btn_export, "mailto": btn_mailto,
                "refresh": btn_refresh, "close": btn_close,
                "state": state, "rebuild": _rebuild,
-               "sync": _sync_buttons}
+               "sync": _sync_buttons,
+               "feedback_group": feedback_group,
+               "feedback_radios": feedback_radios}
     return dlg, widgets
 
 
-def show_report_problem_dialog(parent=None):
+def show_report_problem_dialog(parent=None, *, turn_text=None):
     """Build + exec the PF-10 dialog. Returns the dialog result."""
-    dlg, _widgets = build_report_problem_dialog(parent)
+    dlg, _widgets = build_report_problem_dialog(
+        parent, turn_text=turn_text)
     return dlg.exec()

@@ -24,10 +24,14 @@ What one tap does, in order (scope §3):
 States, exactly as the Settings card renders them, plus the
 toggle-first rule (parent ruling D7): on needs_restart the
 chrome://inspect toggle is offered FIRST — it is the only path
-that keeps the real profile (logins and tabs included). The
-restart button appears only after the user presses "Restart
-Chrome instead", having read the warning; the restart happens
-only on that explicit press, on Windows only, never silently.
+that keeps the real profile (logins and tabs included). Round-3
+wizard expansion: the toggle block shows UP FRONT whenever
+this machine's path is toggle_or_restart (see
+_refresh_path_line) — the toggle is the first thing, not a
+consolation after a failed Connect tap. The restart button
+appears only after the user presses "Restart Chrome instead",
+having read the warning; the restart happens only on that
+explicit press, on Windows only, never silently.
 CDP-only (parent ruling D5): the page says plainly that VYUK
 drives Chrome directly for now and the browser add-on comes
 later; nothing here installs the extension, and
@@ -163,7 +167,11 @@ class BrowserConnectWidget(QWidget):
         layout.addWidget(self.status_label)
 
         # Toggle-first block (needs_restart only): the
-        # one-switch way that keeps the real profile.
+        # one-switch way that keeps the real profile. Round-3
+        # wizard expansion: it also shows up front when this
+        # machine's path is toggle_or_restart (see
+        # _refresh_path_line) — the toggle is the first thing,
+        # not a consolation after a failed Connect tap.
         self.toggle_block = QWidget()
         toggle_layout = QVBoxLayout(self.toggle_block)
         toggle_layout.setContentsMargins(0, 0, 0, 0)
@@ -248,6 +256,16 @@ class BrowserConnectWidget(QWidget):
                 str(_asks.ASK_COPY["browser"]["cost_line"]))
         else:
             self.cost_label.setText("")
+        # Round-3 wizard expansion (one-tap-simple): the toggle
+        # block shows up front when this machine's path is
+        # toggle_or_restart — the toggle is the first thing, not
+        # a consolation after a failed Connect tap. Hidden for
+        # attached/direct (no toggle needed) and for every other
+        # path (the result handler owns those). Re-read on every
+        # show, like the path line, so it tracks Chrome starting
+        # or closing while the wizard is open.
+        self.toggle_block.setVisible(
+            str(result.get("path", "")) == "toggle_or_restart")
 
     def showEvent(self, event):  # noqa: N802 (Qt naming)
         # The path can change while the wizard is open (Chrome

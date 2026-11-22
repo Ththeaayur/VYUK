@@ -269,7 +269,37 @@ class TestSlice1StaticPins(unittest.TestCase):
         # row-sheet helpers) could reduce this later, but that is
         # a refactor batch, not this build. The cap still binds
         # above 107.
-        self.assertLessEqual(_count_font_size_outside_style(), 107)
+        # INTENTIONAL UPDATE (wizard polish, 2026-11-21):
+        # 108, not 107. Proven with the test's own gui/*.py
+        # method: 107 on backup_r3wizard_polish_pre, 108 on the
+        # live tree; the delta is exactly one site — the Done
+        # page's brain line (gui/onboarding_pages.py) moves from
+        # setObjectName("muted") to its own setStyleSheet, which
+        # carries font-size: {TYPE_BODY}px (token-based, zero
+        # literals — the uipolish numeric-literal count is
+        # untouched by this change). One site, one widget. The
+        # cap still binds above 108.
+        # INTENTIONAL UPDATE (round-3 wizard expansion, 2026-11-21):
+        # 109, not 108. Proven with the test's own gui/*.py
+        # method: 108 on backup_r3wizard_expand_pre, 109 on the
+        # live tree; the delta is exactly one site — the Done
+        # page's new greeting line (gui/onboarding_pages.py)
+        # takes the brain line's own setStyleSheet, which carries
+        # font-size: {TYPE_BODY}px (token-based, zero literals —
+        # the uipolish numeric-literal count is untouched by this
+        # change). One site, one widget. The cap still binds
+        # above 109.
+        # INTENTIONAL UPDATE (Stage 0 features batch 1,
+        # 2026-11-22): 111, not 109. Proven with the test's own
+        # gui/*.py method: 109 on stage0f1_work/prescratch, 111
+        # on the live tree; the delta is exactly two sites — the
+        # calendar page's "Next 7 days" title and day-detail
+        # title (gui/window_pages_views.py) each take a
+        # setStyleSheet carrying font-size: {TYPE_CARD_TITLE}px
+        # (token-based, zero literals — the uipolish
+        # numeric-literal count is untouched by this change).
+        # One site, one widget. The cap still binds above 111.
+        self.assertLessEqual(_count_font_size_outside_style(), 111)
 
     def test_setstylesheet_total_does_not_grow(self):
         # INTENTIONAL: 110 setStyleSheet calls at v5.97
@@ -375,7 +405,44 @@ class TestSlice1StaticPins(unittest.TestCase):
         # Pulse footer gone, sub/value restyled). Same count as
         # the scifi_activity pin, same delta. The cap still binds
         # above 172.
-        self.assertLessEqual(_count_setstylesheet(), 172)
+        # INTENTIONAL UPDATE (wizard polish, 2026-11-21):
+        # 173, not 172. Proven with the test's own gui/*.py
+        # method: 172 on backup_r3wizard_polish_pre, 173 on the
+        # live tree; the delta is exactly one site — the Done
+        # page's brain line (gui/onboarding_pages.py) moves from
+        # setObjectName("muted") to its own setStyleSheet. One
+        # site, one widget. Same count as the scifi_activity
+        # pin, same delta. The cap still binds above 173.
+        # INTENTIONAL UPDATE (round-3 OAuth build, 2026-11-21):
+        # 175, not 173. Proven with the test's own gui/*.py
+        # method: 173 on backup_r3oauth_build_pre, 175 on the
+        # live tree; the delta is exactly the OAuth net +2
+        # (onboarding_pages +3, onboarding_flow -1 — the key
+        # page's sites go with the page, the sign-in page's
+        # status/test-label states add 6, the sign-in advance's
+        # amber warning adds 1). Same count as the
+        # scifi_activity pin, same delta. The cap still binds
+        # above 175.
+        # INTENTIONAL UPDATE (round-3 wizard expansion, 2026-11-21):
+        # 176, not 175. Proven with the test's own gui/*.py
+        # method: 175 on backup_r3wizard_expand_pre, 176 on the
+        # live tree; the delta is exactly one site — the Done
+        # page's new greeting line (gui/onboarding_pages.py) takes
+        # the brain line's own setStyleSheet. The theme picker
+        # paints its swatches through QPalette and bolds through
+        # QFont, and the Google-services page carries its state in
+        # text — neither adds a site. One site, one widget. The
+        # cap still binds above 176.
+        # INTENTIONAL UPDATE (Stage 0 features batch 1,
+        # 2026-11-22): 183, not 176. Proven with the test's own
+        # gui/*.py method: 176 on stage0f1_work/prescratch, 183
+        # on the live tree; the delta is exactly seven sites —
+        # the new views mixin (gui/window_pages_views.py):
+        # calendar sheet, "Next 7 days" title, day-detail title,
+        # inbox body, contacts body, calls table, calls status
+        # line. Same count as the scifi_activity pin, same delta.
+        # The cap still binds above 183.
+        self.assertLessEqual(_count_setstylesheet(), 183)
 
     def test_200pct_fit_pinned_not_fitting(self):
         # INTENTIONAL UPDATE (UI breakpoints slice, 2026-10-30):

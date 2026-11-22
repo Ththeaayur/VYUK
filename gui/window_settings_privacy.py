@@ -18,13 +18,26 @@ class SettingsPrivacyMixin:
         milestones as one verified bundle."""
         try:
             from PySide6.QtWidgets import QFileDialog
+            from voice_assistant.core.gui_facade import backup as _backup
             from voice_assistant.core.gui_facade import config_module as _cfg_mod
             from voice_assistant.core.gui_facade import portability as _port
             from voice_assistant.core.gui_facade import w10_wiring as _w10
             _path, _ = QFileDialog.getSaveFileName(
-                self, "Export my data", "vyuk-data-bundle.zip",
-                "VYUK data bundle (*.zip)")
+                self, "Export my data", "vyuk-data-bundle.vyukbak",
+                "VYUK data bundle (*.vyukbak)")
             if not _path:
+                return
+            # Loophole batch 3 (#10): an export is an encrypted
+            # bundle under the stored backup passphrase — without
+            # one set, the export refuses and says so (never a
+            # plaintext file).
+            _passphrase = _backup.get_backup_passphrase(
+                str(_cfg_mod.DATA_DIR))
+            if not _passphrase:
+                self._w10_port_status.setText(
+                    "Export refused: no backup passphrase is set — "
+                    "set one in Settings (Advanced → Backup "
+                    "passphrase) first.")
                 return
             _settings = _w10.collect_portability_settings(
                 _cfg_mod.config,
@@ -33,7 +46,8 @@ class SettingsPrivacyMixin:
                     if qsettings_contains(k, settings=self.settings)
                     else None))
             _rep = _port.export_bundle(str(_cfg_mod.DATA_DIR),
-                                       _settings, _path)
+                                       _settings, _path,
+                                       passphrase=_passphrase)
             self._w10_port_status.setText(
                 f"Exported {_rep['settings_keys']} settings, "
                 f"{_rep['memory_files']} memory files, "
@@ -51,15 +65,23 @@ class SettingsPrivacyMixin:
         lists applied / missing / extra / failed — never hidden."""
         try:
             from PySide6.QtWidgets import QFileDialog
+            from voice_assistant.core.gui_facade import backup as _backup
             from voice_assistant.core.gui_facade import config_module as _cfg_mod
             from voice_assistant.core.gui_facade import portability as _port
             from voice_assistant.core.gui_facade import w10_wiring as _w10
             _path, _ = QFileDialog.getOpenFileName(
                 self, "Import a data bundle", "",
-                "VYUK data bundle (*.zip)")
+                "VYUK data bundle (*.vyukbak *.zip)")
             if not _path:
                 return
-            _rep = _port.import_bundle(_path, str(_cfg_mod.DATA_DIR))
+            # Loophole batch 3 (#10): an import decrypts with the
+            # stored backup passphrase; a legacy plain bundle or
+            # a wrong passphrase is refused by import_bundle and
+            # reported in the status line below.
+            _rep = _port.import_bundle(
+                _path, str(_cfg_mod.DATA_DIR),
+                passphrase=_backup.get_backup_passphrase(
+                    str(_cfg_mod.DATA_DIR)))
             _applied = _w10.apply_portability_settings(
                 _rep.get("settings", {}),
                 config_save_fn=_cfg_mod.save_env_setting,
@@ -182,6 +204,20 @@ class SettingsPrivacyMixin:
             except Exception:  # noqa: BLE001
                 pass
 
+    # F-F402 reversal (loophole #2): a paused kind is shown with
+    # this suffix in the Settings list. Kind names are tool names
+    # (snake_case identifiers), so the suffix can never collide
+    # with a real kind name.
+    _PAUSED_SUFFIX = " — paused"
+
+    def _allowlist_kind_of(self, item):
+        """The raw kind for a list item (the paused suffix, if
+        any, is display-only)."""
+        text = item.text() if item is not None else ""
+        if text.endswith(self._PAUSED_SUFFIX):
+            return text[:-len(self._PAUSED_SUFFIX)]
+        return text
+
     def _refresh_allowlist(self):
         """Re-read the confirm allowlist into the Settings
         list (v5.54.1). Guarded: _apply_saved_settings also
@@ -193,9 +229,14 @@ class SettingsPrivacyMixin:
             kinds = confirm_gate.list_allowlisted()
         except Exception:  # noqa: BLE001 — the list says so
             kinds = []
+        try:
+            paused = set(confirm_gate.list_paused_allowlisted())
+        except Exception:  # noqa: BLE001 — unpaused, then
+            paused = set()
         lst.clear()
         for kind in kinds:
-            lst.addItem(kind)
+            lst.addItem(kind + (self._PAUSED_SUFFIX
+                                if kind in paused else ""))
         label = getattr(self, "allowlist_status_label", None)
         if label is not None:
             if kinds:
@@ -215,7 +256,24 @@ class SettingsPrivacyMixin:
         if item is None:
             return
         try:
-            confirm_gate.revoke_kind(item.text())
+            confirm_gate.revoke_kind(self._allowlist_kind_of(item))
+        except Exception:  # noqa: BLE001 — refresh shows the truth
+            pass
+        self._refresh_allowlist()
+
+    def _on_allowlist_resume(self):
+        """Resume the selected paused kind (F-F402 reversal):
+        the always-allow stands again, and VYUK stops asking
+        for that kind."""
+        lst = getattr(self, "allowlist_list", None)
+        if lst is None:
+            return
+        item = lst.currentItem()
+        if item is None:
+            return
+        try:
+            confirm_gate.resume_allowlist(
+                self._allowlist_kind_of(item))
         except Exception:  # noqa: BLE001 — refresh shows the truth
             pass
         self._refresh_allowlist()

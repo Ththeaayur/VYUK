@@ -1430,11 +1430,14 @@ class VoiceAgentStore:
     @_locked
     def list_calls(self, limit=20):
         rows = self.conn.execute(
-            "SELECT id, direction, number, agent_id, started, ended, "
-            "outcome FROM calls ORDER BY id DESC LIMIT ?",
+            "SELECT c.id, c.direction, c.number, c.agent_id, a.name, "
+            "c.started, c.ended, c.outcome FROM calls c "
+            "LEFT JOIN agents a ON a.id = c.agent_id "
+            "ORDER BY c.id DESC LIMIT ?",
             (limit,)).fetchall()
         return [dict(zip(("id", "direction", "number", "agent_id",
-                          "started", "ended", "outcome"), r)) for r in rows]
+                          "agent", "started", "ended", "outcome"), r))
+                for r in rows]
 
     # -- ledger ---------------------------------------------------------
     @_locked

@@ -299,6 +299,11 @@
   "free": null,
   "read": true
  },
+ "cancel_calendar_event": {
+  "confirm": true,
+  "free": null,
+  "read": false
+ },
  "capture_route": {
   "confirm": false,
   "free": null,
@@ -313,6 +318,11 @@
   "confirm": false,
   "free": null,
   "read": true
+ },
+ "check_money_alerts": {
+  "confirm": false,
+  "free": "app-state",
+  "read": false
  },
  "check_port": {
   "confirm": false,
@@ -915,6 +925,26 @@
   "read": false
  },
  "deals": {
+  "confirm": false,
+  "free": "app-state",
+  "read": false
+ },
+ "find_free_slots": {
+  "confirm": false,
+  "free": null,
+  "read": true
+ },
+ "portfolio_tracker": {
+  "confirm": false,
+  "free": "app-state",
+  "read": false
+ },
+ "reschedule_calendar_event": {
+  "confirm": true,
+  "free": null,
+  "read": false
+ },
+ "snooze_email": {
   "confirm": false,
   "free": "app-state",
   "read": false

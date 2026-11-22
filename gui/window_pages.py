@@ -13,12 +13,14 @@ behaviour is unchanged.
 from .window_pages_activity import PagesActivityMixin
 from .window_pages_memory import PagesMemoryMixin
 from .window_pages_system import PagesSystemMixin
+from .window_pages_views import PagesViewsMixin
 
 
 class PagesMixin(
     PagesActivityMixin,
     PagesMemoryMixin,
     PagesSystemMixin,
+    PagesViewsMixin,
 ):
     """Composed pages mixin (GUI split #8): the three part-mixins
     above, in plan order. Method bodies live verbatim in the

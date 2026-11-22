@@ -240,6 +240,46 @@ class FirstRunProgress:
         return {stage: self._state(stage) for stage in self.stages}
 
 
+def setup_incomplete(store=None) -> bool:
+    """Round-3 wizard expansion (parent ruling: skip-everything):
+    True only for a first run that was SKIPPED without choosing a
+    brain — onboarded is set (the dialog ran and closed) but no
+    setup/brain_choice was ever stored, so she runs the local
+    default with nothing the user picked. A fresh install that
+    never ran the wizard reads False (the wizard itself is the
+    way back there, at launch), and any install with a stored
+    brain choice reads False however much else was skipped. The
+    Home "finish setup" card reads this, never a stage list —
+    a stage list would flag every install that onboarded before
+    stages existed. With no store given, the live QSettings are
+    read through core.gui_facade.config_spec.qsettings_get (the
+    Home card's call) — the spec is the single QSettings
+    construction site, so no second construction lives here; a
+    dict store is the test seam."""
+    if store is None:
+        try:
+            from core.gui_facade import config_spec as _cs
+
+            store = {
+                "onboarded": _cs.qsettings_get("onboarded"),
+                "setup/brain_choice": _cs.qsettings_get(
+                    "setup/brain_choice"),
+            }
+        except Exception:  # noqa: BLE001 — unreadable reads as fresh
+            return False
+    try:
+        onboarded = bool(store.get("onboarded", False))
+    except Exception:  # noqa: BLE001 — unreadable reads as fresh
+        return False
+    if not onboarded:
+        return False
+    try:
+        choice = store.get("setup/brain_choice")
+    except Exception:  # noqa: BLE001 — unreadable reads as unset
+        choice = None
+    return not (isinstance(choice, str) and choice.strip())
+
+
 # ------------------------------------------------------------ coach overlay
 
 try:

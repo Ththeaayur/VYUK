@@ -22,23 +22,26 @@ that must never cycle with the funnel.
   is overridden for the OFF direction by the later, explicitly
   ruled R1; the ON direction stays refused.)
 
-§8/R1 — session grants by voice, permanent grants in Settings,
-deny always by voice (his yes):
+§8/R1 — session grants (made on screen in Settings), deny
+always by voice (his yes). Loophole batch 4 (L-28): voice
+grants are REFUSED — a permission grant is an owner act, and
+live origin only proves a live session exists, not WHO is
+speaking. grant_session_by_voice refuses in words and names
+Settings → Permissions; the store-level session grant
+(grant_session_only, made on screen) is what the funnel and
+the capture guard consult:
   * Standing switches NEVER move by voice (D8 stands). The
     store is never written here — grant_session_only is the
     in-memory layer, and set_permission_state is never called.
-  * Voice CAN grant — for this session only — when there is no
-    STORED denial for that id (D7/D5: a stored denial is never
-    widened; the fail-closed DEFAULT read — no record yet, so
-    mic/camera read "denied" — is not a denial, and the mic
-    first-use ask is the precedent: "Allow once" opens the
-    live mic on a fresh install despite that read). A grant
-    requires live origin (is_live_origin): only inside a live
-    session he started, never from passive listening, never
-    from chat or a plan.
-  * Every voice grant is loud: the caller announces it, the
-    GUI strip shows it while it lasts with a "keep it on"
-    deep link, and a receipt lands in Activity.
+  * A session grant widens the fail-closed DEFAULT read — no
+    record yet, so mic/camera read "denied" — but never a
+    STORED denial (D7/D5: a stored denial is never widened;
+    the mic first-use ask is the precedent: "Allow once" opens
+    the live mic on a fresh install despite that read). A grant
+    is consulted only with live origin (is_live_origin).
+  * Every session grant is loud: the GUI strip shows it while
+    it lasts with a "keep it on" deep link, and a receipt lands
+    in Activity.
   * Deny is always free by voice, instantly, no confirm: it
     clears the session grant. When the standing switch is
     GRANTED, voice cannot flip it (D8) — the deny says so
@@ -582,9 +585,10 @@ def route_voice_settings_request(setting: str, value: str) -> dict:
                 "card": "Permissions",
                 "permission": pid,
                 "message": ("Voice can't flip that switch — say "
-                            "“on” or “off” for this session, or "
-                            "open Settings → Permissions for the "
-                            "permanent switch.")}
+                            "“off” to revoke it for this session, "
+                            "or open Settings → Permissions for the "
+                            "permanent switch. Voice can't grant "
+                            "it.")}
     if not raw:
         return {"kind": "unknown",
                 "message": ("Tell me what to change — a setting "
@@ -601,49 +605,30 @@ def route_voice_settings_request(setting: str, value: str) -> dict:
 # ------------------------------------------------------------------ session grants
 
 def grant_session_by_voice(permission_id: str) -> str:
-    """Grant one permission for THIS session only, by voice.
+    """Permission grants by voice are REFUSED (loophole batch 4,
+    L-28 — the gate that grants itself).
 
-    Requires live origin (only inside a live session he
-    started) and no STORED denial (D7/D5). Returns the
-    announcement or an honest refusal. Never writes the
-    durable store; never flips a standing switch.
+    The old shape granted a permission "for this session only"
+    when called from a live session — but live origin only proves
+    a live session exists, not WHO is speaking. Any voice in the
+    room could say "grant files" and then read and send. A
+    permission grant is an owner act, so it is made on screen
+    only (Settings → Permissions), never by voice — joining the
+    safety-shaped settings, which were already Settings-page-only
+    by design. The refusal names the screen and offers the
+    Settings deep link. Revoking by voice stays allowed (it
+    removes access — the safe direction, not a grant).
     """
     from . import permission_grants as _pg
 
     pid = str(permission_id or "").strip().lower()
     if pid not in _pg.PERMISSION_IDS:
         return f"There's no permission called '{permission_id}'."
-    try:
-        from .funnel.live_origin import is_live_origin as _live
-        live = bool(_live())
-    except Exception:  # noqa: BLE001 — no origin, no grant
-        live = False
-    if not live:
-        return ("That grant needs a live session — say it while "
-                "we're talking, not from chat or a plan.")
-    try:
-        stored = _pg.get_record(pid).get("state")
-    except Exception:  # noqa: BLE001 — fail closed, never grant
-        stored = "denied"
-    if stored == "denied":
-        request_gui_action("open_settings", card="Permissions",
-                           permission=pid)
-        return (f"{pid} is switched off in Settings — voice can't "
-                "override a switch you turned off. Open Settings "
-                "→ Permissions to switch it back on.")
-    if _pg.get_state(pid) == "granted":
-        return (f"{pid} is already on in Settings — nothing extra "
-                "to grant for this session.")
-    if not _pg.grant_session_only(pid):
-        return f"Couldn't grant {pid} for this session."
-    _record("settings_voice",
-            {"action": "grant", "permission": pid, "via": "voice"},
-            "succeeded",
-            f"{pid} on for this session (voice grant — dies when "
-            "the session ends, the Settings switch is untouched)")
-    return (f"{pid} is on for this session. It switches off again "
-            "when the session ends — tap “keep it on” on screen "
-            "to make it permanent in Settings.")
+    request_gui_action("open_settings", card="Permissions",
+                       permission=pid)
+    return (f"I can't grant {pid} by voice — permission grants "
+            "are made on screen only, in Settings → Permissions. "
+            "Open Settings to grant it there.")
 
 
 def revoke_session_by_voice(permission_id: str) -> str:

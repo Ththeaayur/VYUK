@@ -215,6 +215,7 @@ class ShellFrameMixin(ShellBootMixin):
             self._on_browser_enable_completed)
         self.signals.key_test_completed.connect(self._on_key_test_completed)
         self.signals.groq_key_test_completed.connect(self._on_groq_key_test_completed)
+        self.signals.gemini_signin_completed.connect(self._on_gemini_signin_completed)
         self.signals.update_check_completed.connect(self._on_update_check_completed)
         self.signals.update_stage_completed.connect(self._on_update_stage_completed)
 

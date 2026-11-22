@@ -72,29 +72,52 @@ _CREDENTIAL_VALUE_RE = re.compile(
 
 def looks_like_credential(key, value) -> bool:
     """Heuristic: does this key/value pair look like it carries a
-    credential? Used to WARN (never to refuse) — memory is a plain-
-    text local DB, and the user should know a secret stored here is
-    only as safe as the file. The key is tokenised on non-alphanumerics
+    credential? The key is tokenised on non-alphanumerics
     ("wifi_password" -> [wifi, password]) — a plain \\b regex would
-    miss it, since "_" is a word character."""
+    miss it, since "_" is a word character.
+
+    Loophole batch 3 (L-30, #11): this is now a REFUSAL test,
+    not a warning — MemoryStore.save_fact raises for user-fact
+    categories, and the learn path refuses before saving — so a
+    third shape is covered: a value whose KEY is innocent but
+    which carries a secret-shaped token ("my api key is
+    sk-proj-…" — the extractor yields key "my_api", value "key
+    is sk-proj-…", which neither the key words nor the value
+    regex catch). Each whitespace-separated token of the value
+    is tested with the confirm gate's secret-shape test
+    (_looks_like_secret: known key prefixes, long base64/hex
+    runs, high-entropy tokens)."""
     tokens = re.split(r"[^a-z0-9]+", str(key or "").lower())
     if any(t in _CREDENTIAL_KEY_WORDS for t in tokens):
         return True
     if "api" in tokens and "key" in tokens:
         return True
-    return bool(_CREDENTIAL_VALUE_RE.search(str(value or "")))
+    if _CREDENTIAL_VALUE_RE.search(str(value or "")):
+        return True
+    try:
+        from ..confirm_gate_scrub import _looks_like_secret
+    except Exception:  # noqa: BLE001 — the token check is a bonus
+        return False
+    return any(_looks_like_secret(tok)
+               for tok in str(value or "").split())
 
 
 # Why a fact is remembered (GAPS-27, M-V6). Anything outside
 # this vocabulary is stored as "unknown" — a bad source must
-# never lose the fact.
-FACT_SOURCES = ("user", "correction", "learned", "unknown")
+# never lose the fact. Loophole batch 3 (#11): the learn path
+# records WHICH channel taught it — "learned:voice" (spoken) or
+# "learned:text" (typed) — so a taught fact carries its
+# provenance (source, when, which turn via the learning feed).
+FACT_SOURCES = ("user", "correction", "learned", "unknown",
+                "learned:voice", "learned:text")
 
 SOURCE_LABELS = {
     "user": "You told me",
     "correction": "You corrected me",
     "learned": "Learned from use",
     "unknown": "Recorded before sources were tracked",
+    "learned:voice": "Learned from your voice",
+    "learned:text": "Learned from typed text",
 }
 
 
@@ -103,7 +126,8 @@ def _clean_source(source) -> str:
     return text if text in FACT_SOURCES else "unknown"
 
 
-# Section D fix D-F1 (2026-11-20): the 100-fact memory cap is a
+# Section D fix D-F1 (2026-11-20), extended by loophole
+# batch 6 (#14, 2026-11-22): the 100-fact memory cap is a
 # bound on the USER's facts, not on one path to them. The learn
 # path (core/memory/learning.py) capped only category "learned",
 # while the funnel tool remember_user_fact wrote any category with
@@ -118,7 +142,12 @@ def _clean_source(source) -> str:
 # (flashcards, habit logs, budgets, reading lists, …) are app state
 # written by code, not user facts, and are NOT counted — save_fact
 # itself stays uncapped on purpose, so no skill store is affected
-# by this bound.
+# by this bound. The batch-6 extension: the count is the DB+file
+# UNION (count_remembered_facts) — the old count_facts() counted
+# the DB only, so a file-only fact was remembered and prompted
+# while invisible to the cap — and the remember tool refuses
+# non-user categories, so the cap cannot be bypassed by writing
+# into a category the old count never saw.
 USER_FACT_CATEGORIES = frozenset({"learned", "general", "preferences"})
 MAX_USER_FACTS = 100
 
@@ -470,11 +499,30 @@ class MemoryStore:
         neither raises nor lands returns False instead of True.
         `source` records WHY the fact is remembered (GAPS-27, M-V6):
         "user" (the user said it — the default), "correction",
-        "learned", "unknown". Anything else stores as "unknown"."""
+        "learned", "unknown", "learned:voice" (spoken) or
+        "learned:text" (typed). Anything else stores as "unknown".
+
+        Loophole batch 3 (L-30, #11): a fact in a USER-fact
+        category (learned / general / preferences) that looks
+        like a credential is REFUSED here — ValueError, plain
+        words — and nothing is written. The guard is the last
+        line of defence for every writer (learn path, funnel
+        tool, GUI): a password taught by voice, typed, or
+        pasted can never land in the plain-text store. Skill
+        categories are untouched (a flashcard whose front says
+        "password" is content, not a credential) — only the
+        user's own fact categories are guarded."""
         category = category.strip().lower()
         key = key.strip()
         value = value.strip()
         source = _clean_source(source)
+        if category in USER_FACT_CATEGORIES and looks_like_credential(
+                key, value):
+            raise ValueError(
+                "I can't remember that — it looks like a password, "
+                "token or other secret, and secrets are never "
+                "stored as facts. Say it a different way, or keep "
+                "it in your password manager.")
         self._execute("""
             INSERT INTO facts (category, key, value, source, updated_at)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -517,6 +565,55 @@ class MemoryStore:
             return 0
         return int(dict(row).get("n", 0))
 
+    def count_remembered_facts(self, categories=None) -> int:
+        """The cap's count — the DB+file UNION, not the DB alone
+        (loophole batch 6, #14). The old count_facts() counted
+        only the DB's user-fact categories, so a fact that lived
+        only in the file store (a migrated copy, a person/promise
+        record) was remembered and prompted while invisible to
+        the cap, and the cap could be passed 100-fold by writing
+        into a non-user category. This counts the union by
+        (category, key): a key present in both stores is one
+        fact — the same merge dual_read applies at prompt time.
+        Categories filter by lower-cased category; None counts
+        every remembered fact. The file store is counted through
+        the memory_files list (same root the prompt reads)."""
+        try:
+            from . import memory_files as _mf
+
+            # list_facts returns (records, skipped_count).
+            file_records, _skipped = _mf.list_facts(base=None)
+            file_keys: set[tuple[str, str]] = set()
+            for rec in file_records:
+                cat = str(rec.get("category", "")).strip().lower()
+                key = str(rec.get("key", "")).strip()
+                if not cat or not key:
+                    continue
+                if categories is not None and \
+                        cat not in {str(c).strip().lower()
+                                    for c in categories}:
+                    continue
+                file_keys.add((cat, key))
+        except Exception:  # noqa: BLE001 — a broken file store
+            file_keys = set()  # counts as empty, DB side still counts
+        try:
+            if categories is None:
+                rows = self._read_facts(
+                    "SELECT category, key FROM facts")
+            else:
+                cats = sorted({str(c).strip().lower()
+                               for c in categories})
+                marks = ", ".join("?" for _ in cats)
+                rows = self._read_facts(
+                    "SELECT category, key FROM facts "
+                    f"WHERE category IN ({marks})", tuple(cats))
+            db_keys = {(str(r.get("category", "")).strip().lower(),
+                        str(r.get("key", "")).strip())
+                       for r in rows}
+        except Exception:  # noqa: BLE001 — a broken DB counts
+            db_keys = set()  # as empty, file side still counts
+        return len(db_keys | file_keys)
+
     def search_facts(self, query: str) -> list[dict[str, Any]]:
         pattern = f"%{query}%"
         return self._read_facts("""
@@ -531,6 +628,17 @@ class MemoryStore:
 
     def log_message(self, role: str, content: str):
         if not content or not content.strip():
+            return
+        # Loophole batch 5 (#5): private mode suppresses the
+        # transcript — a private turn leaves no conversation_logs
+        # row. The display goes through on_transcript (in-memory),
+        # so gating persistence is safe: the user still sees the
+        # turn, it is simply never stored.
+        try:
+            from ..private_mode import private_mode_on
+        except Exception:  # noqa: BLE001 — unreadable: not private
+            private_mode_on = None
+        if private_mode_on is not None and private_mode_on():
             return
         self._execute("""
             INSERT INTO conversation_logs (role, content)

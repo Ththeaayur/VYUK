@@ -13,7 +13,9 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QSystemTrayIcon
 from voice_assistant.core.gui_facade import config
 from voice_assistant.core.gui_facade import (
-    always_allow, confirm_gate, permission_grants, plan_approval)
+    DATA_DIR, always_allow, confirm_gate, mark_session_owner_proven,
+    permission_grants, plan_approval, voice_confirm_allowed,
+    voice_pin)
 from .style import TEXT_MUTED, OK, AMBER, DANGER
 from .window_widgets import _tool_friendly_name
 from .design_system.dialogs import HudDialog
@@ -782,11 +784,19 @@ class ServicesConfirmMixin:
         returns True: the utterance is consumed (not learned, not
         a watch phrase, not fed on as a brain command).
 
-        Residual risk, stated honestly: voice cannot prove WHO
-        spoke — anyone in the room could say "yes". Mitigations
-        are the visible popup naming the action being confirmed,
-        the gate's short pending window, and the whole-utterance
-        rule above; this surface adds convenience, not identity."""
+        Owner proof (loophole batch 4 — #1, #20, L-27, #19): a
+        spoken yes/no resolves a pending ask ONLY when the session
+        is owner-proven (started from the app UI, or unlocked on
+        screen / with the voice PIN). In an unproven session the
+        voice answer is refused in plain words and resolves
+        NOTHING — the popup stays up for the owner to answer on
+        screen, or it times out and the act is refused. A voice
+        PIN phrase ("voice PIN 1234") unlocks the session when it
+        matches the owner-set PIN, and is consumed whether it
+        matches or not. The old residual risk (any voice in the
+        room could say "yes") is closed by this hook; the
+        remaining risk is a spoken PIN overheard in the room,
+        which is opt-in and session-scoped."""
         try:
             raw = str(text or "")
             if raw.lstrip().startswith("["):
@@ -819,12 +829,61 @@ class ServicesConfirmMixin:
                     pass  # already landed; a failed caption
                     # must not un-consume it
                 return True
+            # Loophole batch 4: a voice PIN phrase unlocks the
+            # session when it matches the owner-set PIN. The
+            # utterance is consumed whether it matches or not
+            # (never a command, never learned) and the PIN is
+            # never echoed. A wrong PIN resolves nothing.
+            _pin = voice_pin.parse_voice_pin_phrase(normalised)
+            if _pin is not None:
+                try:
+                    _ok = voice_pin.check_voice_pin(DATA_DIR, _pin)
+                except Exception:  # noqa: BLE001 — unreadable: no unlock
+                    _ok = False
+                if _ok:
+                    try:
+                        mark_session_owner_proven("voice-pin")
+                    except Exception:  # noqa: BLE001 — the proof is the unlock
+                        pass
+                    try:
+                        self._add_system(
+                            "Voice unlocked for this session.")
+                    except Exception:  # noqa: BLE001 — already landed
+                        pass
+                else:
+                    try:
+                        self._add_system(
+                            "That PIN didn't match — voice stays "
+                            "locked. Approve on screen, or set the "
+                            "voice PIN in Settings.")
+                    except Exception:  # noqa: BLE001 — already landed
+                        pass
+                return True
             if normalised in self._VOICE_CONFIRM_YES:
                 approved = True
             elif normalised in self._VOICE_CONFIRM_NO:
                 approved = False
             else:
                 return False
+            # Loophole batch 4: a spoken yes/no resolves a pending
+            # ask ONLY in an owner-proven session (or with the lock
+            # off). In an unproven session the voice answer is
+            # refused in plain words and resolves NOTHING — the
+            # popup stays up for an on-screen answer. Fail-closed:
+            # an unreadable proof state refuses the voice answer.
+            try:
+                _allowed = bool(voice_confirm_allowed())
+            except Exception:  # noqa: BLE001 — unreadable: no voice answer
+                _allowed = False
+            if not _allowed:
+                try:
+                    self._add_system(
+                        "I can't take a yes by voice until this "
+                        "session is unlocked — approve on screen, "
+                        "or unlock voice in Settings.")
+                except Exception:  # noqa: BLE001 — already landed
+                    pass
+                return True
             pending = confirm_gate.pending_request()
             if pending is None:
                 return False

@@ -105,6 +105,9 @@ class BridgeSignals(QObject):
     key_test_completed = Signal(str, str)
     # v5.15: the Groq "Test key" verdict lands here the same way.
     groq_key_test_completed = Signal(str, str)
+    # Round-3 OAuth build: the Settings "Continue with Google" /
+    # "Test sign-in" verdict lands here the same way.
+    gemini_signin_completed = Signal(str, str)
     # Auto-update (v5.2): worker-thread results for the About card's
     # update check / staging, as (state, JSON-or-message payload).
     update_check_completed = Signal(str, str)

@@ -69,6 +69,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     QEvent,
+    QMetaObject,
     QRectF,
     QSettings,
     QSize,
@@ -76,6 +77,7 @@ from PySide6.QtCore import (
     Qt,
     QTimer,
     Signal,
+    Slot,
 )
 import datetime
 from .icons import make_icon
@@ -604,6 +606,94 @@ class ShellAssistantMixin:
         self._briefing_details.setVisible(False)
         self._briefing_expanded = False
         self._briefing_summary_full = None
+        # Round-3 wizard expansion (parent ruling:
+        # skip-everything): the "finish setup" card — visible
+        # only while setup is incomplete (onboarded but no brain
+        # choice stored, see firstrun_g.setup_incomplete). Its
+        # button re-opens the wizard, which resumes at the first
+        # open stage. Hidden when setup is complete, so the frozen
+        # v6.3 Home layout is unchanged for completed setups.
+        # The card uses the existing settingsCard frame + chip
+        # buttons — no new stylesheets, no layout change when
+        # hidden (a hidden card takes no space).
+        # Loophole batch 7 (#8 + #18): the card is per-piece
+        # now (core/setup_pieces.py) — it names the unfinished
+        # pieces (Google sign-in, Gmail, Calendar, Browser,
+        # Microphone) and shows while any piece is open OR no
+        # brain choice is stored. Its "Remind me later" snoozes
+        # it for 7 days — never dismisses it for good.
+        self.setup_card = QFrame()
+        self.setup_card.setObjectName("settingsCard")
+        _s_layout = QVBoxLayout(self.setup_card)
+        _s_layout.setContentsMargins(16, 12, 16, 12)
+        _s_layout.setSpacing(4)
+        _s_title = QLabel("Finish setting up")
+        _s_title.setObjectName("briefingSummary")
+        _s_title.setWordWrap(True)
+        _s_layout.addWidget(_s_title)
+        self._setup_card_body = QLabel(
+            "You skipped setup — your brain is local-only for now. "
+            "Pick your language, voice and permissions whenever "
+            "you're ready.")
+        self._setup_card_body.setObjectName("muted")
+        self._setup_card_body.setWordWrap(True)
+        _s_layout.addWidget(self._setup_card_body)
+        _s_row = QHBoxLayout()
+        _s_row.setSpacing(8)
+        self.btn_finish_setup = QPushButton("Finish setup")
+        self.btn_finish_setup.setObjectName("primaryBtn")
+        self.btn_finish_setup.setAccessibleName("Finish setup")
+        self.btn_finish_setup.clicked.connect(
+            lambda _=False: self._run_onboarding())
+        _s_row.addWidget(self.btn_finish_setup)
+        self.btn_setup_snooze = QPushButton("Remind me later")
+        self.btn_setup_snooze.setObjectName("chipBtn")
+        self.btn_setup_snooze.setAccessibleName("Remind me later")
+        self.btn_setup_snooze.clicked.connect(
+            self._on_setup_card_snooze)
+        _s_row.addWidget(self.btn_setup_snooze)
+        _s_row.addStretch()
+        _s_layout.addLayout(_s_row)
+        stage_layout.addWidget(self.setup_card)
+        # Round-3 wizard expansion (parent ruling: a self-test
+        # failure is never silent): the fix-it card — visible
+        # only while firstrun/selftest_faults holds failing check
+        # names. "Check again" re-runs the first-run checks
+        # off-thread and clears the pin on a pass; "Open
+        # Diagnostics" goes to the full Doctor with fixes.
+        self.selftest_card = QFrame()
+        self.selftest_card.setObjectName("settingsCard")
+        _f_layout = QVBoxLayout(self.selftest_card)
+        _f_layout.setContentsMargins(16, 12, 16, 12)
+        _f_layout.setSpacing(4)
+        _f_title = QLabel("Something needs attention")
+        _f_title.setObjectName("briefingSummary")
+        _f_title.setWordWrap(True)
+        _f_layout.addWidget(_f_title)
+        self._selftest_faults_label = QLabel("")
+        self._selftest_faults_label.setObjectName("muted")
+        self._selftest_faults_label.setWordWrap(True)
+        _f_layout.addWidget(self._selftest_faults_label)
+        _f_row = QHBoxLayout()
+        _f_row.setSpacing(8)
+        self.btn_selftest_rerun = QPushButton("Check again")
+        self.btn_selftest_rerun.setObjectName("chipBtn")
+        self.btn_selftest_rerun.setAccessibleName(
+            "Run the self-test again")
+        self.btn_selftest_rerun.clicked.connect(
+            self._rerun_selftest_from_home)
+        _f_row.addWidget(self.btn_selftest_rerun)
+        self.btn_selftest_doctor = QPushButton("Open Diagnostics")
+        self.btn_selftest_doctor.setObjectName("chipBtn")
+        self.btn_selftest_doctor.setAccessibleName(
+            "Open Diagnostics")
+        self.btn_selftest_doctor.clicked.connect(
+            lambda _=False: self._show_page(7))
+        _f_row.addWidget(self.btn_selftest_doctor)
+        _f_row.addStretch()
+        _f_layout.addLayout(_f_row)
+        stage_layout.addWidget(self.selftest_card)
+        self._refresh_setup_cards()
         stage_layout.addWidget(self.briefing_card)
         self._briefing_worker = None
         self._refresh_briefing_card()
@@ -1081,6 +1171,179 @@ class ShellAssistantMixin:
         dock.addWidget(self.btn_screen)
         panel_layout.addLayout(dock)
         return page
+
+    def _refresh_setup_cards(self):
+        """Round-3 wizard expansion: show or hide the two
+        conditional Home cards (see _build_assistant_page).
+        Loophole batch 7 (#8 + #18): the setup card is per-piece
+        now (core/setup_pieces.py) — it shows while setup is
+        incomplete (onboarded but no brain choice stored) OR any
+        setup piece is still open, and while the card is not
+        snoozed; its body names the unfinished pieces. The fix-it
+        card shows only while firstrun/selftest_faults holds
+        failing check names. Both hide for a completed, passing
+        setup — the frozen v6.3 Home layout is unchanged there.
+        Called from the build, from _show_page, and after the
+        wizard closes."""
+        incomplete = False
+        pieces_state = None
+        _onboarded = False
+        _snoozed = False
+        try:
+            from .firstrun_g import setup_incomplete
+
+            incomplete = bool(setup_incomplete())
+        except Exception:  # noqa: BLE001 — no card on a read failure
+            incomplete = False
+        try:
+            from voice_assistant.core.gui_facade import (
+                qsettings_get, setup_pieces as _sp)
+
+            _store = {
+                _sp.DECLINED_KEY: str(
+                    qsettings_get(_sp.DECLINED_KEY) or ""),
+                _sp.SNOOZED_UNTIL_KEY: str(
+                    qsettings_get(_sp.SNOOZED_UNTIL_KEY) or ""),
+            }
+            try:
+                _onboarded = bool(qsettings_get("onboarded"))
+            except Exception:  # noqa: BLE001 — unreadable is fresh
+                _onboarded = False
+            _snoozed = _sp.is_snoozed(
+                _sp.read_snoozed_until(_store))
+            pieces_state = _sp.setup_card_state(
+                onboarded=_onboarded,
+                signals=_sp.live_signals(),
+                declines=_sp.live_declines(store=_store),
+                snoozed_until=_sp.read_snoozed_until(_store))
+        except Exception:  # noqa: BLE001 — the pieces read is
+            pieces_state = None  # best-effort; the legacy gate stands
+        card = getattr(self, "setup_card", None)
+        if card is not None:
+            if pieces_state is not None:
+                # Show while onboarded and (no brain choice OR a
+                # piece still open) and not snoozed. The pieces
+                # state's "visible" already folds onboarded +
+                # unfinished + snooze; the legacy gate only ADDS
+                # the no-brain-choice case (a decline-then-reject
+                # walk can leave every piece declined with no
+                # brain choice stored — the card must still show).
+                show = bool(
+                    _onboarded
+                    and (incomplete or pieces_state["unfinished"])
+                    and not _snoozed)
+                card.setVisible(show)
+                body = getattr(self, "_setup_card_body", None)
+                if body is not None and show:
+                    if pieces_state["unfinished_labels"]:
+                        body.setText(
+                            "Still to finish: "
+                            + " · ".join(
+                                pieces_state["unfinished_labels"])
+                            + ". Pick them up whenever you're ready.")
+                    else:
+                        body.setText(
+                            "You skipped setup — your brain is "
+                            "local-only for now. Pick your language, "
+                            "voice and permissions whenever you're "
+                            "ready.")
+            else:
+                card.setVisible(incomplete)
+        faults = ""
+        try:
+            from voice_assistant.core.gui_facade import qsettings_get
+
+            faults = str(
+                qsettings_get("firstrun/selftest_faults") or "").strip()
+        except Exception:  # noqa: BLE001 — no card on a read failure
+            faults = ""
+        scard = getattr(self, "selftest_card", None)
+        if scard is not None:
+            scard.setVisible(bool(faults))
+        label = getattr(self, "_selftest_faults_label", None)
+        if label is not None and faults:
+            label.setText(
+                f"Self-test found: {faults}. Run it again, or open "
+                "Diagnostics for the full Doctor with fixes.")
+
+    def _on_setup_card_snooze(self):
+        """Loophole batch 7 (#8): the setup card's "Remind me
+        later" — snoozes the card for SNOOZE_DAYS (7), never
+        dismisses it. The card returns when the snooze expires
+        (or when the wizard runs again). Guarded: a failed write
+        leaves the card showing (a snooze that did not stick must
+        never look like a dismissal)."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                qsettings_set, setup_pieces as _sp)
+
+            qsettings_set(_sp.SNOOZED_UNTIL_KEY,
+                          _sp.snooze_until(days=_sp.SNOOZE_DAYS))
+        except Exception:  # noqa: BLE001 — the card stays up
+            pass
+        try:
+            self._refresh_setup_cards()
+        except Exception:  # noqa: BLE001 — the card keeps its state
+            pass
+
+    def _rerun_selftest_from_home(self):
+        """The fix-it card's "Check again": re-run the first-run
+        checks off the GUI thread (the same runner the wizard's
+        self-test page uses). The worker only computes — the
+        QSettings write and the card refresh happen on the GUI
+        thread via _finish_home_selftest (QMetaObject.invokeMethod
+        with a queued connection, the window_memory_presence
+        pattern). A run already in flight is a no-op."""
+        if getattr(self, "_home_selftest_running", False):
+            return
+        self._home_selftest_running = True
+        self._home_selftest_failed = None
+        btn = getattr(self, "btn_selftest_rerun", None)
+        if btn is not None:
+            btn.setEnabled(False)
+            btn.setText("Checking…")
+
+        def run():
+            try:
+                from voice_assistant.gui.selftest_checks import (
+                    run_first_run_self_tests)
+
+                results = run_first_run_self_tests()
+                self._home_selftest_failed = [
+                    name for name, ok, _d in results if not ok]
+            except Exception:  # noqa: BLE001 — a broken run keeps the pin
+                self._home_selftest_failed = None
+            QMetaObject.invokeMethod(
+                self, "_finish_home_selftest", Qt.QueuedConnection)
+
+        import threading as _threading
+
+        _threading.Thread(target=run, daemon=True).start()
+
+    @Slot()
+    def _finish_home_selftest(self):
+        """GUI-thread half of _rerun_selftest_from_home: record
+        the run (an all-pass run clears the pin — see
+        _on_selftest_done), restore the button, refresh the
+        cards."""
+        failed = getattr(self, "_home_selftest_failed", None)
+        self._home_selftest_running = False
+        if failed is not None:
+            try:
+                from voice_assistant.core.gui_facade import qsettings_set
+
+                qsettings_set("firstrun/selftest_faults",
+                              "; ".join(failed) if failed else "")
+            except Exception:  # noqa: BLE001 — the pin keeps its state
+                pass
+        btn = getattr(self, "btn_selftest_rerun", None)
+        if btn is not None:
+            btn.setEnabled(True)
+            btn.setText("Check again")
+        try:
+            self._refresh_setup_cards()
+        except Exception:  # noqa: BLE001 — the cards keep their state
+            pass
 
     # -- Settings redesign §4c/§5/§8: the settings-voice strip ----
     _SESSION_GRANT_WORDS = {

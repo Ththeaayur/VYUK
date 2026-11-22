@@ -99,7 +99,19 @@ def record_once(event: str, key: str | None = None, **fields) -> bool:
     the firsts. `key` discriminates repeats (a version, say):
     with a key, the event is once per key value; the key is
     stored on the line as "key". Returns True when a line was
-    written. Never raises."""
+    written. Never raises.
+
+    Loophole batch 5 (#5): private mode suppresses the
+    milestone — a private turn that is the first success ever
+    does not record "first_task_completed" (the next non-private
+    success records it instead). Returns False: no line written.
+    """
+    try:
+        from .private_mode import private_mode_on
+    except Exception:  # noqa: BLE001 — unreadable: not private
+        private_mode_on = None
+    if private_mode_on is not None and private_mode_on():
+        return False
     try:
         for item in read_events():
             if item.get("event") != event:

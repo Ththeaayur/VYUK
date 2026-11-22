@@ -38,8 +38,16 @@ def _canonical_args(args: Any) -> str:
 def args_signature(tool: str, args: Any) -> str:
     """Stable signature for a call: SHA-256 of tool + canonical
     args. The guard keys on this, so identical calls match and
-    distinct calls never do."""
-    blob = f"{tool}\0{_canonical_args(args)}".encode("utf-8")
+    distinct calls never do.
+
+    Loophole batch 3 (L-33): the signature is computed over the
+    SCRUBBED args, never the raw ones — a hash of a password is
+    still a verifier for that password (anyone who guesses it
+    can test the guess), so the raw secret must never reach the
+    hash. Two calls that differ only in a secret value now share
+    one signature; that is the fail-closed direction (the guard
+    may refuse a re-spelling, it never lets a duplicate through)."""
+    blob = f"{tool}\0{_canonical_args(_sanitize(args))}".encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 

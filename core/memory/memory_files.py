@@ -49,7 +49,7 @@ import os
 import re
 import sqlite3
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from ..config import DATA_DIR
 from .. import config_spec
@@ -60,6 +60,13 @@ from .. import config_spec
 
 MEMORIES_DIRNAME = "memories"
 MIGRATION_RECEIPT = "migration_receipt.json"
+# Loophole batch 6 (#13): the marker for a migration that
+# started but never finished — written before the first fact
+# moves and removed only after the receipt lands. A later run
+# that sees the marker with no receipt knows the previous run
+# died mid-way (and re-runs from scratch — re-runs are
+# idempotent); the marker itself never changes what reads see.
+MIGRATION_IN_PROGRESS = "migration_in_progress.json"
 EXPIRED_DIRNAME = "_expired"
 INFERRED_TTL_DAYS = 90
 
@@ -290,14 +297,49 @@ def migration_receipt(base=None):
         return None
 
 
+def _in_progress_path(base=None):
+    return os.path.join(memories_dir(base), MIGRATION_IN_PROGRESS)
+
+
+def _write_in_progress(db_path, db_rows_seen, base=None):
+    """Atomic marker write (tmp + os.replace): a crash mid-write
+    leaves either the old marker or the new one, never a torn one."""
+    root = memories_dir(base)
+    os.makedirs(root, exist_ok=True)
+    path = _in_progress_path(base)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump({"started_at": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"),
+            "db_path": str(db_path), "db_rows_seen": db_rows_seen},
+            handle, indent=1, sort_keys=True)
+    os.replace(tmp, path)
+
+
 def migrate_from_db(db_path, base=None):
     """Copy the frozen DB's facts table to files. The DB connection
     is READ-ONLY (SQLite URI mode=ro): this function cannot write
     to the DB even by accident, so rollback stays exactly "the
     previous build reading the untouched DB". Legacy
     `session_summary` facts are NOT migrated (they ride the
-    summaries block from the DB, unchanged). Returns a receipt
-    dict and writes it to the store root."""
+    summaries block from the DB, unchanged).
+
+    Loophole batch 6 (#13) — atomicity, three parts:
+    * An in-progress marker is written before the first fact
+      moves and removed only after the receipt lands, so a
+      crash mid-migration is visible (marker, no receipt) and
+      the next run re-runs from scratch instead of trusting a
+      half-migrated store.
+    * A file record NEWER than its DB row is never regressed:
+      when the file's updated_at is newer than the DB row's,
+      the DB value is skipped (counted as skipped_stale) —
+      the file wins, the same rule dual_read already applies.
+    * The receipt is written only after a verification pass
+      re-reads the file store and confirms every migrated row
+      is present with the expected value. A failed verification
+      raises (no receipt), so the next run retries instead of
+      trusting the migration. Returns a receipt dict and writes
+      it to the store root."""
     root = memories_dir(base)
     os.makedirs(root, exist_ok=True)
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -308,56 +350,110 @@ def migrate_from_db(db_path, base=None):
             "FROM facts ORDER BY id").fetchall()
     finally:
         conn.close()
-    migrated = 0
-    skipped_existing = 0
-    skipped_summary = 0
-    for row in rows:
-        category = str(row["category"] or "")
-        key = str(row["key"] or "")
-        if category.lower() == "session_summary":
-            skipped_summary += 1
-            continue
-        existing = read_fact(category, key, base=base)
-        if existing is not None and existing.get("value", "") == \
-                str(row["value"] or ""):
-            skipped_existing += 1
-            continue
-        record = {
-            "category": category, "key": key,
-            "kind": "fact", "source": "db_migration",
-            "provenance": f"db facts id {row['id']}",
-            "created_at": row["created_at"] or "",
-            "updated_at": row["updated_at"] or "",
-            "valid_from": "", "valid_to": "",
-            "recorded_at": row["created_at"] or "",
-            "supersedes": "", "volatility": "0.3",
-            "due_date": "", "last_verified": "",
-            "expires_at": "",
-            "value": str(row["value"] or ""),
+    _write_in_progress(db_path, len(rows), base=base)
+    try:
+        migrated = 0
+        skipped_existing = 0
+        skipped_summary = 0
+        skipped_stale = 0
+        expected: dict[tuple[str, str], str] = {}
+        for row in rows:
+            category = str(row["category"] or "")
+            key = str(row["key"] or "")
+            if category.lower() == "session_summary":
+                skipped_summary += 1
+                continue
+            identity = (category.strip().lower(), key.strip())
+            existing = read_fact(category, key, base=base)
+            if existing is not None and existing.get("value", "") == \
+                    str(row["value"] or ""):
+                skipped_existing += 1
+                expected[identity] = str(row["value"] or "")
+                continue
+            if existing is not None:
+                # Never regress a newer file record with a stale
+                # DB value: the file wins, exactly as dual_read
+                # already decides when both hold the same key.
+                file_ts = normalize_ts(existing.get("updated_at", ""))
+                db_ts = normalize_ts(row["updated_at"] or "")
+                if file_ts and db_ts and file_ts > db_ts:
+                    skipped_stale += 1
+                    expected[identity] = str(
+                        existing.get("value", ""))
+                    continue
+            record = {
+                "category": category, "key": key,
+                "kind": "fact", "source": "db_migration",
+                "provenance": f"db facts id {row['id']}",
+                "created_at": row["created_at"] or "",
+                "updated_at": row["updated_at"] or "",
+                "valid_from": "", "valid_to": "",
+                "recorded_at": row["created_at"] or "",
+                "supersedes": "", "volatility": "0.3",
+                "due_date": "", "last_verified": "",
+                "expires_at": "",
+                "value": str(row["value"] or ""),
+            }
+            write_fact(record, base=base)
+            migrated += 1
+            expected[identity] = str(row["value"] or "")
+        # Verification pass: every row the receipt will claim
+        # must be present in the file store with the expected
+        # value (the DB value, or the newer file value for
+        # skipped-stale rows). A failed check raises — no
+        # receipt — so the next run retries instead of trusting
+        # a half-migrated store.
+        verified_count = 0
+        for identity, want in expected.items():
+            got = read_fact(identity[0], identity[1], base=base)
+            if got is None or str(got.get("value", "")) != want:
+                raise RuntimeError(
+                    "migration verification failed for "
+                    f"{identity[0]}/{identity[1]}: expected value "
+                    "not present in the file store")
+            verified_count += 1
+        receipt = {
+            "migrated": migrated,
+            "skipped_existing": skipped_existing,
+            "skipped_session_summary": skipped_summary,
+            "skipped_stale": skipped_stale,
+            "db_rows_seen": len(rows),
+            "verified": True,
+            "verified_count": verified_count,
         }
-        write_fact(record, base=base)
-        migrated += 1
-    receipt = {
-        "migrated": migrated,
-        "skipped_existing": skipped_existing,
-        "skipped_session_summary": skipped_summary,
-        "db_rows_seen": len(rows),
-    }
-    with open(migration_receipt_path(base), "w",
-              encoding="utf-8") as handle:
-        json.dump(receipt, handle, indent=1, sort_keys=True)
-    return receipt
+        with open(migration_receipt_path(base), "w",
+                  encoding="utf-8") as handle:
+            json.dump(receipt, handle, indent=1, sort_keys=True)
+        try:
+            os.unlink(_in_progress_path(base))
+        except OSError:
+            pass
+        return receipt
+    except Exception:
+        # The in-progress marker stays: it names the interrupted
+        # run for the next attempt (and for anyone reading the
+        # store). No receipt is written, so the next run retries.
+        raise
 
 
 def migrate_if_needed(db_path, base=None):
     """Lazy-once migration for the prompt path: runs only when no
-    receipt exists yet. Failure-safe — any exception propagates
-    nothing; the caller falls back to DB-only reading."""
-    if migration_receipt(base) is not None:
+    receipt exists yet. Failure-safe — any exception is swallowed
+    and None returned; the caller falls back to DB-only reading.
+
+    Loophole batch 6 (#13): the failure-safety used to live only
+    in the one caller (_dual_read_facts' try/except) while this
+    docstring promised it here. The promise now holds at the
+    seam: a raising migration can never break a caller that
+    trusted this function."""
+    try:
+        if migration_receipt(base) is not None:
+            return None
+        if not os.path.exists(str(db_path)):
+            return None
+        return migrate_from_db(db_path, base=base)
+    except Exception:  # noqa: BLE001 — failure-safe by contract
         return None
-    if not os.path.exists(str(db_path)):
-        return None
-    return migrate_from_db(db_path, base=base)
 
 
 # ---------------------------------------------------------------------------

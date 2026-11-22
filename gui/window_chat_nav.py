@@ -100,12 +100,11 @@ class ChatNavMixin:
     def _show_page(self, index: int):
         self.pages.setCurrentIndex(index)
         # `index` is a STACK page index. Nav buttons map through
-        # _nav_page_indices when present (the world-view page
-        # was removed 2026-11-05, so no button maps to stack 8
-        # any more);
-        # without it the mapping is identity, as before. Every
-        # stack page has a button since rethink Build 3 (Skills
-        # got one), so every page checks exactly its own button.
+        # _nav_page_indices when present; without it the mapping
+        # is identity, as before. Every stack page has a button
+        # except Skills (stack 3, palette-only since the chat
+        # pass); the four views (stack 8–11) have buttons since
+        # Stage 0 features batch 1.
         _pages = getattr(self, "_nav_page_indices", None)
         for i, btn in enumerate(self.nav_buttons):
             _page = _pages[i] if _pages and i < len(_pages) else i
@@ -155,6 +154,34 @@ class ChatNavMixin:
             doctor_page = getattr(self, "doctor_page", None)
             if doctor_page is not None:
                 doctor_page.ensure_initial_run()
+        if index == 8:
+            # Stage 0 features batch 1 (Group D): Calendar view —
+            # re-read the month + next 7 days each time it opens.
+            try:
+                self._refresh_calendar_page()
+            except Exception:  # noqa: BLE001
+                pass
+        if index == 9:
+            # Stage 0 features batch 1 (Group D): Inbox view —
+            # re-read the newest mail each time it opens.
+            try:
+                self._refresh_inbox_page()
+            except Exception:  # noqa: BLE001
+                pass
+        if index == 10:
+            # Stage 0 features batch 1 (Group D): Contacts list —
+            # re-read the contact cards each time it opens.
+            try:
+                self._refresh_contacts_page()
+            except Exception:  # noqa: BLE001
+                pass
+        if index == 11:
+            # Stage 0 features batch 1 (Group D): Call history —
+            # re-read the call ledger each time it opens.
+            try:
+                self._refresh_calls_page()
+            except Exception:  # noqa: BLE001
+                pass
         if index == 0:
             # v5.57 (redo): home — refresh the voice chip (the
             # combos exist by now) and the day briefing card.
@@ -164,6 +191,14 @@ class ChatNavMixin:
                 pass
             try:
                 self._refresh_briefing_card()
+            except Exception:  # noqa: BLE001
+                pass
+            # Round-3 wizard expansion: and the two conditional
+            # Home cards (finish-setup / self-test fix-it) — a
+            # fault cleared in Diagnostics hides its card the
+            # moment Home shows again.
+            try:
+                self._refresh_setup_cards()
             except Exception:  # noqa: BLE001
                 pass
         # Premium Wave 2 + SENSES v5.16: incoming page fades/slides in
