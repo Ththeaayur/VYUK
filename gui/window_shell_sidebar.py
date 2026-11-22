@@ -1,12 +1,10 @@
 # Refactor Phase 1 step 5: ShellMixin panel mixin, moved verbatim from gui/window_shell.py.
+from .breakpoints import SIDEBAR_WIDTH, SIDEBAR_WIDTH_COMPACT
 from .style import (
-    ACCENT,
     AMBER,
     BG,
     DANGER,
-    LINE_SUBTLE,
     PREMIUM_STYLE,
-    SURFACE_2,
     TEXT,
     TEXT_FAINT,
     TEXT_MUTED,
@@ -63,9 +61,10 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
+from PySide6.QtGui import QIcon
 from voice_assistant.core.gui_facade import config
 from .icons import make_icon
-from .design_system.palette import parse_color, with_alpha
+from .design_system.palette import parse_color
 
 
 class ShellSidebarMixin:
@@ -196,9 +195,12 @@ class ShellSidebarMixin:
         # chunk is the accent. The percent itself is untouched:
         # it still comes from local_assets.pack_progress() (real
         # byte counts, see _refresh_setup_banner).
-        banner.setStyleSheet(
-            f"QFrame#setupBanner {{ background: {SURFACE_2};"
-            f" border-bottom: 1px solid {LINE_SUBTLE}; }}")
+        # Stage 0 features batch 5 (Light theme, render-found):
+        # the strip + bar used to carry scoped sheets with the
+        # house tokens, so on Light the strip stayed black with
+        # theme-dark text — unreadable. Both live in the window
+        # sheet now (QFrame#setupBanner / QProgressBar#setupBar
+        # in style_sheet.py) and follow the theme; no sheet here.
         row = QHBoxLayout(banner)
         row.setContentsMargins(14, 5, 10, 5)
         row.setSpacing(10)
@@ -211,15 +213,11 @@ class ShellSidebarMixin:
         self.setup_banner_label.setWordWrap(True)
         row.addWidget(self.setup_banner_label)
         self.setup_banner_bar = QProgressBar()
+        self.setup_banner_bar.setObjectName("setupBar")
         self.setup_banner_bar.setRange(0, 100)
         self.setup_banner_bar.setValue(0)
         self.setup_banner_bar.setTextVisible(False)
         self.setup_banner_bar.setFixedSize(170, 4)
-        self.setup_banner_bar.setStyleSheet(
-            f"QProgressBar {{ background: {with_alpha(TEXT, 24)}; border: none;"
-            " border-radius: 2px; }"
-            f"QProgressBar::chunk {{ background: {ACCENT};"
-            " border-radius: 2px; }")
         row.addWidget(self.setup_banner_bar)
         row.addStretch()
         self.btn_setup_banner = QPushButton("Pause")
@@ -237,6 +235,15 @@ class ShellSidebarMixin:
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(220)
+        # Stage 0 features batch 5 (narrow window): below 908 px
+        # the sidebar collapses to a 64 px icon rail
+        # (_apply_sidebar_compact). The rail needs handles on the
+        # text-bearing chrome, so the build keeps them: section
+        # labels, brand name, wake label, privacy card, the inner
+        # layout's margins, and the nav labels for restore.
+        self._sidebar_compact = False
+        self._sidebar_section_labels: list = []
+        self._wake_full_text = "Off — click to enable"
         # Golden-fix D5: the sidebar column's natural height
         # (~590 px at 120% scale) exceeds short windows, and with
         # no scroll the VBox crushed every row below its minimum
@@ -267,6 +274,7 @@ class ShellSidebarMixin:
         layout = QVBoxLayout(inner)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(4)
+        self._sidebar_inner_layout = layout
 
         brand = QHBoxLayout()
         mark = QLabel("V")
@@ -275,6 +283,7 @@ class ShellSidebarMixin:
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name = QLabel(config.assistant_name)
         name.setObjectName("brandName")
+        self._sidebar_brand_name = name
         brand.addWidget(mark)
         brand.addWidget(name)
         brand.addStretch()
@@ -348,6 +357,7 @@ class ShellSidebarMixin:
             btn.setIconSize(QSize(18, 18))
             btn.clicked.connect(lambda _=False, idx=page: self._show_page(idx))
             self.nav_buttons.append(btn)
+        self._nav_labels = [label for label, _, _ in _nav_defs]
         # Restore (2026-11-01, owner-delegated): the §9.2
         # section labels inside the EXISTING 220 px sidebar —
         # labels only. Same buttons, same order, same stack
@@ -363,21 +373,25 @@ class ShellSidebarMixin:
         # labels-only scope.
         _core_label = QLabel("CORE")
         _core_label.setObjectName("muted")
+        self._sidebar_section_labels.append(_core_label)
         layout.addWidget(_core_label)
         layout.addWidget(self.nav_buttons[0])
         layout.addSpacing(12)
         _mission_label = QLabel("MISSION")
         _mission_label.setObjectName("muted")
+        self._sidebar_section_labels.append(_mission_label)
         layout.addWidget(_mission_label)
         layout.addWidget(self.nav_buttons[1])
         layout.addSpacing(12)
         _archive_label = QLabel("ARCHIVE")
         _archive_label.setObjectName("muted")
+        self._sidebar_section_labels.append(_archive_label)
         layout.addWidget(_archive_label)
         layout.addWidget(self.nav_buttons[2])
         layout.addSpacing(12)
         _system_label = QLabel("SYSTEM")
         _system_label.setObjectName("muted")
+        self._sidebar_section_labels.append(_system_label)
         layout.addWidget(_system_label)
         for btn in self.nav_buttons[3:6]:
             layout.addWidget(btn)
@@ -386,6 +400,7 @@ class ShellSidebarMixin:
         # for Calendar / Inbox / Contacts / Calls (stack 8–11).
         _views_label = QLabel("VIEWS")
         _views_label.setObjectName("muted")
+        self._sidebar_section_labels.append(_views_label)
         layout.addWidget(_views_label)
         for btn in self.nav_buttons[6:10]:
             layout.addWidget(btn)
@@ -399,6 +414,7 @@ class ShellSidebarMixin:
 
         wake_label = QLabel("Wake word")
         wake_label.setObjectName("muted")
+        self._sidebar_wake_label = wake_label
         layout.addWidget(wake_label)
         self.btn_wake = QPushButton("Off — click to enable")
         self.btn_wake.setAccessibleDescription(
@@ -430,9 +446,78 @@ class ShellSidebarMixin:
         p_body.setWordWrap(True)
         p_layout.addWidget(p_title)
         p_layout.addWidget(p_body)
+        self._sidebar_privacy_card = privacy
         layout.addWidget(privacy)
         return sidebar
 
+    def _apply_sidebar_compact(self, compact: bool) -> None:
+        """Collapse / restore the sidebar icon rail (batch 5).
+
+        Below 908 px the sidebar is a 64 px rail: nav buttons
+        keep their 18 px icons with the labels hidden and the
+        label as the tooltip (nothing unlabeled, nothing
+        unreachable — the buttons, the wake toggle and Settings
+        all stay one click away); section labels, the brand name,
+        the wake label and the privacy card hide (the card is
+        information only — the same promise lives in Settings);
+        the wake button becomes an icon with its state text as
+        the tooltip. Restoring re-applies every label from the
+        stored names. Idempotent and safe before the sidebar
+        exists (partial windows in tests); called from
+        _apply_breakpoint_tier on every resize.
+        """
+        try:
+            sidebar = self.findChild(QFrame, "sidebar")
+            if sidebar is None:
+                return
+            self._sidebar_compact = bool(compact)
+            sidebar.setFixedWidth(
+                SIDEBAR_WIDTH_COMPACT if compact else SIDEBAR_WIDTH)
+            labels = getattr(self, "_nav_labels", [])
+            for i, btn in enumerate(getattr(self, "nav_buttons", [])):
+                label = labels[i] if i < len(labels) else btn.text()
+                if compact:
+                    btn.setText("")
+                    btn.setToolTip(label)
+                else:
+                    btn.setText(label)
+                    btn.setToolTip("")
+            for lbl in getattr(self, "_sidebar_section_labels", []):
+                lbl.setVisible(not compact)
+            brand = getattr(self, "_sidebar_brand_name", None)
+            if brand is not None:
+                brand.setVisible(not compact)
+            wake_label = getattr(self, "_sidebar_wake_label", None)
+            if wake_label is not None:
+                wake_label.setVisible(not compact)
+            wake = getattr(self, "btn_wake", None)
+            if wake is not None:
+                if compact:
+                    full = getattr(self, "_wake_full_text", "") or wake.text()
+                    if wake.text():
+                        self._wake_full_text = wake.text()
+                        full = wake.text()
+                    wake.setIcon(make_icon("mic", TEXT_MUTED))
+                    wake.setIconSize(QSize(18, 18))
+                    wake.setText("")
+                    wake.setToolTip(full)
+                else:
+                    wake.setIcon(QIcon())
+                    wake.setText(getattr(
+                        self, "_wake_full_text",
+                        "Off — click to enable"))
+                    wake.setToolTip("")
+            privacy = getattr(self, "_sidebar_privacy_card", None)
+            if privacy is not None:
+                privacy.setVisible(not compact)
+            inner = getattr(self, "_sidebar_inner_layout", None)
+            if inner is not None:
+                if compact:
+                    inner.setContentsMargins(8, 16, 8, 16)
+                else:
+                    inner.setContentsMargins(16, 16, 16, 16)
+        except Exception:  # noqa: BLE001 — floors are a nicety
+            pass
 
     def _refresh_nav_icons(self, active: int):
         # `active` is a STACK page index. Nav buttons map through

@@ -127,7 +127,28 @@ class FallbackPlotWidget(QWidget):
         # by OverviewPanel.set_palette); the default is the colour
         # it paints today, so Cyan is unchanged.
         self._series_color = ACCENT_2
+        # Stage 0 features batch 5 (larger text): the painted
+        # "No data" text scales with the appearance font scale.
+        # The base is the widget font's point size at first call
+        # (the fallback paints with the widget font, not a set
+        # size); a point-size-less font falls back to 13 pt.
+        self._font_scale = 1.0
+        self._base_pt: float | None = None
         self.setMinimumHeight(140)
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted fallback text (batch 5, item 12)."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        if self._base_pt is None:
+            pt = self.font().pointSizeF()
+            self._base_pt = pt if pt > 0 else 13.0
+        font = self.font()
+        font.setPointSizeF(self._base_pt * self._font_scale)
+        self.setFont(font)
+        self.update()
 
     def set_series(self, series: list[PlotSeries]) -> None:
         self.series = list(series)
@@ -138,11 +159,24 @@ class FallbackPlotWidget(QWidget):
         self._series_color = color
         self.update()
 
+    def set_background(self, bg: str, text_muted: str) -> None:
+        """Recolour the plot backdrop + empty text (batch 5, Light).
+
+        The fallback filled its rect with the house BG and drew
+        the empty text in the house TEXT_MUTED, so on Light the
+        plot was a black box with unreadable text. The backdrop
+        follows the theme bg and the empty text the theme
+        text_muted; the series colours are untouched.
+        """
+        self._bg = bg
+        self._text_muted = text_muted
+        self.update()
+
     def paintEvent(self, _event):  # noqa: N802 — Qt naming
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(BG))
+        painter.fillRect(self.rect(), QColor(getattr(self, "_bg", BG)))
         if not self.series:
-            painter.setPen(QPen(QColor(TEXT_MUTED)))
+            painter.setPen(QPen(QColor(getattr(self, "_text_muted", TEXT_MUTED))))
             painter.drawText(self.rect(), Qt.AlignCenter,
                              "No data — pyqtgraph unavailable, fallback idle")
             return
@@ -201,10 +235,40 @@ class DurationStrip(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.segments: list[DurationSegment] = []
+        # Stage 0 features batch 5 (larger text): the painted
+        # "No durations" text scales with the appearance font
+        # scale (same base-capture shape as FallbackPlotWidget).
+        self._font_scale = 1.0
+        self._base_pt: float | None = None
         self.setMinimumHeight(36)
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted fallback text (batch 5, item 12)."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        if self._base_pt is None:
+            pt = self.font().pointSizeF()
+            self._base_pt = pt if pt > 0 else 13.0
+        font = self.font()
+        font.setPointSizeF(self._base_pt * self._font_scale)
+        self.setFont(font)
+        self.update()
 
     def set_segments(self, segments: list[DurationSegment]) -> None:
         self.segments = [s for s in segments if s.seconds > 0]
+        self.update()
+
+    def set_background(self, bg: str, text_muted: str) -> None:
+        """Recolour the strip backdrop + empty text (batch 5, Light).
+
+        Same shape as FallbackPlotWidget.set_background: the strip
+        filled its rect with the house BG, so on Light it was a
+        black bar. The segment colours are semantic and untouched.
+        """
+        self._bg = bg
+        self._text_muted = text_muted
         self.update()
 
     def total_seconds(self) -> float:
@@ -212,10 +276,10 @@ class DurationStrip(QWidget):
 
     def paintEvent(self, _event):  # noqa: N802 — Qt naming
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(BG))
+        painter.fillRect(self.rect(), QColor(getattr(self, "_bg", BG)))
         total = self.total_seconds()
         if total <= 0:
-            painter.setPen(QPen(QColor(TEXT_MUTED)))
+            painter.setPen(QPen(QColor(getattr(self, "_text_muted", TEXT_MUTED))))
             painter.drawText(self.rect(), Qt.AlignCenter, "No durations")
             return
         x = 0
@@ -255,17 +319,47 @@ class OverviewPanel(QWidget):
         self._series: list[PlotSeries] = []
         self._series_color = ACCENT_2
 
-    def set_palette(self, accent: str, accent_2: str):
+    def set_palette(self, accent: str, accent_2: str,
+                    bg: str | None = None,
+                    text_muted: str | None = None):
         """Recolour the plot line from a theme pair (E-F209): the
         first series takes accent_2. AMBER / OK keep their semantic
         colours. (``accent`` is accepted for the shared pair shape
         with PulsePage.set_palette; the plot has one theme-coloured
-        series.)"""
+        series.)
+        Stage 0 features batch 5 (Light theme, render-found):
+        the fallback plot + duration strip also filled their
+        rects with the house BG, so on Light the Overview was a
+        black box. ``bg`` / ``text_muted`` (the resolved theme
+        values; house tokens when omitted) recolour those
+        backdrops via the widgets' set_background. The pyqtgraph
+        engine owns its own background and is untouched here.
+        """
         self._series_color = accent_2
         if self.engine == "pyqtgraph":
             self.set_series(self._series)
         else:
             self.plot_widget.set_series_color(accent_2)
+        if bg is not None or text_muted is not None:
+            for widget in (getattr(self, "plot_widget", None),
+                           getattr(self, "duration_strip", None)):
+                setter = getattr(widget, "set_background", None)
+                if setter is not None:
+                    setter(bg or BG, text_muted or TEXT_MUTED)
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted fallback text (batch 5, item 12).
+
+        The pyqtgraph engine owns its own text sizes (no hook
+        to call); the fallback plot + duration strip paint with
+        the widget font, so they take the scale. Defensive: the
+        panel may not exist yet when the theme loads.
+        """
+        for widget in (getattr(self, "plot_widget", None),
+                       getattr(self, "duration_strip", None)):
+            setter = getattr(widget, "set_font_scale", None)
+            if setter is not None:
+                setter(scale)
 
     # -- data in -------------------------------------------------
     def set_series(self, series: list[PlotSeries]) -> None:

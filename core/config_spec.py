@@ -185,6 +185,14 @@ class ConfigSpec:
     # installs still storing it as their untouched default migrate
     # once (migration v0 -> v1 below).
     voice_name: str = field(default="Charon", metadata={"env": "VOICE_NAME"})
+    # Reply verbosity (Stage 0 features batch 5, item 11): how long
+    # her replies run — concise / balanced / detailed. Balanced is
+    # the absence of steering (core/verbosity.py): a balanced
+    # session's prompt and request are byte-identical to before.
+    # The Settings voice page writes it through the config + .env
+    # (the live_voice pattern); the live/cloud/local turn paths
+    # read it per turn via core.verbosity.current_verbosity().
+    reply_verbosity: str = field(default="balanced", metadata={"env": "VYUK_REPLY_VERBOSITY"})
     # MODEL_NAME is the Gemini LIVE (voice) model — it must be a model
     # the Live API offers. The default is the GA successor,
     # gemini-3.8-live; Google retires the 2.5 native-audio PREVIEW

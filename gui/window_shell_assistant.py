@@ -466,8 +466,18 @@ class ShellAssistantMixin:
             "Switch VYUK's voice or reply language")
         self.voice_chip.clicked.connect(self._show_voice_chip_menu)
         self.voice_chip.setVisible(False)
-        stage_layout.addWidget(hero, stretch=0,
-                               alignment=Qt.AlignmentFlag.AlignCenter)
+        # Stage 0 features batch 5 (narrow window, render-found
+        # at 640 px): the hero used to be centre-aligned here, so
+        # it took its 400 px sizeHint width at every window width
+        # — at 640 the 400 px hero overflowed the 240 px stage and
+        # the orb painted past the stage into the chat dock (and
+        # the visualizer's 320 px floor starved the chat too).
+        # Without the alignment the hero fills the stage width,
+        # so the orb shrinks with the stage; the OrbVisualizer
+        # paints the orb centred in its widget, so the orb stays
+        # centred at every width, and at comfort widths the orb
+        # is height-limited exactly as before.
+        stage_layout.addWidget(hero, stretch=0)
         # Conversion Phase 0: breathing room between the hero
         # and the wordmark. The stage spacing is 8 px and the
         # orb's own paint now stops 16 px inside its widget

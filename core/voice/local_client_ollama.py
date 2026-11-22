@@ -29,10 +29,12 @@ class LocalLiveSessionOllamaMixin:
         self._history.append(user_msg)
         self._history = self._history[-HISTORY_CAP:]
 
-        system = config.system_instruction
-        # v5.41: a non-English home adds its reply-language
-        # directive here ("" for English — byte-identical).
-        system += reply_language_directive()
+        # The system-prompt head (persona + language directive +
+        # verbosity directive) — built by the shared helper the
+        # probe calls directly; see local_client_guards.
+        from .local_client_guards import local_system_prompt
+
+        system = local_system_prompt()
         # Conversion Wave 8: prompt-cache-first stable prefix
         # (persona + directive, byte-identical + SHA-256 key,
         # recorded for cache-hit checks) + ledger pre-flight of

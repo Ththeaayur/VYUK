@@ -196,6 +196,21 @@ DTCG_SOURCE: dict = {
                 "#FFB020", "#FF6A00", "#FFF1D6", "amber theme"),
             "Crimson": _theme(
                 "#FF5468", "#FD465A", "#FFE3E6", "crimson theme"),
+            # Light (Stage 0 features batch 5): the one light
+            # chrome. Accent is a deepened Aura blue; accent_2 is
+            # deepened further so it passes 4.5:1 as text
+            # (#2563EB is 4.90 on the bg, 5.17 on white). Every
+            # text-on-surface pair is >= 4.5:1 by computation.
+            "Light": _theme(
+                "#1D6FE0", "#2563EB", "#E3F0FF",
+                "light theme; overrides chrome",
+                bg=_color("#F7F9FC", "Light: window background"),
+                surface_1=_color("#FFFFFF", "Light: dialog surface"),
+                surface_2=_color("#EDF1F7", "Light: popup surface"),
+                text=_color("#101826", "Light: primary text"),
+                text_muted=_color("#4A5568", "Light: muted text"),
+                text_faint=_color("#5F6B7A", "Light: faint text"),
+            ),
         },
     },
     "spacing": {
@@ -257,6 +272,7 @@ RESOLVED_KEYS = (
     "disabled_a", "disabled_b",
     "bg", "surface_1", "surface_2",
     "text", "text_muted", "text_faint", "focus_border",
+    "selection_bg", "text_disabled",
 )
 
 
@@ -266,7 +282,7 @@ def dtcg_source() -> dict:
 
 
 def theme_names() -> list[str]:
-    """The 11 theme names, in DTCG source order."""
+    """The 12 theme names, in DTCG source order."""
     return list(DTCG_SOURCE["color"]["theme"].keys())
 
 
@@ -295,6 +311,19 @@ def _mix(hex_a: str, hex_b: str, frac_b: float) -> str:
     a = _hex_rgb(hex_a)
     b = _hex_rgb(hex_b)
     return _rgb_hex(*(a[i] + (b[i] - a[i]) * frac_b for i in range(3)))
+
+
+def _luminance(hex_color: str) -> float:
+    """Relative luminance (0..1) of a #RRGGBB colour.
+
+    Mirror of the shipped helper in gui/style_theme.py; keep
+    the two in step (the proof compares their outputs).
+    """
+    def channel(v: int) -> float:
+        c = v / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = _hex_rgb(hex_color)
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 
 
 def _triplet(hex_color: str) -> str:
@@ -332,6 +361,15 @@ def build_python_tokens(theme_name: str) -> dict:
     chrome = DTCG_SOURCE["color"]["chrome"]
     accent = _theme_value(theme_name, "accent")
     accent_2 = _theme_value(theme_name, "accent_2")
+    bg = _theme_value(theme_name, "bg") or chrome["bg"]["$value"]
+    text = _theme_value(theme_name, "text") or chrome["text"]["$value"]
+    # Light chrome (bg luminance > 0.5) needs two token values
+    # the dark themes never did: a solid selection background
+    # (the accent wash at 38% over a light surface is too pale
+    # for the white selection text) and a disabled-text colour
+    # that follows the theme text (the house near-white at 45%
+    # would vanish on light). Mirrors the shipped resolver.
+    light = _luminance(bg) > 0.5
     return {
         "accent": accent,
         "accent_2": accent_2,
@@ -349,22 +387,28 @@ def build_python_tokens(theme_name: str) -> dict:
         or _mix(accent, _BG, 0.60),
         "disabled_b": _theme_value(theme_name, "disabled_b")
         or _mix(accent_2, _BG, 0.60),
-        "bg": _theme_value(theme_name, "bg")
-        or chrome["bg"]["$value"],
+        "bg": bg,
         "surface_1": _theme_value(theme_name, "surface_1")
         or chrome["surface_1"]["$value"],
         "surface_2": _theme_value(theme_name, "surface_2")
         or chrome["surface_2"]["$value"],
-        "text": _theme_value(theme_name, "text")
-        or chrome["text"]["$value"],
+        "text": text,
         "text_muted": _theme_value(theme_name, "text_muted")
         or chrome["text_muted"]["$value"],
         "text_faint": _theme_value(theme_name, "text_faint")
         or chrome["text_faint"]["$value"],
         "focus_border": _theme_value(theme_name, "focus_border"),
+        "selection_bg": (
+            accent if light
+            else "rgba({}, 96)".format(_triplet(accent))
+        ),
+        "text_disabled": (
+            "rgba({}, 115)".format(_triplet(text)) if light
+            else "rgba({}, 115)".format(_triplet(chrome["text"]["$value"]))
+        ),
     }
 
 
 def build_all_python_tokens() -> dict[str, dict]:
-    """Resolved tokens for all 11 themes."""
+    """Resolved tokens for all 12 themes."""
     return {name: build_python_tokens(name) for name in theme_names()}

@@ -57,6 +57,18 @@ class GroqSessionTurnMixin:
             "temperature": _groq_temperature(),
             "stream": False,
         }
+        # Stage 0 features batch 5, item 11: concise caps the
+        # reply at 256 tokens; balanced and detailed set no cap
+        # (the key stays absent, so their requests are unchanged).
+        try:
+            from ..verbosity import (current_verbosity,
+                                     verbosity_max_output_tokens)
+
+            _cap = verbosity_max_output_tokens(current_verbosity())
+        except Exception:  # noqa: BLE001 — verbosity never breaks a turn
+            _cap = None
+        if _cap is not None:
+            payload["max_tokens"] = _cap
         declarations = groq_offered_declarations()
         if declarations:
             payload["tools"] = openai_tools(declarations)

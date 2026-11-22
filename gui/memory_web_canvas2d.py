@@ -80,6 +80,11 @@ class MemoryWeb2DCanvas(QWidget):
         self.setMouseTracking(True)
         self.setMinimumSize(320, 280)
         self._data = GraphData()
+        # Stage 0 features batch 5 (larger text): the painted
+        # node labels + badge + empty state scale with the
+        # appearance font scale (the QSS cannot reach paintEvent
+        # text). Driven by MemoryWebWidget.set_font_scale.
+        self._font_scale = 1.0
         self._pos: dict[str, list] = {}
         self._pinned: set = set()
         self._collapsed: set = set()
@@ -121,6 +126,14 @@ class MemoryWeb2DCanvas(QWidget):
     @property
     def graph(self) -> GraphData:
         return self._data
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted labels / badge / empty state."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        self.update()
 
     def set_facts(self, facts: list):
         """Rebuild the web from store rows, keeping every surviving
@@ -618,7 +631,7 @@ class MemoryWeb2DCanvas(QWidget):
             painter.drawEllipse(badge_c, 8.5, 8.5)
             painter.setPen(QColor(TEXT))
             font = QFont()
-            font.setPixelSize(9)
+            font.setPixelSize(max(1, round(9 * self._font_scale)))
             painter.setFont(font)
             painter.drawText(
                 QRectF(badge_c.x() - 8.5, badge_c.y() - 8.5, 17, 17),
@@ -654,8 +667,9 @@ class MemoryWeb2DCanvas(QWidget):
             if node.kind == "fact" and len(label) > 20:
                 label = label[:19] + "…"
             font = QFont()
-            font.setPixelSize(_LABEL_HUB_PX if node.kind != "fact"
-                              else _LABEL_FACT_PX)
+            font.setPixelSize(max(1, round(
+                (_LABEL_HUB_PX if node.kind != "fact"
+                 else _LABEL_FACT_PX) * self._font_scale)))
             # E-F202: measure the DRAWN ink, not the advance.
             # drawText clips to the rect, and the ink overhangs
             # the advance by ~1 px on the right (plus
@@ -686,7 +700,7 @@ class MemoryWeb2DCanvas(QWidget):
         if not any(n.kind == "fact" for n in data.nodes):
             painter.setPen(_TEXT_MUTED)
             font = QFont()
-            font.setPixelSize(12)
+            font.setPixelSize(max(1, round(12 * self._font_scale)))
             painter.setFont(font)
             painter.drawText(
                 QRectF(0, self.height() / 2.0 + 34, self.width(), 20),

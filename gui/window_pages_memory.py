@@ -331,6 +331,13 @@ class PagesMemoryMixin:
             self.skills_catalog = build_skills_catalog(_decls, _TOOL_FRIENDLY_NAMES)
             cat_layout.addWidget(self.skills_catalog)
             layout.addWidget(cat_card, stretch=3)
+            # Batch 5, item 12: the page builds before the first
+            # appearance pass — scale its painted headers now.
+            try:
+                self._apply_font_scale_to_painted_pages(
+                    self._current_font_scale())
+            except Exception:  # noqa: BLE001 — appearance never breaks boot
+                pass
         except Exception as e:  # noqa: BLE001 — the page must still build
             print(f"[VYUK] Skills catalogue unavailable: {e}")
             self.skills_catalog = None
@@ -445,6 +452,10 @@ class PagesMemoryMixin:
             self.skills_detail_card = card
             if self.skills_galaxy_search.text():
                 galaxy.set_search_highlight(self.skills_galaxy_search.text())
+            # Batch 5, item 12: a lazily built page missed the
+            # last appearance pass — scale its painted labels now.
+            self._apply_font_scale_to_painted_pages(
+                self._current_font_scale())
         except Exception as e:  # noqa: BLE001 — list view still works
             print(f"[VYUK] Skills galaxy unavailable: {e}")
             self.skills_galaxy = None

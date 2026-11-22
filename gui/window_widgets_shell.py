@@ -271,6 +271,13 @@ class AppShell(QWidget):
         self._glow_strength = 0.15
         self._glow_center = None
         self._noise = self._make_noise()
+        # Stage 0 features batch 5 (light theme): the shell fill,
+        # edge line and bracket ticks follow the theme chrome.
+        # Defaults are the house tokens, so an unthemed shell
+        # paints exactly as before.
+        self._fill = QColor(BG)
+        self._line = QColor(LINE_STRONG)
+        self._accent = QColor(ACCENT)
         # v5.24 (Eyes E32): the translucent-shell option. Off by
         # default — the paint path below is then EXACTLY the
         # pre-v5.24 one. On, the shell's fill goes see-through
@@ -298,6 +305,26 @@ class AppShell(QWidget):
         self._glow_strength = max(0.0, min(strength, 1.0))
         if center is not None:
             self._glow_center = center
+        self.update()
+
+    def set_chrome(self, bg_hex: str, accent_hex: str) -> None:
+        """Recolour the shell fill + edge from a theme (batch 5).
+
+        The QSS cannot reach this paint path — the shell fills
+        itself — so the window drives it from the same resolved
+        theme the chrome just took: the fill is the theme bg, the
+        strong-line edge is the theme accent at the house 102
+        alpha, the bracket ticks are the theme accent. Under Cyan
+        the values are the house tokens, so nothing changes.
+        """
+        try:
+            accent = QColor(accent_hex)
+            self._fill = QColor(bg_hex)
+            self._line = QColor(
+                accent.red(), accent.green(), accent.blue(), 102)
+            self._accent = accent
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            return
         self.update()
 
     def set_glass(self, enabled: bool):
@@ -329,7 +356,7 @@ class AppShell(QWidget):
             path.quadTo(0, h, 0, h - arc)
             path.lineTo(0, cut)
             path.closeSubpath()
-        fill = QColor(BG)
+        fill = QColor(self._fill)
         if self._glass:
             fill.setAlpha(205)
         painter.fillPath(path, fill)
@@ -348,13 +375,13 @@ class AppShell(QWidget):
                 painter.drawPixmap(x, y, self._noise)
         painter.restore()
 
-        painter.setPen(QColor(LINE_STRONG))
+        painter.setPen(QColor(self._line))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(path)
         # Bracket ticks hugging the two cuts (accent, 2 px) — only
         # when the cuts exist (not when maximised square).
         if arc > 0:
-            painter.setPen(QPen(QColor(ACCENT), 2))
+            painter.setPen(QPen(QColor(self._accent), 2))
             tl = cut + 3
             painter.drawLine(tl, 1, tl + 12, 1)
             painter.drawLine(1, tl, 1, tl + 12)

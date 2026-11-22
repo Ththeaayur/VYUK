@@ -441,10 +441,18 @@ class SessionSuggestionsMixin:
         wake_word_detector.enabled = enabled
         if enabled:
             self.btn_wake.setText("On — say “Hey VYUK”")
+            self._wake_full_text = "On — say “Hey VYUK”"
             self._add_system(f'Wake word on. Say "Hey {config.assistant_name}" to start talking.')
         else:
             self.btn_wake.setText("Off — click to enable")
+            self._wake_full_text = "Off — click to enable"
             self._add_system("Wake word off.")
+        # Stage 0 features batch 5: a toggle while the sidebar
+        # is a compact rail must not resurrect the text in the
+        # 64 px column — re-apply the rail (it reads the new
+        # state text into the tooltip).
+        if getattr(self, "_sidebar_compact", False):
+            self._apply_sidebar_compact(True)
         # v5.53 (F1): the idle line follows the toggle the
         # moment it flips (no-op while a session owns the label).
         self._apply_idle_listening_text()

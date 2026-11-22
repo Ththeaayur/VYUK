@@ -49,10 +49,12 @@ class LocalLiveSessionBuiltinMixin:
         # See the section comment above _est_tokens for the overflow
         # this fixes (the legacy protocol alone was ~11,400 tokens).
         total_budget = local_assets.effective_n_ctx() - 512 - 128
-        system = config.system_instruction
-        # v5.41: non-English home directive ("" for English); it is
-        # part of `system` before every budget measurement below.
-        system += reply_language_directive()
+        # The system-prompt head (persona + language directive +
+        # verbosity directive) — built by the shared helper the
+        # probe calls directly; see local_client_guards.
+        from .local_client_guards import local_system_prompt
+
+        system = local_system_prompt()
         # Conversion Wave 8: prompt-cache-first stable prefix
         # note (persona + directive, SHA-256 key recorded on the
         # session) + PA-3 speculative flag consultation with the

@@ -73,6 +73,13 @@ BG = "#04090E"
 SURFACE_1 = "#0C1D28"  # dialogs: one solid step above the window
 SURFACE_2 = "#08131B"  # popups / palette: the highest resting step
 SURFACE_3 = "#122636"  # raised / selected
+# Code blocks stay dark on every theme: the pale-green code text
+# (style_sheet QPlainTextEdit#codeText) reads only on a dark
+# panel. On the dark themes this is the effective colour of the
+# old 0.28-black wash over BG, so nothing changes there; on a
+# light theme it keeps the panel dark instead of letting the
+# wash go pale.
+CODE_BG = "#0A0E13"
 # Floating status strip (always-on-top bar): the same deep surface as
 # mini_orb / visualizer_paint QColor(16, 19, 26, 235), at ~92% opacity.
 # Flaw sweep 2026-11-16 (parent fix): this literal lived in

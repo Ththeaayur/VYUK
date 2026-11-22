@@ -109,6 +109,17 @@ class GroqSessionLifecycleMixin:
         prompt = config.system_instruction
         # v5.41: non-English home directive ("" for English).
         prompt += reply_language_directive()
+        # Stage 0 features batch 5, item 11: reply verbosity —
+        # the length instruction rides next to the language
+        # directive. Balanced is "" so the prompt stays
+        # byte-identical to before.
+        try:
+            from ..verbosity import (current_verbosity,
+                                     reply_verbosity_directive)
+
+            prompt += reply_verbosity_directive(current_verbosity())
+        except Exception:  # noqa: BLE001 — verbosity never breaks a turn
+            pass
         memories = memory_store.get_memory_context_prompt()
         # Phase 2 (audit 6 B03): the start-time memory block,
         # against which each turn's refresh is compared — a

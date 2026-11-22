@@ -31,6 +31,24 @@ QFrame#appShell {
 }
 QWidget#titleBar { background: transparent; }
 QLabel#titleBarName { color: ${TEXT_FAINT}; font-size: 12px; }
+
+/* Stage 0 features batch 5 (Light theme, render-found): the
+   first-run setup banner carried a scoped sheet with the house
+   SURFACE_2, so on Light it stayed a black bar with theme-dark
+   text — unreadable. The strip and its 4 px progress bar live
+   here now, so they follow the theme: the strip is the resting
+   surface, the bar's track is the hairline, the chunk is the
+   theme accent. */
+QFrame#setupBanner {
+    background: ${SURFACE_2};
+    border-bottom: 1px solid ${LINE_SUBTLE};
+}
+QProgressBar#setupBar {
+    background: ${LINE_SUBTLE}; border: none; border-radius: 2px;
+}
+QProgressBar#setupBar::chunk {
+    background: ${ACCENT}; border-radius: 2px;
+}
 QPushButton#winBtn {
     background: transparent; border: none;
     border-radius: ${RADIUS_SM}px; padding: 0px;
@@ -73,7 +91,7 @@ QPushButton#navBtn:hover {
 }
 QPushButton#navBtn:pressed { background-color: rgba(255, 255, 255, 18); }
 QPushButton#navBtn:checked {
-    background-color: rgba(53, 214, 255, 30); color: #FFFFFF;
+    background-color: rgba(53, 214, 255, 30); color: ${TEXT};
     border-left: 3px solid ${ACCENT};
 }
 QPushButton#navBtn:focus {
@@ -96,7 +114,7 @@ QFrame#privacyCard {
 QLabel#privacyTitle {
     color: ${ACCENT_2}; font-weight: 600; font-size: ${TYPE_CARD_TITLE}px;
 }
-QLabel#privacyBody { color: #A7B0B8; font-size: 11px; }
+QLabel#privacyBody { color: ${TEXT_MUTED}; font-size: 11px; }
 
 /* ================= page type ================= */
 QLabel#pageTitle { font-size: ${TYPE_TITLE}px; font-weight: 600; font-family: ${DISPLAY_FONT_STACK}; }
@@ -281,10 +299,10 @@ QPushButton#chipSuggest {
     background-color: ${SURFACE_2};
     border: 1px solid ${LINE_SUBTLE};
     border-radius: ${RADIUS_CHIP}px;
-    color: #C6CAD0; font-size: 12.5px; padding: 8px 14px;
+    color: ${TEXT_MUTED}; font-size: 12.5px; padding: 8px 14px;
 }
 QPushButton#chipSuggest:hover {
-    background-color: rgba(53, 214, 255, 26); color: #FFFFFF;
+    background-color: rgba(53, 214, 255, 26); color: ${TEXT};
     border: 1px solid rgba(53, 214, 255, 90);
 }
 QPushButton#chipSuggest:pressed { background-color: rgba(53, 214, 255, 44); }
@@ -395,7 +413,7 @@ QFrame#resultCard {
     border-left: 3px solid ${ACCENT};
     border-radius: ${RADIUS_CARD}px;
 }
-QLabel#resultTitle { color: #E6FBFF; font-size: 11px; font-weight: 600; }
+QLabel#resultTitle { color: ${TEXT}; font-size: 11px; font-weight: 600; }
 QLabel#resultBody { font-size: ${TYPE_BODY}px; }
 
 /* ================= chat ================= */
@@ -445,7 +463,7 @@ QPushButton#bubbleQuote { text-align: left; padding-left: 8px; border-left: 1px 
 QLabel#bubbleTime { color: ${TEXT_FAINT}; font-size: ${TYPE_MICRO}px; }
 QLabel#systemLine { color: ${TEXT_FAINT}; font-size: 12px; }
 QFrame#codeBlock {
-    background: rgba(0, 0, 0, 0.28);
+    background: ${CODE_BG};
     border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 2px;
 }
@@ -469,14 +487,14 @@ QListWidget::item {
 }
 QListWidget::item:hover { background-color: rgba(255, 255, 255, 7); }
 QListWidget::item:selected {
-    background-color: rgba(53, 214, 255, 52); color: #FFFFFF;
+    background-color: rgba(53, 214, 255, 52); color: ${TEXT};
 }
 QListWidget#paletteList {
     background-color: transparent; border: none; padding: 8px;
 }
 QListWidget#paletteList::item {
     padding: 8px 12px; border-bottom: none;
-    border-radius: ${RADIUS_SM}px; color: #C6CAD0; font-size: 13.5px;
+    border-radius: ${RADIUS_SM}px; color: ${TEXT_MUTED}; font-size: 13.5px;
 }
 QListWidget#paletteList::item:hover {
     background-color: rgba(255, 255, 255, 8);
@@ -484,7 +502,7 @@ QListWidget#paletteList::item:hover {
 QListWidget#paletteList::item:selected {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
         stop:0 rgba(53, 214, 255,60), stop:1 rgba(61, 139, 255,48));
-    color: #FFFFFF;
+    color: ${TEXT};
 }
 
 /* ================= scrollbars ================= */
@@ -523,7 +541,7 @@ QSlider::handle:horizontal {
     background: ${TEXT}; border: 1px solid rgba(0, 0, 0, 90);
 }
 QSlider::handle:horizontal:hover {
-    background: #FFFFFF; border: 1px solid rgba(0, 0, 0, 130);
+    background: ${TEXT}; border: 1px solid rgba(0, 0, 0, 130);
 }
 QSlider::handle:horizontal:pressed { background: ${ACCENT}; }
 QSlider::sub-page:horizontal { background: ${ACCENT}; border-radius: 2px; }

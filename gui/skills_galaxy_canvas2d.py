@@ -59,6 +59,11 @@ class Galaxy2DCanvas(QWidget):
         self.setMouseTracking(True)
         self.setMinimumSize(320, 280)
         self._data = GalaxyData()
+        # Stage 0 features batch 5 (larger text): the painted
+        # star labels + empty state scale with the appearance
+        # font scale (the QSS cannot reach paintEvent text).
+        # Driven by SkillsGalaxyWidget.set_font_scale.
+        self._font_scale = 1.0
         self._pos: dict[str, tuple] = {}
         self._hover: str | None = None
         self._selected: str | None = None     # a star's tool name
@@ -94,6 +99,14 @@ class Galaxy2DCanvas(QWidget):
     @property
     def galaxy(self) -> GalaxyData:
         return self._data
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted star labels / empty state."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        self.update()
 
     def set_data(self, data: GalaxyData):
         self._data = data
@@ -241,7 +254,7 @@ class Galaxy2DCanvas(QWidget):
         if not data.nodes:
             painter.setPen(_TEXT_MUTED)
             font = QFont()
-            font.setPixelSize(12)
+            font.setPixelSize(max(1, round(12 * self._font_scale)))
             painter.setFont(font)
             painter.drawText(
                 QRectF(0, self.height() / 2.0 - 10, self.width(), 20),
@@ -366,8 +379,9 @@ class Galaxy2DCanvas(QWidget):
             if node.kind == "star" and len(label) > 24:
                 label = label[:23] + "…"
             font = QFont()
-            font.setPixelSize(_LABEL_HUB_PX if node.kind == "hub"
-                              else _LABEL_STAR_PX)
+            font.setPixelSize(max(1, round(
+                (_LABEL_HUB_PX if node.kind == "hub"
+                 else _LABEL_STAR_PX) * self._font_scale)))
             text_w = float(QFontMetrics(font).horizontalAdvance(label))
             rect = QRectF(centre.x() - text_w / 2.0,
                           centre.y() + r + 3.0, text_w, 16.0)

@@ -213,7 +213,7 @@ def _is_excluded(raw: str) -> bool:
 
 def _themes() -> list[str]:
     """The real theme names — the DTCG source (core/tokens.py's
-    theme_names), the same 11 names in the same order as
+    theme_names), the same 12 names in the same order as
     gui/style.py's THEMES (INV-11 proves them identical).
     GAPS-15: core reads the core-owned source now, not the GUI."""
     try:
@@ -223,7 +223,7 @@ def _themes() -> list[str]:
     except Exception:  # noqa: BLE001 — fall back to the known roster
         return ["Cyan", "Sunset", "Violet", "Graphite",
                 "Aurora", "Ember", "Mono", "Rose", "Contrast",
-                "Amber", "Crimson"]
+                "Amber", "Crimson", "Light"]
 
 
 def _kokoro_roster() -> list[tuple[str, str]]:

@@ -26,6 +26,7 @@ from .tokens_theme import (
     _TEXT,
     _TEXT_FAINT,
     _TEXT_MUTED,
+    _hex_rgb,
     _triplet,
     RESOLVED_KEYS,
     build_all_python_tokens,
@@ -38,6 +39,27 @@ from .tokens_radix import radix_steps
 
 
 # ------------------------------------------------------------- platform outputs
+def _luminance(hex_color: str) -> float:
+    """Relative luminance (0..1) of a #RRGGBB colour.
+
+    Mirror of the shipped helper in gui/style_theme.py; keep
+    the two in step (the proof compares their outputs).
+    """
+    def channel(v: int) -> float:
+        c = v / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = _hex_rgb(hex_color)
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+
+# White-alpha washes (hover / press feedback, hairlines, the
+# sidebar tint): on a light theme they are remapped to the text
+# colour at the same alpha by _remap (and by the shipped
+# _remap_colors in gui/style_theme.py).
+_WHITE_WASH_RE = re.compile(
+    r"rgba\(255, 255, 255, ([0-9]*\.?[0-9]+)\)")
+
+
 def generate_qss_tokens(theme_name: str) -> str:
     """QSS token block for a theme (authoring output, in-memory only).
 
@@ -92,18 +114,29 @@ def _remap(sheet: str, resolved: dict) -> str:
         (_triplet(_TEXT), _triplet(resolved["text"])),
     ]
     mapping = {old: new for old, new in pairs if old != new}
-    if not mapping:
-        return sheet
-    pattern = re.compile("|".join(
-        re.escape(old) for old in
-        sorted(mapping, key=len, reverse=True)))
-    return pattern.sub(lambda m: mapping[m.group(0)], sheet)
+    if mapping:
+        pattern = re.compile("|".join(
+            re.escape(old) for old in
+            sorted(mapping, key=len, reverse=True)))
+        sheet = pattern.sub(lambda m: mapping[m.group(0)], sheet)
+    # Light chrome: the white-alpha washes the sheet uses for
+    # hover / press feedback, hairlines and the sidebar tint
+    # vanish on a light background. Remap each wash to the theme
+    # text colour at the same alpha — the same strength, as a
+    # dark wash. Mirror of gui/style_theme._remap_colors; keep
+    # the two in step (the proof compares their outputs).
+    if _luminance(resolved["bg"]) > 0.5:
+        r, g, b = _hex_rgb(resolved["text"])
+        sheet = _WHITE_WASH_RE.sub(
+            lambda m: "rgba({}, {}, {}, {})".format(
+                r, g, b, m.group(1)), sheet)
+    return sheet
 
 
 def generate_stylesheet(theme_name: str | None, shipped) -> str:
     """Generated themed stylesheet (in-memory only, never written).
 
-    ``theme_name`` is one of the 11 themes; ``None`` yields the house
+    ``theme_name`` is one of the 12 themes; ``None`` yields the house
     sheet (no theme, no glass treatment). The QSS template and the
     glass treatment are template inputs read from the shipped style
     module; the DTCG values under test are the resolved tokens
@@ -126,6 +159,11 @@ def generate_stylesheet(theme_name: str | None, shipped) -> str:
     tokens["CARD_TOP"] = _GLASS_CARD_TOP
     if resolved["focus_border"]:
         tokens["FOCUS_BORDER"] = resolved["focus_border"]
+    # Selection and disabled text follow the resolved theme
+    # (light themes need a solid selection and a dark disabled
+    # tint — mirrors gui/style.build_stylesheet).
+    tokens["SELECTION_BG"] = resolved["selection_bg"]
+    tokens["TEXT_DISABLED"] = resolved["text_disabled"]
     return _remap(_shipped._QSS.substitute(tokens), resolved)
 
 
@@ -166,7 +204,7 @@ def prove_byte_identity(shipped, max_diff_lines: int = 60) -> dict:
     by the caller — GAPS-15 (2026-11-13): this module used to
     import it itself, a core -> GUI import.
 
-    For each of the 11 themes this reports:
+    For each of the 12 themes this reports:
 
       * ``tokens_identical`` — resolved DTCG tokens vs the shipped
         resolver's output for the shipped theme dict;
@@ -178,7 +216,7 @@ def prove_byte_identity(shipped, max_diff_lines: int = 60) -> dict:
     Plus a ``house`` row (generated house sheet vs the shipped house
     sheet) reported separately from the 9-theme verdict.
 
-    ``identical_all`` covers the 11 themes only (tokens AND sheets).
+    ``identical_all`` covers the 12 themes only (tokens AND sheets).
     ``generated_in_tree`` is always False: this function never writes
     anything, and this module never writes generated output anywhere.
 
@@ -267,7 +305,7 @@ def proof_table_text(proof: dict | None = None, shipped=None) -> str:
         proof = prove_byte_identity(shipped)
     lines = [
         "v5.64 token byte-identity proof (generated vs shipped bytes)",
-        f"identical_all (11 themes): {proof['identical_all']}",
+        f"identical_all (12 themes): {proof['identical_all']}",
         f"generated_in_tree: {proof['generated_in_tree']}",
         "",
         f"{'theme':<14} {'tokens':<8} {'sheet':<8} "

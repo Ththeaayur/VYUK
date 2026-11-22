@@ -6,7 +6,7 @@ import re
 from typing import Any
 from ..config import DATA_DIR, config
 from ..funnel.tools_registry import tools
-from ..languages import resolve_transcription_profile
+from ..languages import reply_language_directive, resolve_transcription_profile
 from ..memory.memory import memory_store
 from . import local_assets
 
@@ -281,6 +281,33 @@ def context_pressure_from_history(history, budget_tokens: int) -> float:
         return 0.0
 
 
+def local_system_prompt() -> str:
+    """The local turn's system-prompt head: the persona, the
+    reply-language directive, then the verbosity directive.
+    Extracted from the builtin and Ollama turns' inline
+    assembly (Stage 0f5) so the head is built once and the
+    probe/suite can call the exact code the turns call.
+    Balanced is byte-identical to the old inline assembly:
+    the language directive is "" for English homes and the
+    verbosity directive is "" at balanced."""
+    system = config.system_instruction
+    # v5.41: non-English home directive ("" for English); it is
+    # part of `system` before every budget measurement below.
+    system += reply_language_directive()
+    # Stage 0 features batch 5, item 11: reply verbosity —
+    # the length instruction rides next to the language
+    # directive. Balanced is "" so the prompt stays
+    # byte-identical to before.
+    try:
+        from ..verbosity import (current_verbosity,
+                                 reply_verbosity_directive)
+
+        system += reply_verbosity_directive(current_verbosity())
+    except Exception:  # noqa: BLE001 — verbosity never breaks a turn
+        pass
+    return system
+
+
 def sampling_profile(name: str | None) -> dict[str, Any]:
     """The {temperature, max_tokens} dict for a profile name,
     read from config's B13 fields with the historical defaults
@@ -300,12 +327,28 @@ def sampling_profile(name: str | None) -> dict[str, Any]:
         except (TypeError, ValueError):
             return default
 
+    # Stage 0 features batch 5, item 11: the turn profiles'
+    # max_tokens scales with reply verbosity — concise quarters
+    # the cap, detailed doubles it. The default profile (summary
+    # and other non-turn callers) is never scaled.
+    try:
+        from ..verbosity import (current_verbosity,
+                                 verbosity_max_tokens_factor)
+
+        _factor = verbosity_max_tokens_factor(current_verbosity())
+    except Exception:  # noqa: BLE001 — verbosity never breaks a turn
+        _factor = 1.0
+
     if name == "quick":
         return {"temperature": _f("local_quick_temperature", 0.2),
-                "max_tokens": _i("local_quick_max_tokens", 256)}
+                "max_tokens": max(
+                    1, int(round(_i("local_quick_max_tokens", 256)
+                                 * _factor)))}
     if name == "think":
         return {"temperature": _f("local_think_temperature", 0.55),
-                "max_tokens": _i("local_think_max_tokens", 1024)}
+                "max_tokens": max(
+                    1, int(round(_i("local_think_max_tokens", 1024)
+                                 * _factor)))}
     return {"temperature": 0.3, "max_tokens": 512}
 
 

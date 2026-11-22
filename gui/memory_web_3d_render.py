@@ -43,6 +43,26 @@ from .memory_web_glconsts import (_GL_BLEND, _GL_COLOR_BUFFER_BIT, _GL_DEPTH_BUF
 
 class _MemoryWeb3DRenderMixin:
 
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted overlay labels / badge / empty state.
+
+        Stage 0 features batch 5 (larger text): the 3D overlay
+        paints its text, so the QSS cannot reach it. The mixin
+        has no __init__ of its own — the paint sites read the
+        scale with a 1.0 default, and MemoryWebWidget drives
+        this hook. update() repaints the overlay.
+        """
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        try:
+            self.update()
+        except Exception:  # noqa: BLE001 — GL widget may be gone
+            pass
+
+    if True:  # the render methods below are the mixin's body
+
         def _build_gl_data(self, point_scale: float = 1.0):
             """Flatten the visible graph into vertex arrays: lines
             (7 floats/vertex) and point impostors (9 floats/vertex),
@@ -322,8 +342,10 @@ class _MemoryWeb3DRenderMixin:
                 if node.kind == "fact" and len(label) > 20:
                     label = label[:19] + "…"
                 font = QFont()
-                font.setPixelSize(_LABEL_HUB_PX if node.kind != "fact"
-                                  else _LABEL_FACT_PX)
+                font.setPixelSize(max(1, round(
+                    (_LABEL_HUB_PX if node.kind != "fact"
+                     else _LABEL_FACT_PX)
+                    * getattr(self, "_font_scale", 1.0))))
                 text_w = float(
                     QFontMetrics(font).horizontalAdvance(label))
                 rect = QRectF(centre.x() - text_w / 2.0,
@@ -358,7 +380,8 @@ class _MemoryWeb3DRenderMixin:
                 _draw_label_text(painter, rect, label, font, colour)
             if badge_texts:
                 font = QFont()
-                font.setPixelSize(9)
+                font.setPixelSize(max(
+                    1, round(9 * getattr(self, "_font_scale", 1.0))))
                 painter.setFont(font)
                 painter.setPen(QColor(TEXT))
                 for badge_c, text in badge_texts:
@@ -370,7 +393,8 @@ class _MemoryWeb3DRenderMixin:
             if not any(n.kind == "fact" for n in data.nodes):
                 painter.setPen(_TEXT_MUTED)
                 font = QFont()
-                font.setPixelSize(12)
+                font.setPixelSize(max(
+                    1, round(12 * getattr(self, "_font_scale", 1.0))))
                 painter.setFont(font)
                 painter.drawText(
                     QRectF(0, self.height() / 2.0 + 34,

@@ -77,6 +77,93 @@ class PagesViewsMixin:
     # ------------------------------------------------------------------
     # Calendar (index 8)
     # ------------------------------------------------------------------
+    def _refresh_views_theme(self, resolved: dict) -> None:
+        """Re-apply the Views panels from a theme (batch 5, Light).
+
+        The calendar grid, the Inbox / Contacts reading panes and
+        the Calls table all carry scoped sheets / palettes with the
+        house tokens — the "dark pane" precedent (a bare widget
+        renders with Qt's default light palette, so the sheet
+        darkened it). On Light the house tokens left black voids
+        with theme-dark text: the calendar grid unreadable, the
+        reading panes black. The window's appearance pass re-runs
+        this from the resolved theme; each build site runs it
+        once from the house tokens. Defensive: the pages are
+        built lazily, so any widget may not exist yet.
+        """
+        try:
+            surface_2 = resolved.get("surface_2", SURFACE_2)
+            line = resolved.get("line_subtle", LINE_SUBTLE)
+            text = resolved.get("text", TEXT)
+            muted = resolved.get("text_muted", TEXT_MUTED)
+            accent = resolved.get("accent", ACCENT)
+            cal = getattr(self, "_views_calendar", None)
+            if cal is not None:
+                _weekday_format = QTextCharFormat()
+                _weekday_format.setForeground(QColor(text))
+                _weekday_format.setBackground(QColor(surface_2))
+                for _day in (Qt.Monday, Qt.Tuesday, Qt.Wednesday,
+                             Qt.Thursday, Qt.Friday, Qt.Saturday,
+                             Qt.Sunday):
+                    cal.setWeekdayTextFormat(_day, _weekday_format)
+                cal.setStyleSheet(
+                    f"QCalendarWidget QToolButton {{ color: {text};"
+                    f" background: transparent; }}"
+                    f"QCalendarWidget QToolButton:hover {{"
+                    f" background: {surface_2}; }}"
+                    f"QCalendarWidget QMenu {{ background: {surface_2};"
+                    f" color: {text}; }}"
+                    f"QCalendarWidget QSpinBox {{ color: {text};"
+                    f" background: {surface_2}; }}"
+                    f"QCalendarWidget QAbstractItemView:enabled {{"
+                    f" color: {text}; background: {surface_2};"
+                    f" selection-background-color: {accent}; }}"
+                    f"QCalendarWidget QAbstractItemView:disabled {{"
+                    f" color: {muted}; }}")
+                # The palette goes LAST: setStyleSheet re-polishes
+                # the widget and resets a palette set before it
+                # (proven by probe P20 — the formats and the sheet
+                # took the theme but the palette stayed house-dark
+                # until the order flipped). The palette darkens the
+                # parts the stylesheet cannot reach — the navigation
+                # bar background and the weekday-name header, which
+                # the internal view paints from the palette.
+                _cal_palette = cal.palette()
+                _cal_palette.setColor(QPalette.Window, QColor(surface_2))
+                _cal_palette.setColor(QPalette.Base, QColor(surface_2))
+                _cal_palette.setColor(QPalette.Text, QColor(text))
+                _cal_palette.setColor(QPalette.WindowText, QColor(text))
+                _cal_palette.setColor(QPalette.Button, QColor(surface_2))
+                _cal_palette.setColor(QPalette.ButtonText, QColor(text))
+                _cal_palette.setColor(QPalette.Highlight, QColor(accent))
+                cal.setPalette(_cal_palette)
+            for body in (getattr(self, "_views_inbox_body", None),
+                         getattr(self, "_views_contacts_body", None)):
+                if body is not None:
+                    body.setStyleSheet(
+                        f"QTextBrowser {{ background: {surface_2};"
+                        f" color: {text};"
+                        f" border: 1px solid {line};"
+                        f" border-radius: {RADIUS_CARD}px; }}")
+            table = getattr(self, "_views_calls_table", None)
+            if table is not None:
+                table.setStyleSheet(
+                    f"QTableWidget {{ background: {surface_2};"
+                    f" color: {text};"
+                    f" gridline-color: {line}; }}"
+                    f"QTableWidget::item {{ color: {text}; }}"
+                    f"QTableWidget::item:selected {{"
+                    f" background: {accent}; }}"
+                    f"QTableWidget QHeaderView {{"
+                    f" background: {surface_2}; }}"
+                    f"QTableWidget QAbstractButton {{"
+                    f" background: {surface_2}; }}")
+            status = getattr(self, "_views_calls_status", None)
+            if status is not None:
+                status.setStyleSheet(f"color: {muted};")
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
+
     def _build_calendar_page(self) -> QWidget:
         page, content = self._page_shell(
             "Calendar",
@@ -97,41 +184,12 @@ class PagesViewsMixin:
         # which the internal view paints from the palette. Tokens
         # only, no literals; the selection colours stay Qt's
         # default, which already reads on the accent.
-        _cal_palette = self._views_calendar.palette()
-        _cal_palette.setColor(QPalette.Window, QColor(SURFACE_2))
-        _cal_palette.setColor(QPalette.Base, QColor(SURFACE_2))
-        _cal_palette.setColor(QPalette.Text, QColor(TEXT))
-        _cal_palette.setColor(QPalette.WindowText, QColor(TEXT))
-        _cal_palette.setColor(QPalette.Button, QColor(SURFACE_2))
-        _cal_palette.setColor(QPalette.ButtonText, QColor(TEXT))
-        _cal_palette.setColor(QPalette.Highlight, QColor(ACCENT))
-        self._views_calendar.setPalette(_cal_palette)
-        # The weekday-name header is painted from the weekday text
-        # formats, not from the palette or the stylesheet (four
-        # variants proved neither reaches it): give every day an
-        # explicit dark format so Mon–Fri read on the dark grid.
-        # The same format also governs the day cells, so weekends
-        # stop showing Qt's default red — uniform and readable.
-        _weekday_format = QTextCharFormat()
-        _weekday_format.setForeground(QColor(TEXT))
-        _weekday_format.setBackground(QColor(SURFACE_2))
-        for _day in (Qt.Monday, Qt.Tuesday, Qt.Wednesday, Qt.Thursday,
-                     Qt.Friday, Qt.Saturday, Qt.Sunday):
-            self._views_calendar.setWeekdayTextFormat(_day, _weekday_format)
-        self._views_calendar.setStyleSheet(
-            f"QCalendarWidget QToolButton {{ color: {TEXT};"
-            f" background: transparent; }}"
-            f"QCalendarWidget QToolButton:hover {{"
-            f" background: {SURFACE_2}; }}"
-            f"QCalendarWidget QMenu {{ background: {SURFACE_2};"
-            f" color: {TEXT}; }}"
-            f"QCalendarWidget QSpinBox {{ color: {TEXT};"
-            f" background: {SURFACE_2}; }}"
-            f"QCalendarWidget QAbstractItemView:enabled {{"
-            f" color: {TEXT}; background: {SURFACE_2};"
-            f" selection-background-color: {ACCENT}; }}"
-            f"QCalendarWidget QAbstractItemView:disabled {{"
-            f" color: {TEXT_MUTED}; }}")
+        # Batch 5: the palette + formats + sheet live in
+        # _refresh_views_theme (re-run from the resolved theme
+        # on appearance change).
+        self._refresh_views_theme({
+            "surface_2": SURFACE_2, "line_subtle": LINE_SUBTLE,
+            "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         self._views_calendar.clicked.connect(self._on_views_day_picked)
         self._views_calendar.currentPageChanged.connect(
             self._on_views_month_changed)
@@ -286,11 +344,11 @@ class PagesViewsMixin:
         # Dark pane, same precedent as the mission-log detail pane:
         # a bare QTextBrowser renders with Qt's default light
         # palette (pale text on white — the mail would be
-        # unreadable). Tokens only, no literals.
-        self._views_inbox_body.setStyleSheet(
-            f"QTextBrowser {{ background: {SURFACE_2}; color: {TEXT};"
-            f" border: 1px solid {LINE_SUBTLE};"
-            f" border-radius: {RADIUS_CARD}px; }}")
+        # unreadable). Tokens only, no literals. Batch 5: the
+        # sheet lives in _refresh_views_theme.
+        self._refresh_views_theme({
+            "surface_2": SURFACE_2, "line_subtle": LINE_SUBTLE,
+            "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         split.addWidget(self._views_inbox_body, 2)
         content.addLayout(split)
         refresh = QPushButton("Refresh")
@@ -360,16 +418,21 @@ class PagesViewsMixin:
         split = QHBoxLayout()
         split.setSpacing(12)
         self._views_contacts_list = QListWidget()
+        # Batch 5 (re-render): the empty-state item is a 70-char
+        # single line and the list clipped it mid-sentence — the
+        # Inbox list already wraps (see _build_inbox_page); the
+        # Contacts list must too, so the empty state reads in full.
+        self._views_contacts_list.setWordWrap(True)
         self._views_contacts_list.itemActivated.connect(
             self._on_views_contact_picked)
         split.addWidget(self._views_contacts_list, 1)
         self._views_contacts_body = QTextBrowser()
         # Dark pane, same precedent as the mission-log detail pane
-        # (see the Inbox body above).
-        self._views_contacts_body.setStyleSheet(
-            f"QTextBrowser {{ background: {SURFACE_2}; color: {TEXT};"
-            f" border: 1px solid {LINE_SUBTLE};"
-            f" border-radius: {RADIUS_CARD}px; }}")
+        # (see the Inbox body above). Batch 5: the sheet lives in
+        # _refresh_views_theme.
+        self._refresh_views_theme({
+            "surface_2": SURFACE_2, "line_subtle": LINE_SUBTLE,
+            "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         split.addWidget(self._views_contacts_body, 2)
         content.addLayout(split)
         refresh = QPushButton("Refresh")
@@ -435,17 +498,11 @@ class PagesViewsMixin:
         # The header sections are already dark via the global
         # QHeaderView::section rule in style_sheet.py; the header
         # view's own background (the empty area below the last
-        # row number) needs the same surface here.
-        self._views_calls_table.setStyleSheet(
-            f"QTableWidget {{ background: {SURFACE_2}; color: {TEXT};"
-            f" gridline-color: {LINE_SUBTLE}; }}"
-            f"QTableWidget::item {{ color: {TEXT}; }}"
-            f"QTableWidget::item:selected {{"
-            f" background: {ACCENT}; }}"
-            f"QTableWidget QHeaderView {{"
-            f" background: {SURFACE_2}; }}"
-            f"QTableWidget QAbstractButton {{"
-            f" background: {SURFACE_2}; }}")
+        # row number) needs the same surface here. Batch 5: the
+        # sheet lives in _refresh_views_theme.
+        self._refresh_views_theme({
+            "surface_2": SURFACE_2, "line_subtle": LINE_SUBTLE,
+            "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         self._views_calls_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.Stretch)
         content.addWidget(self._views_calls_table)

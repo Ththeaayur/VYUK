@@ -37,6 +37,7 @@ from .style import (
 )
 from voice_assistant.core.gui_facade import config
 from voice_assistant.core.gui_facade import qsettings_get
+from .design_system.flowlayout import FlowLayout
 
 
 
@@ -623,8 +624,14 @@ class SettingsGroupsMixin:
         self.allowlist_list = QListWidget()
         self.allowlist_list.setMaximumHeight(120)
         allow_card.addWidget(self.allowlist_list)
-        allow_row = QHBoxLayout()
-        allow_row.setSpacing(6)
+        # Stage 0 features batch 5 (narrow window, render-found
+        # at 640 px): five chip buttons in one QHBoxLayout summed
+        # to a 606 px minimum, so the card clipped 34 px past
+        # the 576 px viewport — the row never wraps. FlowLayout
+        # (the E-F205 wrapping-row precedent, already used for
+        # Settings rows in window_settings_voice.py) keeps one
+        # row at wide widths and wraps to two below 908 px.
+        allow_row = FlowLayout(spacing=6)
         self.btn_allowlist_refresh = QPushButton("Refresh")
         self.btn_allowlist_refresh.setObjectName("chipBtn")
         self.btn_allowlist_refresh.clicked.connect(
@@ -660,7 +667,8 @@ class SettingsGroupsMixin:
         self.btn_allowlist_open.clicked.connect(
             self._open_always_allow_screen)
         allow_row.addWidget(self.btn_allowlist_open)
-        allow_row.addStretch()
+        # No trailing stretch: a wrapping row left-aligns and
+        # wraps on its own (the E-F205 FlowLayout precedent).
         allow_card.addLayout(allow_row)
         self.allowlist_status_label = QLabel("")
         self.allowlist_status_label.setObjectName("cardHint")

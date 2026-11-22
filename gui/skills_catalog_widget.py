@@ -129,6 +129,24 @@ class _CatalogueDelegate(QStyledItemDelegate):
     _HEADER_H = 30
     _TOOL_H = 38
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Stage 0 features batch 5 (larger text): the header
+        # paints at an explicit 11 pt, so it does not follow the
+        # QSS font scale — set_font_scale carries it (the row
+        # text uses option.font, which the sheet scales).
+        self._font_scale = 1.0
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted header (batch 5, item 12)."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        parent = self.parent()
+        if parent is not None:
+            parent.update()
+
     def sizeHint(self, option, index):  # noqa: N802 (Qt naming)
         size = super().sizeHint(option, index)
         kind = index.data(ROLE_KIND)
@@ -147,7 +165,7 @@ class _CatalogueDelegate(QStyledItemDelegate):
 
         if kind == "header":
             font = QFont(option.font)
-            font.setPointSizeF(11)
+            font.setPointSizeF(11 * self._font_scale)
             font.setWeight(QFont.Weight.DemiBold)
             font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 106)
             painter.setFont(font)
@@ -246,7 +264,8 @@ class SkillsCatalogWidget(QWidget):
 
         self.skills_list = QListWidget()
         self.skills_list.setObjectName("skillsList")
-        self.skills_list.setItemDelegate(_CatalogueDelegate(self.skills_list))
+        self._delegate = _CatalogueDelegate(self.skills_list)
+        self.skills_list.setItemDelegate(self._delegate)
         self.skills_list.setSelectionMode(
             QAbstractItemView.SelectionMode.SingleSelection)
         self.skills_list.setHorizontalScrollBarPolicy(
@@ -312,6 +331,10 @@ class SkillsCatalogWidget(QWidget):
             or needle in tool["name"].lower()
             or needle in tool["description"].lower()
         )
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted headers (batch 5, item 12)."""
+        self._delegate.set_font_scale(scale)
 
     def _apply_filter(self, text: str) -> None:
         self._rebuild(text or "")

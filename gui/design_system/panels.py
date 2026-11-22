@@ -72,6 +72,12 @@ class HudPanel(QFrame):
         self.setFrameStyle(QFrame.NoFrame)
         self._fill = fill or SURFACE_2
         self._edge = _EDGES.get(edge, LINE_STRONG)
+        # Stage 0 features batch 5 (Light theme, render-found):
+        # the corner ticks paint the house ACCENT and the eyebrow
+        # the house TEXT_FAINT — both need the theme when the
+        # fill follows it (see set_theme).
+        self._tick = ACCENT
+        self._eyebrow_label = None
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(16, 16, 16, 16)
         self._layout.setSpacing(6)
@@ -82,6 +88,33 @@ class HudPanel(QFrame):
             label.setFont(font)
             label.setStyleSheet("color: %s;" % TEXT_FAINT)
             self._layout.addWidget(label)
+            self._eyebrow_label = label
+
+    def set_theme(self, resolved: dict) -> None:
+        """Recolour the panel from a resolved theme (batch 5).
+
+        The panel paints its own fill, so the QSS cannot reach
+        it: on Light the house SURFACE_2 stayed black while the
+        content took the theme-dark text — the Settings cards
+        were unreadable. The fill follows the theme's surface_2,
+        the corner ticks the theme accent, the eyebrow the theme
+        text_faint. The edge is NOT re-resolved here: the line /
+        subtle edges are the house cyan hairline, the same
+        language the window sheet's borders use on every theme,
+        and the amber / danger edges are semantic role colours
+        shared across themes. Called from the window's appearance
+        pass (it walks every HudPanel); under Cyan the values
+        are the house tokens, so nothing changes.
+        """
+        try:
+            self._fill = resolved.get("surface_2", SURFACE_2)
+            self._tick = resolved.get("accent", ACCENT)
+            if self._eyebrow_label is not None:
+                self._eyebrow_label.setStyleSheet(
+                    "color: %s;" % resolved.get("text_faint", TEXT_FAINT))
+        except Exception:  # noqa: BLE001 — theme never breaks paint
+            pass
+        self.update()
 
     def content_layout(self):
         """The layout callers add content to."""
@@ -110,7 +143,9 @@ class HudPanel(QFrame):
         painter.setPen(QPen(QColor(self._edge), 1))
         painter.drawPath(path)
         # Bright corner ticks, top-left and bottom-right.
-        tick_pen = QPen(QColor(ACCENT), 2)
+        # Batch 5: the tick colour follows the theme (set_theme);
+        # under Cyan it is the house ACCENT, so nothing changes.
+        tick_pen = QPen(QColor(getattr(self, "_tick", ACCENT)), 2)
         painter.setPen(tick_pen)
         x, y, w, h = rect.x(), rect.y(), rect.width(), rect.height()
         painter.drawPolyline(

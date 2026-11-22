@@ -64,9 +64,14 @@ class PagesActivityMixin:
             # Qt stylesheets have no letter-spacing, so the kicker
             # is caps + a small semibold face (per-widget style —
             # PREMIUM_STYLE itself is byte-unchanged).
+            # Stage 0 features batch 5 (Light theme, render-found):
+            # the sheet used to carry `color: {TEXT}` — the house
+            # near-white — so on Light every kicker title was
+            # invisible. The colour is dropped here: the label
+            # inherits the theme text from the window sheet's base
+            # QWidget rule, like the non-kicker title below it.
             t.setObjectName("pageKicker")
-            t.setStyleSheet(f"font-size: {TYPE_CARD_TITLE}px; font-weight: 600;"
-                            f" color: {TEXT};")
+            t.setStyleSheet(f"font-size: {TYPE_CARD_TITLE}px; font-weight: 600;")
         else:
             t.setObjectName("pageTitle")
         s = QLabel(subtitle)
@@ -370,6 +375,45 @@ class PagesActivityMixin:
             show = False  # never shows the button.
         btn.setVisible(show)
 
+    def _refresh_activity_theme(self, resolved: dict) -> None:
+        """Re-apply the Activity tab + mission-log sheets (batch 5).
+
+        Both sheets are scoped to their widgets on purpose (see
+        the Phase E note at the tab build site — no tab-bar rules
+        in the global stylesheet), so the QSS cannot reach them:
+        on Light the house tokens left a black pane with
+        theme-dark text. The window's appearance pass re-runs
+        this from the resolved theme; the build site runs it
+        once from the house tokens. Defensive: either widget
+        may not exist yet when the theme loads.
+        """
+        try:
+            surface_2 = resolved.get("surface_2", SURFACE_2)
+            line = resolved.get("line_subtle", LINE_SUBTLE)
+            muted = resolved.get("text_muted", TEXT_MUTED)
+            text = resolved.get("text", TEXT)
+            accent = resolved.get("accent", ACCENT)
+            tabs = getattr(self, "_activity_tabs", None)
+            if tabs is not None:
+                tabs.setStyleSheet(
+                    f"QTabWidget::pane {{ background: {surface_2};"
+                    f" border: 1px solid {line};"
+                    f" border-radius: {RADIUS_CARD}px; }}"
+                    f"QTabBar::tab {{ background: transparent;"
+                    f" color: {muted}; padding: 8px 16px; border: none;"
+                    f" border-bottom: 2px solid transparent; }}"
+                    f"QTabBar::tab:selected {{ color: {text};"
+                    f" border-bottom: 2px solid {accent}; }}"
+                    f"QTabBar::tab:hover {{ color: {text}; }}")
+            detail = getattr(self, "_mission_log_detail", None)
+            if detail is not None:
+                detail.setStyleSheet(
+                    f"QTextEdit {{ background: {surface_2}; color: {text};"
+                    f" border: 1px solid {line};"
+                    f" border-radius: {RADIUS_CARD}px; }}")
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
+
     def _build_activity_page(self) -> QWidget:
         # UI Slice 1 (complexity doc CX-01, owner-approved):
         # stack 1 is the Activity page. In progress lists live +
@@ -391,16 +435,14 @@ class PagesActivityMixin:
         # (uis5 test_focus_visible — tab focus keeps Qt's
         # default frame), so the dark pane + cyan selected tab
         # live here, not in style.py. Tokens only, no literals.
-        self._activity_tabs.setStyleSheet(
-            f"QTabWidget::pane {{ background: {SURFACE_2};"
-            f" border: 1px solid {LINE_SUBTLE};"
-            f" border-radius: {RADIUS_CARD}px; }}"
-            f"QTabBar::tab {{ background: transparent;"
-            f" color: {TEXT_MUTED}; padding: 8px 16px; border: none;"
-            f" border-bottom: 2px solid transparent; }}"
-            f"QTabBar::tab:selected {{ color: {TEXT};"
-            f" border-bottom: 2px solid {ACCENT}; }}"
-            f"QTabBar::tab:hover {{ color: {TEXT}; }}")
+        # Stage 0 features batch 5 (Light theme, render-found):
+        # the scoped house tokens made the pane a black card
+        # with theme-dark text on Light — unreadable. The sheet
+        # is built by _refresh_activity_theme, which the window's
+        # appearance pass re-runs from the resolved theme.
+        self._refresh_activity_theme({
+            "surface_2": SURFACE_2, "line_subtle": LINE_SUBTLE,
+            "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         _in_progress = QWidget()
         _ip_layout = QVBoxLayout(_in_progress)
         _ip_layout.setContentsMargins(0, 0, 0, 0)
@@ -620,10 +662,11 @@ class PagesActivityMixin:
         # Activity tabs above: a bare QTextEdit renders with
         # Qt's default light palette (pale text on white — the
         # trace would be unreadable). Tokens only, no literals.
-        self._mission_log_detail.setStyleSheet(
-            f"QTextEdit {{ background: {SURFACE_2}; color: {TEXT};"
-            f" border: 1px solid {LINE_SUBTLE};"
-            f" border-radius: {RADIUS_CARD}px; }}")
+        # Batch 5: the sheet lives in _refresh_activity_theme
+        # (re-run from the resolved theme on appearance change).
+        self._refresh_activity_theme({
+            "surface_2": SURFACE_2, "line_subtle": LINE_SUBTLE,
+            "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         self._mission_log_detail.setPlaceholderText(
             "Select a mission to see its evidence trace.")
         _ml_layout.addWidget(self._mission_log_detail, stretch=1)

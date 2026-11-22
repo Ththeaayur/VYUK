@@ -117,7 +117,29 @@ THEMES: dict[str, dict] = {
               "highlight": "#FFF1D6"},
     "Crimson": {"accent": "#FF5468", "accent_2": "#FD465A",
                 "highlight": "#FFE3E6"},
+    # Light (Stage 0 features batch 5): the one light chrome. The
+    # accent is a deepened Aura blue (the dark themes' cyan cannot
+    # read on white); accent_2 is deepened further so it still
+    # passes 4.5:1 as text (privacyTitle / card titles use it as
+    # a text colour: #2563EB is 4.90 on the bg, 5.17 on white).
+    # Every text-on-surface pair is >= 4.5:1 by computation
+    # (text 16.86, muted 7.14, faint 5.14 on the bg; accent as
+    # text 4.52, brand mark BG-on-accent 4.52, solid-accent
+    # selection with white text 4.77).
+    "Light": {"accent": "#1D6FE0", "accent_2": "#2563EB",
+              "highlight": "#E3F0FF",
+              "bg": "#F7F9FC", "surface_1": "#FFFFFF",
+              "surface_2": "#EDF1F7",
+              "text": "#101826", "text_muted": "#4A5568",
+              "text_faint": "#5F6B7A"},
 }
+
+# White-alpha washes (hover / press feedback, hairlines, the
+# sidebar tint): on a light theme they are remapped to the text
+# colour at the same alpha by _remap_colors (and by the proof's
+# re-implementation in core/tokens_outputs._remap).
+_WHITE_WASH_RE = re.compile(
+    r"rgba\(255, 255, 255, ([0-9]*\.?[0-9]+)\)")
 
 _HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -172,10 +194,28 @@ def derive_theme(accent_hex):
     }
 
 
+def _luminance(hex_color: str) -> float:
+    """Relative luminance (0..1) of a #RRGGBB colour."""
+    def channel(v: int) -> float:
+        c = v / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = _hex_rgb(hex_color)
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+
 def _resolve_theme(theme: dict) -> dict:
     """Fill a theme dict out to every spelling a build rewrites."""
     accent = theme["accent"]
     accent_2 = theme["accent_2"]
+    bg = theme.get("bg", BG)
+    text = theme.get("text", TEXT)
+    # Light chrome (bg luminance > 0.5) needs two token values
+    # the dark themes never did: a solid selection background
+    # (the accent wash at 38% over a light surface is too pale
+    # for the white selection text — white on solid #1D6FE0 is
+    # 4.77:1) and a disabled-text colour that follows the theme
+    # text (the house near-white at 45% would vanish on light).
+    light = _luminance(bg) > 0.5
     return {
         "accent": accent,
         "accent_2": accent_2,
@@ -198,13 +238,21 @@ def _resolve_theme(theme: dict) -> dict:
         or _mix(accent, BG, 0.60),
         "disabled_b": theme.get("disabled_b")
         or _mix(accent_2, BG, 0.60),
-        "bg": theme.get("bg", BG),
+        "bg": bg,
         "surface_1": theme.get("surface_1", SURFACE_1),
         "surface_2": theme.get("surface_2", SURFACE_2),
-        "text": theme.get("text", TEXT),
+        "text": text,
         "text_muted": theme.get("text_muted", TEXT_MUTED),
         "text_faint": theme.get("text_faint", TEXT_FAINT),
         "focus_border": theme.get("focus_border"),
+        "selection_bg": (
+            accent if light
+            else "rgba({}, 96)".format(_triplet(accent))
+        ),
+        "text_disabled": (
+            "rgba({}, 115)".format(_triplet(text)) if light
+            else "rgba({}, 115)".format(_triplet(TEXT))
+        ),
     }
 
 
@@ -236,12 +284,25 @@ def _remap_colors(sheet: str, resolved: dict) -> str:
         (_triplet(TEXT), _triplet(resolved["text"])),
     ]
     mapping = {old: new for old, new in pairs if old != new}
-    if not mapping:
-        return sheet
-    pattern = re.compile("|".join(
-        re.escape(old) for old in
-        sorted(mapping, key=len, reverse=True)))
-    return pattern.sub(lambda m: mapping[m.group(0)], sheet)
+    if mapping:
+        pattern = re.compile("|".join(
+            re.escape(old) for old in
+            sorted(mapping, key=len, reverse=True)))
+        sheet = pattern.sub(lambda m: mapping[m.group(0)], sheet)
+    # Light chrome: the white-alpha washes the sheet uses for
+    # hover / press feedback, hairlines and the sidebar tint
+    # vanish on a light background, so the feedback and the
+    # sidebar/window distinction go with them. Remap each wash
+    # to the theme text colour at the same alpha — the same
+    # strength, as a dark wash. Dark themes are untouched.
+    # Mirrored in core/tokens_outputs._remap (the proof's
+    # re-implementation); keep the two in step.
+    if _luminance(resolved["bg"]) > 0.5:
+        r, g, b = _hex_rgb(resolved["text"])
+        sheet = _WHITE_WASH_RE.sub(
+            lambda m: "rgba({}, {}, {}, {})".format(
+                r, g, b, m.group(1)), sheet)
+    return sheet
 
 
 def _format_px(value: float) -> str:
@@ -283,7 +344,8 @@ def build_stylesheet(theme=None, font_scale: float = 1.0,
     retired — card rules are solid surfaces, so themed builds
     carry the glass keys but no rule uses them.)
     font_scale multiplies every font-size value (1.0 = as designed;
-    the Settings choices are 0.9 / 1.0 / 1.1 / 1.2). density is
+    the Settings choices are 1.0 / 1.15 / 1.3 / 1.5, and older
+    stored values 0.9 / 1.1 / 1.2 stay valid). density is
     "comfortable" (as designed) or "compact" (padding x 0.75).
 
     With no theme, font_scale 1.0 and comfortable density this
@@ -332,6 +394,11 @@ def build_stylesheet(theme=None, font_scale: float = 1.0,
         tokens["CARD_TOP"] = _GLASS_CARD_TOP
         if resolved["focus_border"]:
             tokens["FOCUS_BORDER"] = resolved["focus_border"]
+        # Selection and disabled text follow the resolved theme
+        # (light themes need a solid selection and a dark
+        # disabled tint — see _resolve_theme).
+        tokens["SELECTION_BG"] = resolved["selection_bg"]
+        tokens["TEXT_DISABLED"] = resolved["text_disabled"]
         sheet = _remap_colors(_QSS.substitute(tokens), resolved)
 
     if scale != 1.0:

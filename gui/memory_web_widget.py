@@ -182,6 +182,7 @@ class MemoryWebWidget(QWidget):
             widget.set_category_filter(self._category_filter)
         if self._time_cutoff is not None:
             widget.set_time_cutoff(self._time_cutoff)
+        widget.set_font_scale(getattr(self, "_font_scale", 1.0))
         return True
 
     def _set_mode(self, mode: str, persist: bool = True):
@@ -295,6 +296,26 @@ class MemoryWebWidget(QWidget):
     @property
     def graph(self) -> GraphData:
         return self._active().graph
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted labels on both renderers (batch 5).
+
+        The 2D canvas always exists; the 3D view is built lazily
+        on first use, so it takes the scale when it appears (and
+        here when it already exists). The window drives this from
+        _apply_appearance; the lazy 3D build re-applies the
+        current scale through the same hook.
+        """
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        self._canvas.set_font_scale(scale)
+        view3d = getattr(self, "_view3d", None)
+        if view3d is not None:
+            setter = getattr(view3d, "set_font_scale", None)
+            if setter is not None:
+                setter(scale)
 
     def set_facts(self, facts: list):
         self._facts = list(facts or [])

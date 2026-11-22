@@ -17,19 +17,26 @@ a scroll area shows its bars whenever content exceeds the viewport,
 at 500 px just as at 750 px):
 - COMFORT, width >= 1008: the S5 floors hold exactly
   (220 + 56 + 420 + 12 + 300 = 1008).
-- NARROW, width < 1008: the stage floor relaxes 420 -> 320 and the
-  hero minimum width relaxes 400 -> 320 (the orb visualizer's own
-  floor is 320, so nothing paints below its floor, and the hero
-  carries no laid-out text to garble). Sidebar 220, chat floor 300,
-  composer floors, and the palette cap/clamp are UNCHANGED at every
-  tier: 220 + 56 + 320 + 12 + 300 = 908.
-- Nothing collapses and NO DRAWER is built: every measured failure
-  above is solved by the tiered floors + scroll-safe pages (see
-  the fit checks in tests/test_uibreakpoints.py), so the drawer
-  decision — delegated on measurements, not taste — is NO DRAWER.
-  The sidebar stays fixed at 220 at every tier.
+- NARROW, 908 <= width < 1008: the stage floor relaxes 420 -> 320
+  and the hero minimum width relaxes 400 -> 320 (the orb
+  visualizer's own floor is 320, so nothing paints below its
+  floor, and the hero carries no laid-out text to garble).
+  Sidebar 220, chat floor 300, composer floors, and the palette
+  cap/clamp are UNCHANGED at this tier:
+  220 + 56 + 320 + 12 + 300 = 908.
+- COMPACT, width < 908 (Stage 0 features batch 5, parent ruling):
+  the sidebar collapses to a 64 px icon rail (labels hidden,
+  tooltips carry the names, nothing clipped or unreachable),
+  the stage floor relaxes 320 -> 240, the hero minimum 320 -> 240
+  and the chat floor 300 -> 240 (the chat is still fully usable
+  at 240 — the composer wraps, the messages scroll). The sums
+  hold with slack: 64 + 56 + 240 + 12 + 240 = 612 <= 640.
+  The old "NO DRAWER / sidebar fixed 220 at every tier" decision
+  is superseded by this ruling below 908 only — there is still
+  no overlay drawer: the rail IS the navigation at compact
+  widths, every page stays one click away.
 
-Window minimum (908, 500): width is the NARROW derivation; height
+Window minimum (640, 500): width is the COMPACT derivation; height
 500 fits both measured work-area heights (576, 516) with slack
 while keeping titlebar + header + home strip + composer + a scroll
 viewport visible. It is a fit-chosen floor, not a widget sum —
@@ -38,37 +45,48 @@ with scroll-safe pages the content minimum no longer dictates it.
 Default size: min(1108, availW - 40) x min(750, availH - 40), so the
 owner's 1920x1080@125% machine still opens at exactly 1108x750
 while compact displays get a fitting default. A default below the
-(908, 500) minimum is clamped UP by Qt's minimum-size enforcement
-to (908, 500), which still fits both measured work areas — the
+(640, 500) minimum is clamped UP by Qt's minimum-size enforcement
+to (640, 500), which still fits both measured work areas — the
 clamp is part of the design, not a defeat of it.
 """
 
 from __future__ import annotations
 
 SIDEBAR_WIDTH = 220
+SIDEBAR_WIDTH_COMPACT = 64
 PAGE_MARGINS = 56
 SPLITTER_HANDLE = 12
 STAGE_FLOOR_COMFORT = 420
 STAGE_FLOOR_NARROW = 320
+STAGE_FLOOR_COMPACT = 240
 CHAT_FLOOR = 300
+CHAT_FLOOR_COMPACT = 240
 CHAT_PREFERRED = 400
+COMPACT_WIDTH = 908
 COMFORT_WIDTH = 1008
-WINDOW_MINIMUM = (908, 500)
+WINDOW_MINIMUM = (640, 500)
 DEFAULT_SIZE = (1108, 750)
 DEFAULT_MARGIN = 40
 HERO_MIN_WIDTH_COMFORT = 400
 HERO_MIN_WIDTH_NARROW = 320
+HERO_MIN_WIDTH_COMPACT = 240
 
 
 def tier_for(width: int) -> str:
-    """Width tier name: "narrow" below the comfort width, else
-    "comfort". The boundary is the S5 derivation itself — at 1008
-    the comfort floors still fit exactly (chat 300, stage 420)."""
+    """Width tier name: "compact" below 908, "narrow" below the
+    comfort width, else "comfort". The boundaries are the
+    derivations themselves — at 908 the narrow floors still fit
+    exactly (chat 300, stage 320); at 1008 the comfort floors
+    still fit exactly (chat 300, stage 420)."""
+    if width < COMPACT_WIDTH:
+        return "compact"
     return "narrow" if width < COMFORT_WIDTH else "comfort"
 
 
 def stage_floor_for(width: int) -> int:
     """Stage minimum width at this window width."""
+    if width < COMPACT_WIDTH:
+        return STAGE_FLOOR_COMPACT
     return (STAGE_FLOOR_NARROW if width < COMFORT_WIDTH
             else STAGE_FLOOR_COMFORT)
 
@@ -77,20 +95,32 @@ def hero_min_width_for(width: int) -> int:
     """Hero minimum width at this window width. Must relax with
     the stage floor: a 400 px hero minimum inside a 320 px stage
     would let the splitter clamp the chat below its 300 floor."""
+    if width < COMPACT_WIDTH:
+        return HERO_MIN_WIDTH_COMPACT
     return (HERO_MIN_WIDTH_NARROW if width < COMFORT_WIDTH
             else HERO_MIN_WIDTH_COMFORT)
+
+
+def chat_floor_for(width: int) -> int:
+    """Chat minimum width at this window width: 240 in the
+    compact tier (the chat stays fully usable — the composer
+    wraps, messages scroll), 300 elsewhere."""
+    return CHAT_FLOOR_COMPACT if width < COMPACT_WIDTH else CHAT_FLOOR
 
 
 def chat_target(avail: int, target: int, width: int) -> int:
     """Splitter chat width for a window of this width: the
     requested target (frozen 400 at first show, else the stored /
-    dragged / current width) clamped to [chat floor, avail minus
-    the tier's stage floor]. Preserves the S5 rule at comfort
+    dragged / current width) clamped to [tier chat floor, avail
+    minus the tier's stage floor]. Preserves the S5 rule at comfort
     widths and the drag-preserved width across the tier boundary
     (a drag down through 1008 keeps chat 300 while the stage
-    shrinks 420 -> 419 -> ... -> 320: no cliff, no jump)."""
-    floor = stage_floor_for(width)
-    return max(CHAT_FLOOR, min(target, avail - floor))
+    shrinks 420 -> 419 -> ... -> 320: no cliff, no jump). At 640
+    the compact floors give chat 280 with the stage at its 240
+    floor (avail 520 = 640 - 64 rail - 56 margins)."""
+    floor = chat_floor_for(width)
+    stage_floor = stage_floor_for(width)
+    return max(floor, min(target, avail - stage_floor))
 
 
 def default_window_size(avail_w: int, avail_h: int) -> tuple[int, int]:

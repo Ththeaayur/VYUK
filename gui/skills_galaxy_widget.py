@@ -142,6 +142,7 @@ class SkillsGalaxyWidget(QWidget):
         widget.set_data(self._galaxy)
         if self._search_text:
             widget.set_search_highlight(self._search_text)
+        widget.set_font_scale(getattr(self, "_font_scale", 1.0))
         return True
 
     def _set_mode(self, mode: str, persist: bool = True):
@@ -233,6 +234,26 @@ class SkillsGalaxyWidget(QWidget):
         return self._galaxy
 
     # ------------------------------------------------------------ data
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted labels on both renderers (batch 5).
+
+        The 2D canvas always exists; the 3D view is built lazily
+        on first use, so it takes the scale when it appears (and
+        here when it already exists). The window drives this from
+        _apply_appearance; the lazy 3D build re-applies the
+        current scale through the same hook.
+        """
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        self._canvas.set_font_scale(scale)
+        view3d = getattr(self, "_view3d", None)
+        if view3d is not None:
+            setter = getattr(view3d, "set_font_scale", None)
+            if setter is not None:
+                setter(scale)
 
     def set_data(self, declarations: list, friendly_names: dict):
         """(Re)build the galaxy from tool declarations + the
@@ -381,11 +402,27 @@ class SkillDetailCard(QWidget):
         # B-R1-7: the raw skill name renders in the mono stack
         # (Share Tech Mono first); the Monospace style hint stays
         # as the fallback when the bundle is absent.
+        # Stage 0 features batch 5 (larger text): the explicit
+        # QFont overrides the QSS size, so it does not scale with
+        # the sheet — set_font_scale re-applies it at the scaled
+        # size (the window drives it from _apply_appearance).
+        self._font_scale = 1.0
+        self._apply_raw_name_font()
+        layout.addWidget(self._raw_name)
+
+    def _apply_raw_name_font(self) -> None:
         mono = QFont(first_font_family(MONO_FONT_STACK))
         mono.setStyleHint(QFont.StyleHint.Monospace)
-        mono.setPixelSize(11)
+        mono.setPixelSize(max(1, round(11 * self._font_scale)))
         self._raw_name.setFont(mono)
-        layout.addWidget(self._raw_name)
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the raw-name mono label (batch 5, item 12)."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        self._apply_raw_name_font()
         layout.addSpacing(6)
         self._ask_btn = QPushButton("Ask with this")
         self._ask_btn.setObjectName("primaryBtn")

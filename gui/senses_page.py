@@ -136,6 +136,22 @@ class _StateCard:
         layout.addStretch(1)
         self.layout = layout
 
+    def set_text_colors(self, text: str, text_muted: str) -> None:
+        """Recolour the card's labels from a theme (batch 5, Light).
+
+        The value label carried the house TEXT (near-white) and
+        the title / sub labels the house TEXT_MUTED, so on Light
+        the values were invisible and the eyebrows faint. The
+        frame itself is a template QFrame#card and already
+        follows the theme.
+        """
+        self.title_label.setStyleSheet(
+            f"color: {text_muted}; font-size: 11px; font-weight: 600;")
+        self.value_label.setStyleSheet(
+            f"color: {text}; font-size: 18px; font-weight: 600;")
+        self.sub_label.setStyleSheet(
+            f"color: {text_muted}; font-size: 11px;")
+
 
 def _section_card(title: str):
     """A full-width card frame + its title label, Pulse spacing."""
@@ -207,7 +223,12 @@ class SensesPage(QWidget):
         # they are.
         senses_frame, senses_layout, _senses_title = _section_card(
             "Your senses")
+        # Batch 5 (Light theme): the section title + the sense
+        # names are re-coloured by set_palette, so both are kept
+        # (the title used to be discarded, the names were locals).
+        self._senses_title = _senses_title
         self._sense_rows: dict[str, QLabel] = {}
+        self._sense_name_labels: dict[str, QLabel] = {}
         self._sense_buttons: dict[str, QPushButton] = {}
         for pid, name in (("microphone", "Microphone"),
                           ("camera", "Camera"),
@@ -220,6 +241,7 @@ class SensesPage(QWidget):
                 f"color: {TEXT}; font-size: {TYPE_CARD_TITLE}px; "
                 "font-weight: 600;")
             row.addWidget(name_label)
+            self._sense_name_labels[pid] = name_label
             row.addStretch(1)
             word_label = QLabel("—")
             word_label.setStyleSheet(
@@ -372,11 +394,21 @@ class SensesPage(QWidget):
     def timer_active(self) -> bool:
         return self._timer.isActive()
 
-    def set_palette(self, highlight: str, accent: str):
+    def set_palette(self, highlight: str, accent: str,
+                    text: str | None = None,
+                    text_muted: str | None = None):
         """Recolour the accents from a theme pair: section titles
         take the highlight; the Last-24-hours bars take the accent
         (E-F209 — they painted the house ACCENT whatever the theme
-        was). The state titles keep the muted ink."""
+        was). Stage 0 features batch 5 (Light theme, render-found):
+        the state values, sense names and chart titles also
+        carried the house TEXT in scoped sheets / paint, so on
+        Light they were invisible. ``text`` / ``text_muted``
+        (the resolved theme values; house tokens when omitted)
+        recolour them; the state titles keep the muted ink.
+        On a light theme the caller passes the accent as the
+        highlight — the pale highlight is unreadable on light.
+        """
         self._highlight = highlight
         self._accent = accent
         for label in (self._wifi_title, self._room_title,
@@ -385,7 +417,57 @@ class SensesPage(QWidget):
                 f"color: {highlight}; font-size: {TYPE_CARD_TITLE}px; font-weight: 600;")
         for chart in (self.noise_chart, self.light_chart):
             chart.set_bar_color(accent)
+        if text is not None or text_muted is not None:
+            t = text or TEXT
+            m = text_muted or TEXT_MUTED
+            senses_title = getattr(self, "_senses_title", None)
+            if senses_title is not None:
+                senses_title.setStyleSheet(
+                    f"color: {t}; font-size: {TYPE_CARD_TITLE}px; "
+                    "font-weight: 600;")
+            for card in getattr(self, "_state_cards", {}).values():
+                card.set_text_colors(t, m)
+            for label in getattr(self, "_sense_name_labels",
+                                 {}).values():
+                label.setStyleSheet(
+                    f"color: {t}; font-size: {TYPE_CARD_TITLE}px; "
+                    "font-weight: 600;")
+            for label in getattr(self, "_sense_rows", {}).values():
+                label.setStyleSheet(
+                    f"color: {t}; font-size: {TYPE_BODY}px;")
+            for label in (getattr(self, "wifi_status_label", None),
+                          getattr(self, "brightness_label", None)):
+                if label is not None:
+                    label.setStyleSheet(
+                        f"color: {m}; font-size: 11px;")
+            for chart in (getattr(self, "noise_chart", None),
+                          getattr(self, "light_chart", None)):
+                if chart is not None:
+                    chart.set_text_colors(t, m)
         self.update()
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted chart titles (batch 5, item 12).
+
+        The QSS font scale reaches every styled label but not
+        the _TrendChart paintEvent text, so the page drives the
+        charts' hook from the same appearance value the window
+        passes. Called from _apply_appearance alongside the
+        theme hook (E-F209 pattern).
+        """
+        try:
+            scale = float(scale)
+        except (TypeError, ValueError):
+            scale = 1.0
+        self._font_scale = scale
+        for chart in (getattr(self, "noise_chart", None),
+                      getattr(self, "light_chart", None)):
+            if chart is not None:
+                chart.set_font_scale(scale)
+
+    def painted_title_font_size(self) -> float:
+        """The painted chart title's computed point size."""
+        return 9.0 * getattr(self, "_font_scale", 1.0)
 
     def refresh_state(self):
         """Poll the cheap state provider once and repaint the four
@@ -835,8 +917,29 @@ class _TrendChart(QWidget):
         # SensesPage.set_palette); the default is the house ACCENT,
         # so Cyan is unchanged.
         self._bar_color = ACCENT
+        # Batch 5 (Light theme): the title + axis text paint the
+        # house TEXT / TEXT_MUTED — near-white on light. The page
+        # re-colours them from the theme via set_text_colors.
+        self._text = TEXT
+        self._text_muted = TEXT_MUTED
+        # Stage 0 features batch 5 (larger text): the painted
+        # title scales with the appearance font scale (the QSS
+        # cannot reach paintEvent text).
+        self._font_scale = 1.0
         self.setMinimumHeight(self._H + 30)
         self.setToolTip(title)
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the painted title with the appearance font scale."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        self.update()
+
+    def title_font_size(self) -> float:
+        """The painted title's computed point size (probe hook)."""
+        return 9.0 * self._font_scale
 
     def set_series(self, series: list):
         self._series = list(series)[:24]
@@ -847,25 +950,31 @@ class _TrendChart(QWidget):
         self._bar_color = color
         self.update()
 
+    def set_text_colors(self, text: str, text_muted: str) -> None:
+        """Recolour the painted title + axis text (batch 5, Light)."""
+        self._text = text
+        self._text_muted = text_muted
+        self.update()
+
     def paintEvent(self, event):  # noqa: N802 (Qt naming)
         from PySide6.QtGui import QColor, QFont, QPainter
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         title_font = QFont()
-        title_font.setPointSize(9)
+        title_font.setPointSizeF(9.0 * self._font_scale)
         painter.setFont(title_font)
-        painter.setPen(QColor(TEXT))
+        painter.setPen(QColor(self._text))
         painter.drawText(0, 12, self._title)
         top = 20
         height = self._H
         width = max(self.width(), 48)
         slot = width / 24.0
         bar_w = max(2.0, slot - 2.0)
-        painter.setPen(QColor(TEXT_MUTED))
+        painter.setPen(QColor(self._text_muted))
         painter.drawLine(0, top + height, width, top + height)
         if all(v is None for v in self._series):
-            painter.setPen(QColor(TEXT_MUTED))
+            painter.setPen(QColor(self._text_muted))
             painter.drawText(
                 0, top + 18,
                 "Nothing logged in the last 24 hours yet — "

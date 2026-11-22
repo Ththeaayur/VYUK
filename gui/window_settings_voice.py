@@ -413,7 +413,7 @@ class SettingsVoiceMixin:
 
         appear = self._settings_card(_g_appearance, "Appearance", "Theme, text size, density, and motion. Applied instantly.")
         # E-F205: the swatch row wraps (FlowLayout) instead of
-        # forcing 11 fixed swatches + Custom onto one line — at
+        # forcing 12 fixed swatches + Custom onto one line — at
         # 908 the row's 660 px minimum drove the Appearance card
         # (692) past the 624 px viewport and put a horizontal
         # scrollbar under the whole Settings page. Single-row
@@ -469,7 +469,13 @@ class SettingsVoiceMixin:
         font_lbl.setObjectName("muted")
         font_row.addWidget(font_lbl)
         self.font_scale_buttons: dict[float, QPushButton] = {}
-        for scale, label in ((0.9, "90%"), (1.0, "100%"), (1.1, "110%"), (1.2, "120%")):
+        # Stage 0 features batch 5, item 12: the text-size
+        # choices run to 150% (100 / 115 / 130 / 150). Older
+        # stored values (90 / 110 / 120%) stay valid — the
+        # apply path accepts them — they are just no longer
+        # offered as buttons.
+        for scale, label in ((1.0, "100%"), (1.15, "115%"),
+                             (1.3, "130%"), (1.5, "150%")):
             btn = QPushButton(label)
             btn.setObjectName("chipBtn")
             btn.setCheckable(True)
@@ -478,6 +484,27 @@ class SettingsVoiceMixin:
             font_row.addWidget(btn)
         font_row.addStretch()
         appear.addLayout(font_row)
+        # Stage 0 features batch 5, item 11: reply verbosity —
+        # how long her replies run. Persists like the voice
+        # settings (config field + .env); applies from the
+        # next reply on every brain.
+        verbosity_row = QHBoxLayout()
+        verbosity_lbl = QLabel("Reply length")
+        verbosity_lbl.setObjectName("muted")
+        verbosity_row.addWidget(verbosity_lbl)
+        self.verbosity_buttons: dict[str, QPushButton] = {}
+        for level, label in (("concise", "Concise"),
+                             ("balanced", "Balanced"),
+                             ("detailed", "Detailed")):
+            btn = QPushButton(label)
+            btn.setObjectName("chipBtn")
+            btn.setCheckable(True)
+            btn.clicked.connect(
+                lambda _=False, lv=level: self._on_verbosity_selected(lv))
+            self.verbosity_buttons[level] = btn
+            verbosity_row.addWidget(btn)
+        verbosity_row.addStretch()
+        appear.addLayout(verbosity_row)
         density_row = QHBoxLayout()
         density_lbl = QLabel("Density")
         density_lbl.setObjectName("muted")

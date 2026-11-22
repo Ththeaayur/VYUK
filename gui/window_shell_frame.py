@@ -77,7 +77,9 @@ from PySide6.QtCore import (
 )
 from voice_assistant.core.gui_facade import qsettings_get, qsettings_store
 from .breakpoints import (
+    COMPACT_WIDTH,
     WINDOW_MINIMUM,
+    chat_floor_for,
     chat_target,
     default_window_size,
     hero_min_width_for,
@@ -696,16 +698,21 @@ class ShellFrameMixin(ShellBootMixin):
 
     def _apply_breakpoint_tier(self) -> None:
         """UI breakpoints slice: apply the current width tier's
-        floors to the stage and hero. Comfort (>= 1088 px) keeps
-        the S5 floors (stage 420, hero 400); narrow (< 1088 px)
+        floors to the stage and hero. Comfort (>= 1008 px) keeps
+        the S5 floors (stage 420, hero 400); narrow (908–1007 px)
         relaxes both (stage 320, hero 320) so the splitter can
-        honour the chat's 380 floor without squeezing the stage
+        honour the chat's 300 floor without squeezing the stage
         below its tier floor or the hero below the orb's floor.
-        No-op before the assistant page exists, and never touches
-        the sidebar (fixed 220 at every tier — no collapse, no
-        drawer). Called from _fix_chat_width, which runs on every
-        resize and at first show, so tier changes track the
-        window width without a separate resize hook.
+        Stage 0 features batch 5 adds the compact tier (< 908 px):
+        stage 240, hero 240, chat floor 240, and the sidebar
+        collapses to its 64 px icon rail (labels hidden, tooltips
+        carry the names) via _apply_sidebar_compact — the old
+        "sidebar fixed 220 at every tier" note is superseded by
+        the parent ruling below 908; there is still no drawer.
+        No-op before the assistant page exists. Called from
+        _fix_chat_width, which runs on every resize and at first
+        show, so tier changes track the window width without a
+        separate resize hook.
         """
         try:
             stage = getattr(self, "_stage_widget", None)
@@ -724,6 +731,37 @@ class ShellFrameMixin(ShellBootMixin):
             hero = getattr(self, "hero", None)
             if hero is not None:
                 hero.setMinimumWidth(hero_min_width_for(width))
+            # Batch 5 (render-found at 640 px): the hero's own
+            # floor is not the binding one — the OrbVisualizer
+            # inside it carries a 320 px minimum, and the stacked
+            # layout's minimum is the widest child, so the hero
+            # stayed 320 wide in the compact tier: the stage was
+            # forced to 320, the orb painted past the stage into
+            # the chat dock, and the chat starved to ~244 px so
+            # the composer overflowed the window edge. Relax the
+            # visualizer to the same tier floor; it paints the
+            # orb at whatever width it gets.
+            visualizer = getattr(self, "visualizer", None)
+            if visualizer is not None:
+                visualizer.setMinimumWidth(hero_min_width_for(width))
+            # Batch 5 (P21 root cause): the chat floor is tiered
+            # too (chat_floor_for: 240 compact, 300 elsewhere) —
+            # the pure-logic module always said so, but the panel
+            # kept its build-time 300 px hard minimum, so the
+            # splitter minimum was 240 + 300 + 12 = 552 and the
+            # whole shell minimum 64 + 56 + 552 = 672, 32 px over
+            # the 640 window: the content overflowed the right
+            # edge even once the layout ran. Relax the panel to
+            # the tier floor with the stage; chat_target already
+            # clamps the split to the same floor, and the tier
+            # restores 300 when the window grows back past 908.
+            chat = getattr(self, "chat_panel", None)
+            if chat is not None:
+                chat.setMinimumWidth(chat_floor_for(width))
+            # Batch 5: the sidebar rail follows the compact tier.
+            apply_rail = getattr(self, "_apply_sidebar_compact", None)
+            if apply_rail is not None:
+                apply_rail(width < COMPACT_WIDTH)
         except Exception:  # noqa: BLE001 — floors are a nicety
             pass
 
@@ -734,11 +772,12 @@ class ShellFrameMixin(ShellBootMixin):
         before the resize when one was stored, else a dragged
         width, else the current width (floors still enforced);
         the stage never squeezes below its tier floor, the
-        chat never below 300 px. UI breakpoints slice: the stage
-        floor is tiered (420 comfort, 320 narrow) via
-        chat_target(); a drag down through the 1008 boundary
-        keeps the chat width while the stage shrinks continuously
-        (no cliff). No-op until the splitter is laid out.
+        chat never below its tier floor (300 px, 240 compact).
+        UI breakpoints slice: the stage floor is tiered (420
+        comfort, 320 narrow, 240 compact) via chat_target(); a
+        drag down through the 1008 boundary keeps the chat width
+        while the stage shrinks continuously (no cliff). No-op
+        until the splitter is laid out.
         Programmatic moves are guarded so they never
         mark the width user-set."""
         split = getattr(self, "_chat_splitter", None)

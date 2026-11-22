@@ -76,9 +76,15 @@ class _MemoryRowWidget(QWidget):
     height covers the chip), so hovering never shifts the list.
     """
 
-    def __init__(self, fact, when_text, on_forget):
+    def __init__(self, fact, when_text, on_forget, font_scale: float = 1.0):
         super().__init__()
         self._fact_id = fact.get("id")
+        # Stage 0 features batch 5 (larger text): the explicit
+        # mono QFont overrides the QSS size, so it does not scale
+        # with the sheet — set_font_scale re-applies it at the
+        # scaled size. The mixin passes the current scale at
+        # construction (rows rebuild on every refresh).
+        self._font_scale = 1.0
         self.setMinimumHeight(30)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -89,9 +95,7 @@ class _MemoryRowWidget(QWidget):
         layout.addWidget(self.what, stretch=1)
         self.when = QLabel(when_text)
         self.when.setObjectName("muted")
-        when_font = QFont(first_font_family(MONO_FONT_STACK))
-        when_font.setPointSizeF(11.5)
-        self.when.setFont(when_font)
+        self._apply_when_font()
         layout.addWidget(self.when)
         self.forget_btn = QPushButton("Forget")
         self.forget_btn.setObjectName("chipBtn")
@@ -99,6 +103,20 @@ class _MemoryRowWidget(QWidget):
         self.forget_btn.clicked.connect(
             lambda _checked=False: on_forget(self._fact_id))
         layout.addWidget(self.forget_btn)
+        self.set_font_scale(font_scale)
+
+    def _apply_when_font(self) -> None:
+        when_font = QFont(first_font_family(MONO_FONT_STACK))
+        when_font.setPointSizeF(11.5 * self._font_scale)
+        self.when.setFont(when_font)
+
+    def set_font_scale(self, scale: float) -> None:
+        """Scale the mono timestamp (batch 5, item 12)."""
+        try:
+            self._font_scale = float(scale)
+        except (TypeError, ValueError):
+            self._font_scale = 1.0
+        self._apply_when_font()
 
     def enterEvent(self, event):  # noqa: N802 (Qt naming)
         self.forget_btn.setVisible(True)
@@ -183,7 +201,8 @@ class MemoryWebMixin:
             self.memory_list.addItem(item)
             row = _MemoryRowWidget(
                 f, _mem_when_text(_fact_epoch(f)),
-                self._forget_memory_fact)
+                self._forget_memory_fact,
+                font_scale=self._current_font_scale())
             self.memory_list.setItemWidget(item, row)
         self.mem_empty.setVisible(not shown)
         if hasattr(self, "mem_art"):
@@ -398,6 +417,10 @@ class MemoryWebMixin:
                 self._on_web_selection_cleared)
             self.memory_web = widget
             self.mem_web_layout.insertWidget(0, widget, 1)
+            # Batch 5, item 12: a lazily built page missed the
+            # last appearance pass — scale its painted labels now.
+            self._apply_font_scale_to_painted_pages(
+                self._current_font_scale())
         return self.memory_web
 
     def _refresh_memory_web(self):

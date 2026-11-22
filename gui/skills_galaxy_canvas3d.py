@@ -68,6 +68,10 @@ if _GL_AVAILABLE:
             self._hover: str | None = None
             self._selected: str | None = None
             self._search = ""
+            # Stage 0 features batch 5 (larger text): the painted
+            # star labels + empty state scale with the appearance
+            # font scale. Driven by SkillsGalaxyWidget.set_font_scale.
+            self._font_scale = 1.0
             self._timer = QTimer(self)
             self._timer.setInterval(16)
             self._timer.timeout.connect(self._on_tick)
@@ -115,6 +119,19 @@ if _GL_AVAILABLE:
             # pan target stranded in empty space — clamp it to
             # the new extent before the next frame.
             self._clamp_target()
+            self.update()
+
+        def set_font_scale(self, scale: float) -> None:
+            """Scale the painted star labels / empty state.
+
+            Stage 0 features batch 5 (larger text): the 3D
+            overlay paints its text, so the QSS cannot reach it.
+            Driven by SkillsGalaxyWidget.set_font_scale.
+            """
+            try:
+                self._font_scale = float(scale)
+            except (TypeError, ValueError):
+                self._font_scale = 1.0
             self.update()
 
         # -- v5.57.1 (item 9): camera stranding guards ------------------
@@ -607,8 +624,9 @@ if _GL_AVAILABLE:
                 if node.kind == "star" and len(label) > 24:
                     label = label[:23] + "…"
                 font = QFont()
-                font.setPixelSize(_LABEL_HUB_PX if node.kind == "hub"
-                                  else _LABEL_STAR_PX)
+                font.setPixelSize(max(1, round(
+                    (_LABEL_HUB_PX if node.kind == "hub"
+                     else _LABEL_STAR_PX) * self._font_scale)))
                 text_w = float(
                     QFontMetrics(font).horizontalAdvance(label))
                 rect = QRectF(centre.x() - text_w / 2.0,
@@ -665,7 +683,7 @@ if _GL_AVAILABLE:
             if focus is None and not data.stars:
                 painter.setPen(_TEXT_MUTED)
                 font = QFont()
-                font.setPixelSize(12)
+                font.setPixelSize(max(1, round(12 * self._font_scale)))
                 painter.setFont(font)
                 painter.drawText(
                     QRectF(0, self.height() / 2.0 + 34,

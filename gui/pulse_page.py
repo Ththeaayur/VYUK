@@ -351,6 +351,23 @@ class _MetricRow:
         layout.addLayout(right)
         self.default_name = name
 
+    def set_text_colors(self, text: str, text_muted: str) -> None:
+        """Recolour the row labels from a theme (batch 5, Light).
+
+        The name / sub / stats labels carry scoped sheets with
+        the house TEXT / TEXT_MUTED, so on Light the names were
+        near-white on light — invisible — while the live values
+        (no colour of their own, so they inherit the theme text)
+        read fine. The value label is deliberately untouched:
+        it already follows the theme.
+        """
+        self.name_label.setStyleSheet(
+            f"color: {text}; font-size: {TYPE_CARD_TITLE}px; font-weight: 600;")
+        self.sub_label.setStyleSheet(
+            f"color: {text_muted}; font-size: 11px;")
+        self.stats_label.setStyleSheet(
+            f"color: {text_muted}; font-size: 11px;")
+
     def set_value(self, text: str) -> None:
         """Set the row's live value, keeping its minimum width in
         step with the text (Golden-fix D8, carried over from the
@@ -518,7 +535,9 @@ class PulsePage(QWidget):
         again; only the toggle itself clears it."""
         return self._user_paused
 
-    def set_palette(self, accent: str, accent_2: str):
+    def set_palette(self, accent: str, accent_2: str,
+                    text: str | None = None,
+                    text_muted: str | None = None):
         """Recolour the meters from a theme pair (E-F209): the
         ACCENT family (CPU/Memory/Disk) takes accent, the ACCENT_2
         family (Network/Battery) takes accent_2 — the v5.57 mockup
@@ -528,13 +547,23 @@ class PulsePage(QWidget):
         fix E-F209: it would have moved CPU to the pale highlight
         under Cyan and left Disk/Battery cyan under every theme.)
         The per-reading colour override (disk heat shift) still
-        applies on top of the base colour."""
+        applies on top of the base colour.
+        Stage 0 features batch 5 (Light theme, render-found):
+        the row labels also carried the house TEXT / TEXT_MUTED
+        in scoped sheets, so on Light the metric names were
+        invisible. ``text`` / ``text_muted`` (the resolved theme
+        values; house tokens when omitted) recolour them.
+        """
         for key in ("cpu", "mem", "disk"):
             self.dials[key].set_base_color(accent)
         for key in ("net", "battery"):
             self.dials[key].set_base_color(accent_2)
         for meter in self.dials.values():
             meter.update()
+        if text is not None or text_muted is not None:
+            for row in getattr(self, "_rows", []):
+                row.set_text_colors(text or TEXT,
+                                    text_muted or TEXT_MUTED)
 
     def sample_now(self):
         """Take one sample and repaint the meters. A sampler that

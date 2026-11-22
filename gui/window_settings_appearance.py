@@ -1,6 +1,6 @@
 # Refactor Phase 1 step 5: SettingsMixin card-group mixin, moved verbatim from gui/window_settings.py.
 from voice_assistant.core.gui_facade import (
-    gate_custom_accent, migrate_theme_name)
+    config, gate_custom_accent, migrate_theme_name, normalize_verbosity)
 from .style import THEMES as STYLE_THEMES
 from .visualizer import (
     THEMES,
@@ -8,6 +8,7 @@ from .visualizer import (
 from .style import (
     build_stylesheet,
     derive_theme,
+    _resolve_theme,
     TYPE_CARD_TITLE,
     # Command Deck Phase E: Settings carries no colour literals of
     # its own — every value below is a style token.
@@ -247,12 +248,7 @@ class SettingsAppearanceMixin:
                 theme_arg = "Cyan"
             else:
                 theme_arg = "Cyan"
-            try:
-                scale = float(qsettings_get("appearance/font_scale", settings=self.settings))
-            except (TypeError, ValueError):
-                scale = 1.0
-            if scale not in (0.9, 1.0, 1.1, 1.2):
-                scale = 1.0
+            scale = self._current_font_scale()
             density = str(qsettings_get("appearance/density", settings=self.settings))
             if density not in ("comfortable", "compact"):
                 density = "comfortable"
@@ -287,6 +283,19 @@ class SettingsAppearanceMixin:
                 self._apply_theme_to_painted_pages(theme_arg)
             except Exception:  # noqa: BLE001 — appearance never breaks boot
                 pass
+            # Stage 0 features batch 5: the shell paints its own
+            # fill (AppShell.paintEvent), so the QSS cannot reach
+            # it — drive it from the same resolved theme.
+            try:
+                self._apply_theme_to_shell(theme_arg)
+            except Exception:  # noqa: BLE001 — appearance never breaks boot
+                pass
+            # Stage 0 features batch 5, item 12: the painted /
+            # explicit-font text scales with the same value.
+            try:
+                self._apply_font_scale_to_painted_pages(scale)
+            except Exception:  # noqa: BLE001 — appearance never breaks boot
+                pass
         except Exception:  # noqa: BLE001 — appearance must never break boot
             pass
         self._sync_appearance_controls()
@@ -304,6 +313,16 @@ class SettingsAppearanceMixin:
         are the house tokens, so nothing changes. Defensive
         throughout: pages may not exist yet when the theme loads,
         and appearance must never break boot.
+        Stage 0 features batch 5 (Light theme, render-found):
+        the QSS is not the only surface the theme misses — the
+        scoped sheets and the painted fills behind the tabs, the
+        HudPanel cards, the Views panes, the Pulse row labels,
+        the Overview backdrops and the Senses text all carried
+        the house tokens too. This pass now drives them all from
+        the fully resolved theme (bg / surface_2 / text /
+        text_muted / text_faint / accent / accent_2). On a light
+        theme the Senses section titles take the accent, not the
+        pale highlight — the highlight is unreadable on light.
         """
         try:
             theme = None
@@ -320,20 +339,141 @@ class SettingsAppearanceMixin:
                     theme = derive_theme(hexv) or STYLE_THEMES["Cyan"]
                 else:
                     theme = STYLE_THEMES.get(name) or STYLE_THEMES["Cyan"]
-            accent = theme.get("accent") or STYLE_THEMES["Cyan"]["accent"]
-            accent_2 = (theme.get("accent_2")
-                        or STYLE_THEMES["Cyan"]["accent_2"])
-            highlight = (theme.get("highlight")
-                         or STYLE_THEMES["Cyan"]["highlight"])
+            if (not isinstance(theme, dict)
+                    or "accent" not in theme
+                    or "accent_2" not in theme):
+                theme = STYLE_THEMES["Cyan"]
+            resolved = _resolve_theme(theme)
+            accent = resolved["accent"]
+            accent_2 = resolved["accent_2"]
+            highlight = resolved["highlight"]
+            bg = resolved["bg"]
+            text = resolved["text"]
+            text_muted = resolved["text_muted"]
+            from .style_theme import _luminance
+            light = _luminance(bg) > 0.5
             pulse = getattr(self, "pulse_page", None)
             if pulse is not None:
-                pulse.set_palette(accent, accent_2)
+                pulse.set_palette(accent, accent_2, text, text_muted)
             overview = getattr(self, "_w9_overview_panel", None)
             if overview is not None:
-                overview.set_palette(accent, accent_2)
+                overview.set_palette(accent, accent_2, bg, text_muted)
             senses = getattr(self, "senses_page", None)
             if senses is not None:
-                senses.set_palette(highlight, accent)
+                senses.set_palette(accent if light else highlight,
+                                    accent, text, text_muted)
+            # HudPanel cards paint their own fill (Settings cards
+            # and any other HudPanel): drive them from the resolved
+            # theme so they stop staying black on Light.
+            try:
+                from .design_system.panels import HudPanel
+                for panel in self.findChildren(HudPanel):
+                    panel.set_theme(resolved)
+            except Exception:  # noqa: BLE001 — panels are a nicety
+                pass
+            refresh_activity = getattr(self, "_refresh_activity_theme",
+                                       None)
+            if refresh_activity is not None:
+                refresh_activity(resolved)
+            refresh_views = getattr(self, "_refresh_views_theme", None)
+            if refresh_views is not None:
+                refresh_views(resolved)
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
+
+    def _current_font_scale(self) -> float:
+        """The validated appearance font scale (batch 5, item 12).
+
+        The offered choices run to 150% (1.0 / 1.15 / 1.3 / 1.5);
+        older stored values (0.9 / 1.1 / 1.2) stay valid; anything
+        else reads as 1.0. Shared by _apply_appearance and the
+        lazy page builders, so a page built after the last
+        appearance pass still opens at the current scale.
+        """
+        try:
+            scale = float(qsettings_get(
+                "appearance/font_scale", settings=self.settings))
+        except (TypeError, ValueError):
+            scale = 1.0
+        if scale not in (0.9, 1.0, 1.1, 1.15, 1.2, 1.3, 1.5):
+            scale = 1.0
+        return scale
+
+    def _apply_font_scale_to_painted_pages(self, scale: float) -> None:
+        """Scale the painted / explicit-font text (batch 5, item 12).
+
+        The QSS font scale reaches every styled label but not
+        text painted in paintEvent, nor labels whose QFont is set
+        explicitly in code — so the window drives those hooks
+        from the same appearance value the sheet just took.
+        Defensive throughout: pages may not exist yet (lazy
+        builds) and appearance must never break boot. The
+        scoped-stylesheet text (113 font-size sites, e.g. the
+        memory row's "what" label) stays at its built size — a
+        known limitation, reported plainly: it does not grow, so
+        nothing clips.
+        """
+        try:
+            senses = getattr(self, "senses_page", None)
+            if senses is not None:
+                senses.set_font_scale(scale)
+            overview = getattr(self, "_w9_overview_panel", None)
+            if overview is not None:
+                overview.set_font_scale(scale)
+            mem_web = getattr(self, "memory_web", None)
+            if mem_web is not None:
+                mem_web.set_font_scale(scale)
+            galaxy = getattr(self, "skills_galaxy", None)
+            if galaxy is not None:
+                galaxy.set_font_scale(scale)
+            card = getattr(self, "skills_detail_card", None)
+            if card is not None:
+                card.set_font_scale(scale)
+            catalog = getattr(self, "skills_catalog", None)
+            if catalog is not None:
+                catalog.set_font_scale(scale)
+            mem_list = getattr(self, "memory_list", None)
+            if mem_list is not None:
+                for i in range(mem_list.count()):
+                    row = mem_list.itemWidget(mem_list.item(i))
+                    setter = getattr(row, "set_font_scale", None)
+                    if setter is not None:
+                        setter(scale)
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
+
+    def _apply_theme_to_shell(self, theme_arg=None):
+        """Recolour the painted shell from a theme (batch 5).
+
+        AppShell fills the whole window body in paintEvent, so
+        the QSS background never shows through it: under Light
+        the window stayed dark even with the Light sheet applied
+        (found by the P4 probe leg). This drives the shell's
+        set_chrome hook from the same resolved theme the chrome
+        uses. Under Cyan the values are the house tokens, so
+        nothing changes. Defensive throughout: the central widget
+        may not be an AppShell (tests build partial windows).
+        """
+        try:
+            theme = None
+            if isinstance(theme_arg, dict):
+                theme = theme_arg
+            elif isinstance(theme_arg, str) and theme_arg in STYLE_THEMES:
+                theme = STYLE_THEMES[theme_arg]
+            if theme is None:
+                name = migrate_theme_name(
+                    str(qsettings_get("theme", settings=self.settings)))
+                if name == "Custom":
+                    hexv = gate_custom_accent(str(qsettings_get(
+                        "appearance/custom_hex", settings=self.settings)))
+                    theme = derive_theme(hexv) or STYLE_THEMES["Cyan"]
+                else:
+                    theme = STYLE_THEMES.get(name) or STYLE_THEMES["Cyan"]
+            resolved = _resolve_theme(theme)
+            shell = self.centralWidget()
+            setter = getattr(shell, "set_chrome", None)
+            if setter is not None:
+                setter(resolved["bg"], resolved["accent"])
         except Exception:  # noqa: BLE001 — appearance never breaks boot
             pass
 
@@ -354,6 +494,15 @@ class SettingsAppearanceMixin:
                 scale = 1.0
             for v, btn in getattr(self, "font_scale_buttons", {}).items():
                 btn.setChecked(abs(float(v) - scale) < 0.001)
+            # Stage 0 features batch 5, item 11: reply verbosity
+            # buttons follow the live config value.
+            try:
+                level = normalize_verbosity(
+                    getattr(config, "reply_verbosity", "balanced"))
+            except Exception:  # noqa: BLE001 — sync never breaks Settings
+                level = "balanced"
+            for lv, btn in getattr(self, "verbosity_buttons", {}).items():
+                btn.setChecked(lv == level)
             density = str(qsettings_get("appearance/density", settings=self.settings))
             for d, btn in getattr(self, "density_buttons", {}).items():
                 btn.setChecked(d == density)
@@ -380,6 +529,25 @@ class SettingsAppearanceMixin:
     def _on_font_scale_selected(self, scale: float):
         qsettings_set("appearance/font_scale", float(scale), settings=self.settings)
         self._apply_appearance()
+
+    def _on_verbosity_selected(self, level: str):
+        """Stage 0 features batch 5, item 11: reply verbosity.
+        Persists like the voice settings (config field +
+        .env) and applies from the next reply on every brain —
+        the turn paths read the live config value per turn."""
+        try:
+            level = normalize_verbosity(level)
+        except Exception:  # noqa: BLE001 — a bad level never breaks Settings
+            level = "balanced"
+        try:
+            config.reply_verbosity = level
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            self._persist_config_setting("VYUK_REPLY_VERBOSITY", level)
+        except Exception:  # noqa: BLE001 — in-session value already set
+            pass
+        self._sync_appearance_controls()
 
     def _on_density_selected(self, density: str):
         qsettings_set("appearance/density", density, settings=self.settings)

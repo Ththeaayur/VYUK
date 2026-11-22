@@ -75,6 +75,66 @@ from .live_client_resume import (
 )
 
 
+def _live_connect_kwargs(enterprise_mode: bool) -> dict[str, Any]:
+    """The fail-soft LiveConnectConfig kwargs start() passes in:
+    resumption, context-window compression, realtime input — plus
+    the Stage 0f5 verbosity output cap. Extracted from start()
+    verbatim (same calls, same prints, same fail-soft behaviour);
+    start() calls this and nothing else changed. Balanced
+    verbosity sets no cap, so the kwargs are identical to before
+    for the default level."""
+    # A8 (v5.44): explicit realtime input config, matched
+    # to the local feel (see the constants at module top).
+    # Fail soft: a library without these types yields None
+    # and the config is built exactly as before.
+    realtime_config = _build_realtime_input_config()
+    config_kwargs: dict[str, Any] = {}
+    # B9 (v5.45): resumption (with the persisted handle
+    # when one exists — resume is tried BEFORE cold start)
+    # + context-window compression, both fail-soft.
+    # v5.51 (item 13): transparent issuance is requested
+    # only in Enterprise mode — on the Developer API the
+    # parameter itself is rejected and kills the connect,
+    # so Developer sessions are built handle-only.
+    # RS-1 (v5.56): the mode branch — _load already
+    # enforces the 10-min window, so a handle offered
+    # here is fresh; a stale one reads as None and the
+    # connect starts cold.
+    _resume_cfg = _resume_config_for_mode(
+        _load_resume_handle(), enterprise_mode)
+    if _resume_cfg is not None:
+        config_kwargs["session_resumption"] = _resume_cfg
+        if _resume_cfg.handle:
+            print("[Live] Resumption: offering the saved "
+                  "session handle for a resume-first connect.")
+    _compression_cfg = _build_context_window_compression()
+    if _compression_cfg is not None:
+        config_kwargs["context_window_compression"] = _compression_cfg
+    if realtime_config is not None:
+        config_kwargs["realtime_input_config"] = realtime_config
+        applied = (
+            "[Live] Realtime input config applied: automatic "
+            "activity detection on, start-of-speech HIGH, "
+            "end-of-speech LOW, "
+            f"silence {LIVE_SILENCE_DURATION_MS} ms, "
+            f"prefix padding {LIVE_PREFIX_PADDING_MS} ms.")
+        print(applied)
+        _log_line(applied[len("[Live] "):])
+    # Stage 0 features batch 5, item 11: concise caps the
+    # reply at 256 tokens; balanced and detailed set no cap
+    # (the key stays absent, so their connects are unchanged).
+    try:
+        from ..verbosity import (current_verbosity,
+                                 verbosity_max_output_tokens)
+
+        cap = verbosity_max_output_tokens(current_verbosity())
+    except Exception:  # noqa: BLE001 — verbosity never breaks a connect
+        cap = None
+    if cap is not None:
+        config_kwargs["max_output_tokens"] = cap
+    return config_kwargs
+
+
 class GeminiLiveSessionLifecycleMixin:
     # INTENTIONAL (skills split B47): connect/session spine — __init__,
     # prompt/model adoption, session-run + watchdog loops, start,
@@ -244,6 +304,18 @@ class GeminiLiveSessionLifecycleMixin:
         full_prompt = config.system_instruction
         # v5.41: non-English home directive ("" for English).
         full_prompt += reply_language_directive()
+        # Stage 0 features batch 5, item 11: reply verbosity —
+        # the length instruction rides next to the language
+        # directive. Balanced is "" so the prompt stays
+        # byte-identical to before.
+        try:
+            from ..verbosity import (current_verbosity,
+                                     reply_verbosity_directive)
+
+            full_prompt += reply_verbosity_directive(
+                current_verbosity())
+        except Exception:  # noqa: BLE001 — verbosity never breaks a turn
+            pass
         memories = memory_store.get_memory_context_prompt()
         if memories:
             full_prompt += f"\n\n{memories}"
@@ -832,43 +904,10 @@ class GeminiLiveSessionLifecycleMixin:
             # declarations were built by the pre-flight above.
             live_tools = [types.Tool(function_declarations=declarations)] if declarations else None
 
-            # A8 (v5.44): explicit realtime input config, matched
-            # to the local feel (see the constants at module top).
-            # Fail soft: a library without these types yields None
-            # and the config is built exactly as before.
-            realtime_config = _build_realtime_input_config()
-            config_kwargs: dict[str, Any] = {}
-            # B9 (v5.45): resumption (with the persisted handle
-            # when one exists — resume is tried BEFORE cold start)
-            # + context-window compression, both fail-soft.
-            # v5.51 (item 13): transparent issuance is requested
-            # only in Enterprise mode — on the Developer API the
-            # parameter itself is rejected and kills the connect,
-            # so Developer sessions are built handle-only.
-            # RS-1 (v5.56): the mode branch — _load already
-            # enforces the 10-min window, so a handle offered
-            # here is fresh; a stale one reads as None and the
-            # connect starts cold.
-            _resume_cfg = _resume_config_for_mode(
-                _load_resume_handle(), self._enterprise_mode)
-            if _resume_cfg is not None:
-                config_kwargs["session_resumption"] = _resume_cfg
-                if _resume_cfg.handle:
-                    print("[Live] Resumption: offering the saved "
-                          "session handle for a resume-first connect.")
-            _compression_cfg = _build_context_window_compression()
-            if _compression_cfg is not None:
-                config_kwargs["context_window_compression"] = _compression_cfg
-            if realtime_config is not None:
-                config_kwargs["realtime_input_config"] = realtime_config
-                applied = (
-                    "[Live] Realtime input config applied: automatic "
-                    "activity detection on, start-of-speech HIGH, "
-                    "end-of-speech LOW, "
-                    f"silence {LIVE_SILENCE_DURATION_MS} ms, "
-                    f"prefix padding {LIVE_PREFIX_PADDING_MS} ms.")
-                print(applied)
-                _log_line(applied[len("[Live] "):])
+            # The fail-soft kwargs (resumption, compression,
+            # realtime input) plus the verbosity output cap —
+            # see _live_connect_kwargs above.
+            config_kwargs = _live_connect_kwargs(self._enterprise_mode)
 
             session_config = types.LiveConnectConfig(
                 response_modalities=["AUDIO"],
