@@ -308,9 +308,10 @@ def record_event(*, subject: str, action: str, how: str,
                  terms_version: int = TERMS_VERSION) -> bool:
     """Append one grant/revocation event to the ledger.
     subject is "permission:<id>" or "kind:<tool>"; action is
-    "granted" or "revoked". Best-effort: False (never raising)
-    when the ledger cannot be written — a failed receipt
-    never fails the grant itself."""
+    "granted", "revoked", "paused" or "resumed" (the last two
+    are the F-F402-reversal pause/resume events). Best-effort:
+    False (never raising) when the ledger cannot be written —
+    a failed receipt never fails the grant itself."""
     try:
         path = _events_path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -472,7 +473,13 @@ def log_grant_receipt(*, subject: str, action: str, how: str,
     except Exception:  # noqa: BLE001
         thing = ""
     thing = thing or subject
-    verb = "always allowed" if action == "granted" else "took back"
+    # F-F402 reversal (loophole #2): the pause/resume events
+    # name themselves — a pause reads "paused", never "took
+    # back" (the grant still stands), and a resume reads as a
+    # resumed always-allow (it will not ask again, like a grant).
+    verb = {"granted": "always allowed", "paused": "paused",
+            "resumed": "resumed always-allow for"}.get(
+                action, "took back")
     how_word = {"Settings": "in Settings",
                 "first-run setup": "in first-run setup",
                 "confirm dialog": "in the confirm dialog",
@@ -482,7 +489,7 @@ def log_grant_receipt(*, subject: str, action: str, how: str,
                     str(how or ""), str(how or ""))
     text = (f"You {verb} {thing}"
             f"{' ' + str(note).strip() if str(note or '').strip() else ''} — "
-            f"{'it will not ask again' if action == 'granted' else 'it will ask again next time'} "
+            f"{'it will not ask again' if action in ('granted', 'resumed') else 'it will ask again next time'} "
             f"({how_word}; terms v{TERMS_VERSION}).")
     action_id = ""
     try:

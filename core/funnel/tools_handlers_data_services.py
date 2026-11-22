@@ -12,6 +12,7 @@ import datetime
 import json
 import os
 from .. import injection
+from ..confirm_gate_scrub import _scrub_text
 from .tools_gate import _PLUGIN_GATE_CLASS
 from .tools_handlers_frame_launch import _clipboard_secret_shown
 
@@ -189,7 +190,14 @@ class ToolHandlersDataServicesMixin:
         """Reads the clipboard's text (#32): long text is
         truncated with the total stated, a lone secret-looking
         token is masked, and a non-text clipboard (an image or
-        files) is reported as what it is."""
+        files) is reported as what it is.
+
+        Loophole batch 3 (L-30): a credential shape EMBEDDED in
+        otherwise ordinary text ("my password is hunter2", a
+        `curl -u user:pass` line) is scrubbed the same way — the
+        result never carries a secret back into the conversation,
+        where the learn path could pick it up. The scrubbed
+        result says so, so the masking is never silent."""
         try:
             import pyperclip
             text = pyperclip.paste()
@@ -200,6 +208,16 @@ class ToolHandlersDataServicesMixin:
             if shown is not None:
                 return (f"Clipboard holds a secret-looking value "
                         f"({len(text)} characters, masked): {shown}")
+            scrubbed = _scrub_text(text)
+            if scrubbed != text:
+                shown_text = scrubbed
+                if len(shown_text) > 600:
+                    shown_text = (
+                        f"{shown_text[:600]}\n… "
+                        f"[{len(shown_text) - 600} more characters "
+                        "not shown]")
+                return (f"Clipboard content ({len(text)} chars, "
+                        f"a secret-shaped part masked): {shown_text}")
             if len(text) > 600:
                 return (f"Clipboard content ({len(text)} chars, "
                         f"first 600 shown): {text[:600]}\n"

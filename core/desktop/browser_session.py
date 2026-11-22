@@ -697,10 +697,28 @@ def _impl_close() -> str:
     except Exception:  # noqa: BLE001
         pass
     _reset_state("browser closed")
-    return (
+    base = (
         "Detached from your Chrome. Your Chrome itself is untouched "
         "and still running — I only let go of the controls."
     )
+    # Batch 2, #4: the session may have come through Chrome's own
+    # chrome://inspect toggle, which VYUK cannot flip back — say
+    # so plainly on disconnect, or the toggle stays on silently.
+    # The flag stays set until a probe verifies the toggle off
+    # (browser_enable.toggle_left_on); a broken store reads as
+    # not set, so a failed read never invents a warning.
+    try:
+        from .browser_toggle import toggle_flag_set as _toggle_on
+        if _toggle_on():
+            return (
+                f"{base} The remote-debugging toggle in your Chrome "
+                "(chrome://inspect) is still on — VYUK can't turn it "
+                "off for you. Open chrome://inspect in Chrome and "
+                "turn the toggle off."
+            )
+    except Exception:  # noqa: BLE001 — a failed read is not set
+        pass
+    return base
 
 
 def _impl_status() -> str:

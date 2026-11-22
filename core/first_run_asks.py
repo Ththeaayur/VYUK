@@ -102,6 +102,22 @@ ASK_COPY = {
             "skip, she'll ask you each time instead."),
         "buttons": ("Choose a folder", "Not now"),
     },
+    "home_devices": {
+        # Round-3 wizard expansion: the sixth permission id,
+        # asked up front like the other five. D10 honest-empty —
+        # no home-device tools exist yet, so the copy says so:
+        # yes today changes nothing until a device is connected.
+        "title": "Can VYUK talk to devices in your home?",
+        "body": (
+            "When you connect a device at home — a light, a "
+            "speaker, anything on your home network — she needs "
+            "this on before she can talk to it. She only talks to "
+            "devices you have connected, and nothing else. Nothing "
+            "is connected yet, so saying yes changes nothing today. "
+            "You can switch it off any time in Settings → "
+            "Permissions."),
+        "buttons": ("Yes", "Not now"),
+    },
 }
 
 #: The toggle-first lines for the browser page's needs-restart

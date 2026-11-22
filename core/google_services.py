@@ -113,7 +113,11 @@ from .google_services_calendar import (
     todays_schedule,
     upcoming_events,
     next_events,
+    events_in_range,
     create_event,
+    find_free_slots,
+    cancel_event,
+    reschedule_event,
 )
 
 from .google_services_gmail import (
@@ -126,6 +130,8 @@ from .google_services_gmail import (
     unread_email,
     _message_body_text,
     search_email,
+    recent_messages,
+    message_body,
     _ATTACHMENT_MAX_BYTES,
     _MIME_EXTENSIONS,
     _human_size,
@@ -134,6 +140,7 @@ from .google_services_gmail import (
     _attachment_listing,
     download_attachment,
     send_email,
+    snooze_email,
 )
 
 from .google_services_sync import sync_updates  # GAPS-7: the sync_updates tool
@@ -147,10 +154,17 @@ __all__ = [
     "todays_schedule",
     "upcoming_events",
     "next_events",
+    "events_in_range",
     "unread_email",
     "search_email",
+    "recent_messages",
+    "message_body",
     "download_attachment",
     "send_email",
+    "snooze_email",
     "create_event",
+    "find_free_slots",
+    "cancel_event",
+    "reschedule_event",
     "sync_updates",
 ]

@@ -162,7 +162,7 @@ def _declarations_without_gimmicks(
 #: keyboard/mouse input, UIA + window-control inspection and
 #: clicking, OCR/vision looks, window management, launch/run,
 #: files, browser control, clipboard — plus app_settings
-#: (v5.52, item 8) and play_music (v5.52, item 4). 53 tools;
+#: (v5.52, item 8) and play_music (v5.52, item 4). 59 tools;
 #: every name is a registered tool (the H13 suite pins both
 #: facts).
 DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
@@ -240,6 +240,16 @@ DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
     # the model improvises the schedule from reminders instead
     # of calling the tool that reads the calendar.
     "get_morning_briefing",
+    # Stage 0 features batch 2 (Group E): the mail and
+    # calendar actions — the same shape as run_plan and
+    # get_morning_briefing above. The desktop profile is the
+    # default Live profile; without these, a spoken named-tool
+    # demand is answered in words and the tool never runs.
+    "find_free_slots", "snooze_email",
+    "cancel_calendar_event", "reschedule_calendar_event",
+    # Stage 0 features batch 3 (Group F, 2026-11-22): the money
+    # actions — same shape as batch 2 above.
+    "check_money_alerts", "portfolio_tracker",
 )
 
 #: Backwards-friendly alias (the set, not the ordering claim).

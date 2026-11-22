@@ -148,15 +148,18 @@ def _coerce(raw: str | None, typ: Any, default: Any) -> Any:
 
 
 def _provenance_lock_value(environ: Mapping[str, str]) -> bool:
-    """Session-provenance lock default (v5.48, programme item 24):
-    the canonical env name is SESSION_PROVENANCE_LOCK; SPEAKER_LOCK
-    is the legacy alias from v5.45. Precedence: a recognisably-set
+    """Session-provenance lock default (v5.48, programme item 24;
+    loophole batch 4, L-27: the default is ON): the canonical env
+    name is SESSION_PROVENANCE_LOCK; SPEAKER_LOCK is the legacy
+    alias from v5.45. Precedence: a recognisably-set
     SESSION_PROVENANCE_LOCK wins; otherwise the legacy SPEAKER_LOCK
-    value decides; otherwise OFF. A garbled new-name line falls back
-    to the legacy setting instead of silently dropping the lock."""
+    value decides; otherwise ON (the field default — a garbled or
+    absent line must never silently drop the lock). A garbled
+    new-name line falls back to the legacy setting instead of
+    silently dropping the lock."""
     return _env_bool_value(
         environ.get("SESSION_PROVENANCE_LOCK"),
-        _env_bool_value(environ.get("SPEAKER_LOCK"), False))
+        _env_bool_value(environ.get("SPEAKER_LOCK"), True))
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +241,14 @@ class ConfigSpec:
     local_model_file: str = field(default="Qwen3-4B-Instruct-2507-Q4_K_M.gguf", metadata={"env": "LOCAL_MODEL_FILE"})
     kokoro_voice: str = field(default="bm_george", metadata={"env": "KOKORO_VOICE"})
     preferred_language: str = field(default="en-gb", metadata={"env": "PREFERRED_LANGUAGE"})
+    # Round-3 wizard expansion: what she calls the user — asked
+    # once in the first-run wizard (the name page), changeable in
+    # Settings. Empty means she never learned it: the Home
+    # greeting and the briefing header read the plain form.
+    # The name is the DECLARED identity (config); the memory
+    # web's learned name keys (core/memory PINNED_KEYS) are a
+    # separate, learned record and are not consulted here.
+    user_name: str = field(default="", metadata={"env": "USER_NAME"})
     transcription_profile: str = field(default="auto", metadata={"env": "TRANSCRIPTION_PROFILE"})
     voice_auto_switch: bool = field(default=True, metadata={"env": "VOICE_AUTO_SWITCH"})
     kokoro_speed: float = field(default=0.95, metadata={"env": "KOKORO_SPEED"})
@@ -255,10 +266,31 @@ class ConfigSpec:
     wake_sensitivity: float = field(default=1.0, metadata={"env": "WAKE_SENSITIVITY"})
     wake_phrase_alt: str = field(default="", metadata={"env": "WAKE_PHRASE_ALT"})
     wake_partial_fire: bool = field(default=False, metadata={"env": "WAKE_PARTIAL_FIRE"})
-    # Session-provenance lock (v5.48): default OFF = pre-v5.45
-    # behaviour. Env SESSION_PROVENANCE_LOCK, legacy alias
-    # SPEAKER_LOCK (see _provenance_lock_value above).
-    session_provenance_lock: bool = field(default=False, metadata={"env": "SESSION_PROVENANCE_LOCK", "env_alias": "SPEAKER_LOCK"})
+    # Session-provenance lock (v5.48; loophole batch 4): default
+    # ON — a voice session starts unproven, and a spoken yes/no
+    # cannot resolve a pending confirmation until the owner proves
+    # the session (on screen, or with the voice PIN). Env
+    # SESSION_PROVENANCE_LOCK, legacy alias SPEAKER_LOCK (see
+    # _provenance_lock_value above).
+    session_provenance_lock: bool = field(default=True, metadata={"env": "SESSION_PROVENANCE_LOCK", "env_alias": "SPEAKER_LOCK"})
+    # Private mode (loophole batch 5, #5): when ON, a turn writes
+    # NOTHING anywhere — no transcript, no receipt, no audit
+    # record, no Activity line, no cost-ledger row, no learning.
+    # The mode is a per-turn store gate, not a memory flag: the
+    # stores consult it at write time (core/private_mode.py).
+    # Default OFF (the owner turns it on for a private turn).
+    # Env PRIVATE_MODE.
+    private_mode: bool = field(default=False, metadata={"env": "PRIVATE_MODE"})
+    # Feedback & crash reporting (loophole batch 7, #6): when ON,
+    # the app may record crash signatures (type + app code
+    # location only, core/feedback_report.py) and the user may
+    # file answer feedback (label + turn hash only). When OFF —
+    # the default — the crash hook records nothing at all and no
+    # feedback report is built. The opt-in is SEPARATE from the
+    # first-run sign-in: no first-run or sign-in module sets or
+    # reads it (pinned by a suite scan). Env
+    # FEEDBACK_REPORTING_ENABLED.
+    feedback_reporting_enabled: bool = field(default=False, metadata={"env": "FEEDBACK_REPORTING_ENABLED"})
     pronunciations_json: str = field(default="", metadata={"env": "PRONUNCIATIONS_JSON"})
     whisper_hours_enabled: bool = field(default=False, metadata={"env": "WHISPER_HOURS_ENABLED"})
     whisper_start: str = field(default="22:00", metadata={"env": "WHISPER_START"})
@@ -269,6 +301,12 @@ class ConfigSpec:
     google_client_id: str = field(default="", metadata={"env": "GOOGLE_CLIENT_ID"})
     # Google OAuth client secret. SECRET: never logged, never in a repr.
     google_client_secret: str = field(default="", metadata={"env": "GOOGLE_CLIENT_SECRET", "secret": True}, repr=False)
+    # Gemini sign-in ("Continue with Google", round-3 OAuth build):
+    # VYUK's OWN Desktop-app OAuth client (project vyuk-515320) —
+    # the release packaging injects these; the repo must NEVER
+    # contain the secret. The id is public; the secret is SECRET.
+    gemini_oauth_client_id: str = field(default="", metadata={"env": "GEMINI_OAUTH_CLIENT_ID"})
+    gemini_oauth_client_secret: str = field(default="", metadata={"env": "GEMINI_OAUTH_CLIENT_SECRET", "secret": True}, repr=False)
     sample_rate_in: int = field(default=16000, metadata={"env": "SAMPLE_RATE_IN"})
     sample_rate_out: int = field(default=24000, metadata={"env": "SAMPLE_RATE_OUT"})
     # No env key: plain constants of the voice path.
@@ -703,6 +741,16 @@ QSETTINGS_FIELDS: tuple[tuple[str, str, type, Any], ...] = (
     ("firstrun_stage_brain", "firstrun/stage/brain", str, "open"),
     ("firstrun_stage_permissions", "firstrun/stage/permissions", str, "open"),
     ("firstrun_stage_first_mission", "firstrun/stage/first_mission", str, "open"),
+    # Round-3 wizard expansion: the self-test fix-it pin — the
+    # failing check names, ";"-joined, cleared on an all-pass run.
+    ("firstrun_selftest_faults", "firstrun/selftest_faults", str, ""),
+    # Loophole batch 7 (#8 + #18): the setup card's per-piece
+    # state — the explicitly declined pieces (";"-joined ids)
+    # and the snooze deadline (ISO timestamp, "" = not snoozed).
+    # The card shows only while an open piece exists and the
+    # snooze has expired (core/setup_pieces.py).
+    ("firstrun_pieces_declined", "firstrun/pieces_declined", str, ""),
+    ("firstrun_setup_card_snoozed_until", "firstrun/setup_card_snoozed_until", str, ""),
     ("coach_marks_g_shown", "coach_marks/g_shown", bool, False),
     # Audio / voice.
     ("audio_input_mode", "audio/input_mode", str, "auto"),

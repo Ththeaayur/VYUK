@@ -1,6 +1,7 @@
 # secrets & local config — never commit
 .env
 .env.*
+*client_secret.json
 
 # runtime data (user data, databases) — never commit
 data/

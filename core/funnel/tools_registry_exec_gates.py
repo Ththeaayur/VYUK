@@ -12,6 +12,7 @@ from .tools_gate import (
     _READ_ONLY_TOOLS,
     _foreground_process_name,
     _is_egress_read,
+    _is_owner_only_read,
     _is_read_class,
     _needs_confirmation,
     _confirmation_args,
@@ -25,6 +26,7 @@ from .tools_gate import (
     mcp_is_read,
     mcp_needs_confirmation,
     screen_scope_active,
+    session_owner_proven,
 )
 from .. import injection  # Phase 3 F3: file now in core/funnel/; import climbs one more level
 from .tools_registry_validators import _failsafe_state  # INTENTIONAL (batch 2): failsafe consult lives in validators (batch 1); stages resolve it here, not through the facade.
@@ -535,6 +537,57 @@ class ToolRegistryExecGatesMixin:
                     "clicked. Re-observe (screenshot/share) and "
                     "retry.") % _reason})
         return None
+
+    def _exec_owner_read(self, ctx):
+        # Loophole batch 5 (L-24, #16): reads are oracles. In an
+        # UNPROVEN live-origin session under the provenance lock,
+        # a read of the owner's private material is REFUSED in
+        # plain words — not asked (a stranger gets no popup for
+        # "what is on his calendar"), and nothing is read. The
+        # boundary is _is_owner_only_read (tools_gate): calendar,
+        # mail, files, contacts, notes, memory, plans, clipboard,
+        # browser history, activity history, and the read actions
+        # of the dispatched tools whose store is the owner's.
+        # Public reads (clock, weather, web search, system info,
+        # screen look) stay free; a proven session reads freely;
+        # a typed / app-UI call (no live origin) is unaffected;
+        # the lock OFF passes through. Placed after
+        # _exec_live_staleness so route_/toolbox re-entry resolves
+        # the true tool name first, and before the confirm ask
+        # (a refusal needs no dialog). Refusal shape mirrors the
+        # permission / folder-scope refusals: audited refusal +
+        # audit-gate value + Activity line; kind "refused" is a
+        # REFUSAL kind (tool_result.REFUSAL_KINDS), so the
+        # audited result reads status "refused" (call never ran).
+        # Fail-closed on an unreadable config (the lock is ON by
+        # default, batch 4 pattern).
+        from . import live_origin as _live_origin
+        if not _live_origin.is_live_origin():
+            return None
+        if not _is_owner_only_read(ctx.name, ctx.args):
+            return None
+        if session_owner_proven():
+            return None
+        try:
+            from ..config import config as _app_config
+
+            lock_on = bool(getattr(
+                _app_config, "session_provenance_lock", False))
+        except Exception:  # noqa: BLE001 — unreadable: lock on
+            lock_on = True
+        if not lock_on:
+            return None
+        self._log_activity(
+            ctx.name, "error: refused (owner read in unproven session)")
+        ctx._audit_gate["value"] = "refused:owner-read"
+        return ctx._audited({
+            "status": "error", "kind": "refused",
+            "message": (
+                f"Refused: '{ctx.name}' reads your private material, "
+                "and this voice session hasn't been proven as yours "
+                "yet — so nothing was read. Unlock it on screen "
+                "(Settings → Privacy & permissions) or with your "
+                "voice PIN, then ask again.")})
 
     def _exec_folder_scope(self, ctx):
         # PF-18 batch 7: the D9 folder-scope stage — the files

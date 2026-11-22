@@ -91,6 +91,8 @@ Stdlib only. Product VERSION is untouched (still 5.64.1).
 from __future__ import annotations
 
 import hashlib
+import hmac
+import io
 import json
 import os
 import sqlite3
@@ -107,6 +109,31 @@ MEMORIES_PREFIX = "memories/"
 SCHEDULE_FILENAME = "backup_schedule_v565.json"
 DEFAULT_INTERVAL_SECONDS = 7 * 24 * 3600  # weekly
 APP_VERSION = "5.64.1"  # recorded in manifests; not a version bump
+
+# Loophole batch 3 (#10, L-23): the backup is ENCRYPTED.
+# A bundle is `VYUKBK1` + salt + nonce + HMAC-CTR ciphertext +
+# tag, wrapping the same ZIP the v1 format wrote (whose manifest
+# now says "vyuk-backup-v2"). The construction mirrors
+# core/secrets_store (PBKDF2-HMAC-SHA256 key derivation,
+# HMAC-CTR keystream, encrypt-then-MAC tag) and is implemented
+# here, locally, so this module stays stdlib-only. A bundle
+# written before encryption (a plain .zip) is refused on verify
+# and restore with a plain-words reason — it is never silently
+# treated as an encrypted bundle, and never decrypted.
+BUNDLE_FORMAT_ENCRYPTED = "vyuk-backup-v2"
+BUNDLE_MAGIC = b"VYUKBK1"
+BUNDLE_SUFFIX = ".vyukbak"
+LEGACY_SUFFIX = ".zip"
+_BACKUP_KDF_ITERATIONS = 200_000
+_BACKUP_SALT_BYTES = 16
+_BACKUP_NONCE_BYTES = 16
+_BACKUP_TAG_BYTES = 32  # full HMAC-SHA256 output
+PASSPHRASE_FILENAME = "backup_passphrase.bin"
+_NO_PASSPHRASE_MSG = (
+    "no backup passphrase is set — set one in Settings "
+    "(Advanced → Backup passphrase) before backing up; "
+    "a backup without a passphrase is refused, never written "
+    "in plaintext")
 
 
 def _utcnow() -> str:
@@ -125,6 +152,136 @@ def _parse_utc(value: str | None):
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _backup_keystream(key: bytes, nonce: bytes, length: int) -> bytes:
+    """HMAC-CTR keystream, mirroring core/secrets_store._keystream:
+    block i = HMAC-SHA256(key, nonce || i as 8-byte big-endian),
+    concatenated and truncated."""
+    out = bytearray()
+    counter = 0
+    while len(out) < length:
+        out.extend(hmac.new(
+            key, nonce + counter.to_bytes(8, "big"),
+            hashlib.sha256).digest())
+        counter += 1
+    return bytes(out[:length])
+
+
+def _derive_backup_key(passphrase: str, salt: bytes) -> bytes:
+    """PBKDF2-HMAC-SHA256, 200,000 iterations, 32-byte key —
+    the same derivation strength as core/secrets_store."""
+    return hashlib.pbkdf2_hmac(
+        "sha256", passphrase.encode("utf-8"), salt,
+        _BACKUP_KDF_ITERATIONS, dklen=32)
+
+
+def encrypt_backup_blob(plaintext: bytes, passphrase: str) -> bytes:
+    """Wrap a ZIP in the encrypted bundle format:
+    ``VYUKBK1`` + salt + nonce + ciphertext + tag. The tag is
+    HMAC-SHA256(key, b"tag" + nonce + ct) — encrypt-then-MAC,
+    mirroring core/secrets_store._machine_key_protect."""
+    salt = os.urandom(_BACKUP_SALT_BYTES)
+    nonce = os.urandom(_BACKUP_NONCE_BYTES)
+    key = _derive_backup_key(passphrase, salt)
+    stream = _backup_keystream(key, nonce, len(plaintext))
+    ct = bytes(b ^ s for b, s in zip(plaintext, stream))
+    tag = hmac.new(key, b"tag" + nonce + ct, hashlib.sha256).digest()
+    return BUNDLE_MAGIC + salt + nonce + ct + tag
+
+
+def decrypt_backup_blob(blob: bytes, passphrase: str) -> bytes:
+    """Unwrap an encrypted bundle. The tag is verified FIRST
+    (encrypt-then-MAC): no plaintext exists until it verifies.
+    Raises ValueError for a wrong magic, a truncated bundle, or
+    a tag mismatch (wrong passphrase or tampered bytes)."""
+    head = len(BUNDLE_MAGIC) + _BACKUP_SALT_BYTES + _BACKUP_NONCE_BYTES
+    if len(blob) < head + _BACKUP_TAG_BYTES:
+        raise ValueError("backup bundle is truncated")
+    if blob[:len(BUNDLE_MAGIC)] != BUNDLE_MAGIC:
+        raise ValueError(
+            "not an encrypted VYUK backup — this is a legacy "
+            "plain backup, written before encryption; it cannot "
+            "be verified or restored")
+    salt = blob[len(BUNDLE_MAGIC):len(BUNDLE_MAGIC) + _BACKUP_SALT_BYTES]
+    nonce = blob[len(BUNDLE_MAGIC) + _BACKUP_SALT_BYTES:head]
+    tag = blob[-_BACKUP_TAG_BYTES:]
+    ct = blob[head:-_BACKUP_TAG_BYTES]
+    key = _derive_backup_key(passphrase, salt)
+    expected = hmac.new(key, b"tag" + nonce + ct, hashlib.sha256).digest()
+    if not hmac.compare_digest(tag, expected):
+        raise ValueError(
+            "backup integrity check failed — wrong passphrase "
+            "or tampered backup")
+    stream = _backup_keystream(key, nonce, len(ct))
+    return bytes(b ^ s for b, s in zip(ct, stream))
+
+
+def _read_bundle_zip(bundle_path: str, passphrase: str | None
+                     ) -> tuple[bytes | None, str | None]:
+    """(inner ZIP bytes, error): decrypt an encrypted bundle, or
+    refuse a legacy plain ZIP / a missing passphrase with a
+    plain-words reason. The error is None on success."""
+    try:
+        with open(bundle_path, "rb") as fh:
+            blob = fh.read()
+    except OSError as exc:
+        return None, f"bundle-unreadable: {exc}"
+    if blob[:2] == b"PK" and blob[:len(BUNDLE_MAGIC)] != BUNDLE_MAGIC:
+        return None, (
+            "legacy-plain-backup: this backup was written before "
+            "encryption and cannot be verified or restored; take "
+            "a new encrypted backup instead")
+    if not passphrase:
+        return None, (
+            "passphrase-required: " + _NO_PASSPHRASE_MSG)
+    try:
+        return decrypt_backup_blob(blob, passphrase), None
+    except ValueError as exc:
+        return None, str(exc)
+
+
+def set_backup_passphrase(data_dir: str, passphrase: str) -> str:
+    """Store the backup passphrase for this data dir, protected
+    by the secrets store (never in plaintext, never inside a
+    backup — the backup never collects this file). Returns the
+    path written. An empty passphrase clears it instead."""
+    from .secrets_store import protect_bytes
+
+    path = os.path.join(data_dir, PASSPHRASE_FILENAME)
+    if not passphrase:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+        return path
+    os.makedirs(data_dir, exist_ok=True)
+    blob = protect_bytes(passphrase.encode("utf-8"))
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, blob)
+    finally:
+        os.close(fd)
+    return path
+
+
+def get_backup_passphrase(data_dir: str) -> str | None:
+    """The stored backup passphrase, or None when none is set.
+    A corrupt/unreadable store reads as unset (never partial)."""
+    from .secrets_store import unprotect_bytes
+
+    path = os.path.join(data_dir, PASSPHRASE_FILENAME)
+    try:
+        with open(path, "rb") as fh:
+            blob = fh.read()
+        return unprotect_bytes(blob).decode("utf-8")
+    except Exception:  # noqa: BLE001 — unset, corrupt or unreadable
+        return None
+
+
+def has_backup_passphrase(data_dir: str) -> bool:
+    """True when a backup passphrase is stored for this data dir."""
+    return get_backup_passphrase(data_dir) is not None
 
 
 def _safe_relpath(base: str, path: str) -> str:
@@ -183,15 +340,17 @@ def _collect_milestones(data_dir: str) -> tuple[bytes, int]:
     return blob, skipped
 
 
-def _collect_assistant_db(data_dir: str) -> tuple[bytes | None, str | None]:
-    """(snapshot bytes, error): a consistent snapshot of
-    data/assistant.db via the sqlite3 backup API. Absent ->
-    (None, "absent"); unsnapshotable -> (None, <reason>). The
+def _collect_assistant_db(data_dir: str
+                          ) -> tuple[bytes | None, str | None, int]:
+    """(snapshot bytes, error, transcripts stripped): a consistent
+    snapshot of data/assistant.db via the sqlite3 backup API.
+    Absent -> (None, "absent", 0); unsnapshotable ->
+    (None, <reason>, 0). The
     caller omits the entry and records the reason — a snapshot
     failure never fails the whole bundle."""
     path = os.path.join(data_dir, ASSISTANT_DB_NAME)
     if not os.path.isfile(path):
-        return None, "absent"
+        return None, "absent", 0
     tmp = None
     try:
         fd, tmp = tempfile.mkstemp(prefix="vyuk-assistant-db-",
@@ -207,10 +366,33 @@ def _collect_assistant_db(data_dir: str) -> tuple[bytes | None, str | None]:
                 dst.close()
         finally:
             src.close()
+        # Loophole batch 3 (L-23): the chat history never leaves
+        # the machine in a backup — the transcripts are stripped
+        # from the SNAPSHOT (the live database is untouched), the
+        # freed pages vacuumed so no transcript bytes linger in
+        # the file, and the stripped count is reported. Facts,
+        # memories and milestones still back up; a restore brings
+        # the facts back without the turns that taught them.
+        stripped = 0
+        conn = sqlite3.connect(tmp, timeout=5.0)
+        try:
+            try:
+                stripped = conn.execute(
+                    "SELECT COUNT(*) FROM conversation_logs"
+                    ).fetchone()[0]
+            except sqlite3.Error:
+                stripped = 0
+            else:
+                if stripped:
+                    conn.execute("DELETE FROM conversation_logs")
+                    conn.commit()
+                    conn.execute("VACUUM")
+        finally:
+            conn.close()
         with open(tmp, "rb") as fh:
-            return fh.read(), None
+            return fh.read(), None, int(stripped)
     except Exception as exc:  # noqa: BLE001 — the omission +
-        return None, str(exc)  # reason below is the honest answer
+        return None, str(exc), 0  # reason below is the honest answer
     finally:
         if tmp:
             try:
@@ -219,7 +401,8 @@ def _collect_assistant_db(data_dir: str) -> tuple[bytes | None, str | None]:
                 pass
 
 
-def create_backup(data_dir: str, settings: dict, out_path: str) -> dict:
+def create_backup(data_dir: str, settings: dict, out_path: str,
+                  passphrase: str | None = None) -> dict:
     """Write one scheduled backup bundle; return a creation report.
 
     ``data_dir`` is read, never written (memories/milestones are
@@ -231,7 +414,19 @@ def create_backup(data_dir: str, settings: dict, out_path: str) -> dict:
     ``assistant_db`` (snapshot bytes, or None when the store was
     absent/unsnapshotable) and ``assistant_db_error`` (the reason
     when omitted, else None).
+
+    Loophole batch 3 (#10, L-23): ``passphrase`` is REQUIRED —
+    without it the backup refuses (ValueError, plain words) and
+    nothing is written, never a plaintext bundle. With it, the
+    bundle is encrypted (``VYUKBK1`` format, see the module
+    constants) and the report carries ``encrypted: True`` plus
+    ``transcripts_stripped`` (chat turns removed from the
+    assistant.db snapshot). The ledger and the receipts are
+    never collected — they are not in the entries map and never
+    enter a bundle.
     """
+    if not passphrase:
+        raise ValueError(_NO_PASSPHRASE_MSG)
     try:
         settings_blob = json.dumps(
             settings, indent=2, sort_keys=True).encode("utf-8")
@@ -240,14 +435,15 @@ def create_backup(data_dir: str, settings: dict, out_path: str) -> dict:
             f"settings are not JSON-serialisable: {exc}") from exc
     milestones_blob, milestones_skipped = _collect_milestones(data_dir)
     memories = _collect_memories(data_dir)
-    assistant_blob, assistant_error = _collect_assistant_db(data_dir)
+    assistant_blob, assistant_error, transcripts_stripped = (
+        _collect_assistant_db(data_dir))
     entries: dict[str, bytes] = {SETTINGS_NAME: settings_blob}
     entries.update(memories)
     entries[MILESTONES_NAME] = milestones_blob
     if assistant_blob is not None:
         entries[ASSISTANT_DB_NAME] = assistant_blob
     manifest = {
-        "format": BUNDLE_FORMAT,
+        "format": BUNDLE_FORMAT_ENCRYPTED,
         "created_at": _utcnow(),
         "backup_kind": "scheduled",
         "app_version": APP_VERSION,
@@ -258,18 +454,24 @@ def create_backup(data_dir: str, settings: dict, out_path: str) -> dict:
             len(milestones_blob.decode("utf-8").splitlines())
             if milestones_blob else 0),
         "milestones_skipped_malformed": milestones_skipped,
+        "transcripts_stripped": transcripts_stripped,
     }
     manifest_blob = json.dumps(
         manifest, indent=2, sort_keys=True).encode("utf-8")
     parent = os.path.dirname(os.path.abspath(out_path))
     os.makedirs(parent, exist_ok=True)
-    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
+    inner = io.BytesIO()
+    with zipfile.ZipFile(inner, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(MANIFEST_NAME, manifest_blob)
         for name in sorted(entries):
             zf.writestr(name, entries[name])
+    with open(out_path, "wb") as fh:
+        fh.write(encrypt_backup_blob(inner.getvalue(), passphrase))
     return {
         "bundle": out_path,
-        "format": BUNDLE_FORMAT,
+        "format": BUNDLE_FORMAT_ENCRYPTED,
+        "encrypted": True,
+        "transcripts_stripped": transcripts_stripped,
         "settings_keys": len(settings),
         "memory_files": len(memories),
         "milestone_lines": manifest["milestone_lines"],
@@ -281,18 +483,29 @@ def create_backup(data_dir: str, settings: dict, out_path: str) -> dict:
     }
 
 
-def verify_bundle(bundle_path: str) -> dict:
+def verify_bundle(bundle_path: str, passphrase: str | None = None
+                  ) -> dict:
     """Check a bundle's manifest hashes without applying anything.
 
     Returns {"ok", "manifest", "failed", "extra", "missing"}:
     ``failed`` lists hash mismatches and unreadable parts,
     ``extra`` lists ZIP entries absent from the manifest,
     ``missing`` lists manifest entries absent from the ZIP.
+
+    Loophole batch 3 (#10): the bundle is decrypted first with
+    ``passphrase`` — without one, or for a legacy plain ZIP, or
+    when the integrity check fails (wrong passphrase or tampered
+    bytes), verification fails and ``ok`` is False; nothing is
+    treated as verified on a failed decrypt.
     """
     result: dict = {"ok": False, "manifest": None, "failed": [],
                     "extra": [], "missing": []}
+    inner, error = _read_bundle_zip(bundle_path, passphrase)
+    if error is not None:
+        result["failed"] = [error]
+        return result
     try:
-        zf = zipfile.ZipFile(bundle_path)
+        zf = zipfile.ZipFile(io.BytesIO(inner))
     except (zipfile.BadZipFile, OSError) as exc:
         result["failed"] = [f"bundle-unreadable: {exc}"]
         return result
@@ -307,10 +520,10 @@ def verify_bundle(bundle_path: str) -> dict:
             result["failed"] = [f"manifest-unreadable: {exc}"]
             return result
         result["manifest"] = manifest
-        if manifest.get("format") != BUNDLE_FORMAT:
+        if manifest.get("format") != BUNDLE_FORMAT_ENCRYPTED:
             result["failed"].append(
                 f"format-mismatch: {manifest.get('format')!r} "
-                f"!= {BUNDLE_FORMAT!r}")
+                f"!= {BUNDLE_FORMAT_ENCRYPTED!r}")
         hashes = manifest.get("hashes") or {}
         if not isinstance(hashes, dict):
             result["failed"] = ["manifest-hashes-not-a-mapping"]
@@ -336,7 +549,8 @@ def verify_bundle(bundle_path: str) -> dict:
 
 
 def restore_bundle(bundle_path: str, target_data_dir: str,
-                   settings_store=None) -> dict:
+                   settings_store=None,
+                   passphrase: str | None = None) -> dict:
     """Restore a bundle into a data/ directory.
 
     Verifies hashes first; on ANY verification failure nothing is
@@ -352,6 +566,11 @@ def restore_bundle(bundle_path: str, target_data_dir: str,
     one is supplied (a plain dict, or a QSettings-like object
     with ``setValue``/``sync``). Sections absent from the bundle
     are ``missing``, never papered over.
+
+    Loophole batch 3 (#10): the bundle is decrypted with
+    ``passphrase`` first — without it, or for a legacy plain
+    ZIP, or when the integrity check fails, verification fails
+    and nothing is applied.
     """
     report: dict = {"applied": [], "missing": [], "extra": [],
                     "failed": [], "settings": None,
@@ -359,7 +578,7 @@ def restore_bundle(bundle_path: str, target_data_dir: str,
                     "milestones_skipped_malformed": 0,
                     "milestones_backup": None,
                     "assistant_db_backup": None}
-    check = verify_bundle(bundle_path)
+    check = verify_bundle(bundle_path, passphrase=passphrase)
     manifest = check["manifest"]
     if manifest is None:
         report["failed"] = check["failed"]
@@ -372,7 +591,11 @@ def restore_bundle(bundle_path: str, target_data_dir: str,
         return report
     report["extra"] = check["extra"]
     report["missing"] = check["missing"]
-    with zipfile.ZipFile(bundle_path) as zf:
+    inner, error = _read_bundle_zip(bundle_path, passphrase)
+    if error is not None:
+        report["failed"] = [error]
+        return report
+    with zipfile.ZipFile(io.BytesIO(inner)) as zf:
         names = set(zf.namelist())
         if SETTINGS_NAME in names:
             try:
@@ -588,19 +811,30 @@ def get_status(data_dir: str) -> dict:
 # --- Retention ----------------------------------------------------------
 
 def list_backups(backup_dir: str) -> list[dict]:
-    """Bundles in ``backup_dir``, newest first, with sizes."""
+    """Bundles in ``backup_dir``, newest first, with sizes.
+
+    Loophole batch 3 (#10): both ``.vyukbak`` (encrypted, the
+    current format) and legacy ``.zip`` (plain, written before
+    encryption) are listed; a legacy entry carries
+    ``legacy: True`` and ``encrypted: False`` — it cannot be
+    verified or restored, only replaced by a new encrypted
+    backup. Encrypted entries carry ``legacy: False`` and
+    ``encrypted: True``."""
     if not os.path.isdir(backup_dir):
         return []
     out = []
     for name in sorted(os.listdir(backup_dir)):
-        if not name.endswith(".zip"):
+        if not (name.endswith(BUNDLE_SUFFIX)
+                or name.endswith(LEGACY_SUFFIX)):
             continue
         path = os.path.join(backup_dir, name)
         if not os.path.isfile(path):
             continue
+        legacy = name.endswith(LEGACY_SUFFIX)
         out.append({"path": path, "name": name,
                     "size_bytes": os.path.getsize(path),
-                    "mtime": os.path.getmtime(path)})
+                    "mtime": os.path.getmtime(path),
+                    "legacy": legacy, "encrypted": not legacy})
     out.sort(key=lambda item: (item["mtime"], item["name"]), reverse=True)
     return out
 

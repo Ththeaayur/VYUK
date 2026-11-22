@@ -221,12 +221,16 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
         # R10-5 python-readability port (core/article_extract.py)
         "extract_article",
     ),
-    # core/google_services.py (via _register_world_tools)             = 7
+    # core/google_services.py (via _register_world_tools)             = 12
+    # (7 at v5.5 + sync_updates + 4 Group E actions, Stage 0 features
+    # batch 2: find_free_slots, snooze_email, cancel_calendar_event,
+    # reschedule_calendar_event)
     "Your world": (
         "get_todays_schedule", "get_morning_briefing",  # Round-3 fix Q6: the deterministic briefing tool reads the same calendar
-        "get_upcoming_events",
+        "get_upcoming_events", "find_free_slots",  # Stage 0 features batch 2: the free-slot finder reads the same calendar
         "get_unread_email", "search_email",
-        "send_email", "create_calendar_event",
+        "send_email", "snooze_email", "create_calendar_event",
+        "cancel_calendar_event", "reschedule_calendar_event",  # Stage 0 features batch 2: the calendar actions
         "download_email_attachment",  # v5.5
         "sync_updates",  # GAPS-7 (BLOCKS #6): what's new since the last sync
         "room_brightness",  # v5.20 NOSE — the room, sensed on demand
@@ -370,6 +374,10 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
         "discount_stack",
         "rent_split",
         "subscription_audit",
+        # Stage 0 features batch 3 (Group F, 2026-11-22): the money
+        # alerts check and the portfolio tracker, with the other
+        # money tools.
+        "check_money_alerts", "portfolio_tracker",
         "fund_returns", "mutual_fund_nav",  # R8-8 mftool port
         "habit_track",
         "habit_summary",

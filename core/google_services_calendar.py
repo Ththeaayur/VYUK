@@ -365,6 +365,66 @@ def next_events(within_hours: int = 24, limit: int = 20) -> list[dict]:
     return events[:limit]
 
 
+def events_in_range(start_date, end_date, limit: int = 200) -> list[dict]:
+    """Events in a date window, as structured data — NOT a tool.
+
+    Powers the Calendar view (Stage 0 features batch 1): the month
+    grid needs a whole month, and ``next_events`` caps its window
+    at 7 days. Same dict shape as ``next_events`` ({"id", "title",
+    "start", "location", "all_day"}), first start first, over
+    ``start_date`` 00:00 → ``end_date`` 23:59:59 local time. Same
+    never-raises contract: not connected, missing libraries, or any
+    Google-side failure all come back as an empty list.
+    """
+    svc = _calendar_service_or_none()
+    if svc is None:
+        return []
+    try:
+        limit = max(1, min(int(limit), 500))
+    except Exception:  # noqa: BLE001
+        limit = 200
+    try:
+        start_dt = datetime.datetime(
+            start_date.year, start_date.month, start_date.day,
+            tzinfo=_local_tz())
+        end_dt = datetime.datetime(
+            end_date.year, end_date.month, end_date.day,
+            23, 59, 59, tzinfo=_local_tz())
+    except Exception:  # noqa: BLE001
+        return []
+    if end_dt < start_dt:
+        return []
+    try:
+        items, _complete = _fetch_events(svc, start_dt, end_dt)
+    except Exception:  # noqa: BLE001 — a failed walk degrades to silence
+        return []
+    events: list[dict] = []
+    for event in items or []:
+        parsed = _event_start(event)
+        if parsed is None:
+            continue
+        kind, begin, _finish = parsed
+        if kind == "allday":
+            start = datetime.datetime(
+                begin.year, begin.month, begin.day, tzinfo=_local_tz()
+            )
+            all_day = True
+        else:
+            start = begin
+            all_day = False
+        events.append(
+            {
+                "id": str(event.get("id") or ""),
+                "title": (event.get("summary") or "(untitled event)").strip(),
+                "start": start,
+                "location": (event.get("location") or "").strip() or None,
+                "all_day": all_day,
+            }
+        )
+    events.sort(key=lambda ev: ev["start"])
+    return events[:limit]
+
+
 def create_event(title: str = "", start: str = "", end: str = "",
                  description: str = "", location: str = "",
                  calendar_id: str = "primary") -> str:
@@ -427,3 +487,404 @@ def create_event(title: str = "", start: str = "", end: str = "",
     if eid:
         result += f" (event id {eid})"
     return result + "."
+
+
+def _day_bounds(day: datetime.date):
+    """(start, end) datetimes for one local day, 00:00 → 23:59:59."""
+    tz = _local_tz()
+    start = datetime.datetime(day.year, day.month, day.day, tzinfo=tz)
+    end = start + datetime.timedelta(days=1) - datetime.timedelta(
+        seconds=1)
+    return start, end
+
+
+def _parse_day(value: str):
+    """An ISO date (\"2026-11-23\") → date, else None. A bare
+    datetime is read as its local date."""
+    try:
+        return datetime.date.fromisoformat((value or "").strip()[:10])
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def find_free_slots(date: str = "", duration_minutes: int = 60,
+                    start_hour: int = 8, end_hour: int = 20) -> str:
+    """Free blocks on one day that fit a meeting of
+    ``duration_minutes`` minutes, between ``start_hour`` and
+    ``end_hour`` local time. A READ — the free/busy answer itself
+    is the owner's schedule, so the funnel's owner-read gate
+    (L-24) refuses it in an unproven live-origin session; the
+    function itself never writes. A failed or partial calendar
+    walk is reported as a failure, never as a free day — the
+    morning-briefing precedent (a failed fetch is never an empty
+    claim). All-day events block the whole day; a timed event
+    with no end is read as one hour.
+    """
+    day = _parse_day(date) if date else datetime.datetime.now(
+        ).astimezone().date()
+    if day is None:
+        return ("I couldn't understand that date — give it as "
+                "2026-11-23.")
+    try:
+        duration = int(duration_minutes)
+    except Exception:  # noqa: BLE001
+        duration = 60
+    duration = max(5, min(duration, 480))
+    try:
+        start_h = int(start_hour)
+        end_h = int(end_hour)
+    except Exception:  # noqa: BLE001
+        start_h, end_h = 8, 20
+    start_h = max(0, min(start_h, 23))
+    end_h = max(1, min(end_h, 24))
+    if end_h <= start_h:
+        return "The search window ends before it starts — check the hours."
+    svc, failure = _service_or_failure("calendar", "your calendar")
+    if svc is None:
+        return failure
+    day_start, day_end = _day_bounds(day)
+    try:
+        items, complete = _fetch_events(svc, day_start, day_end)
+    except Exception as e:  # noqa: BLE001
+        return f"Couldn't read your calendar just now ({_short(e)})."
+    window_start = day_start.replace(hour=start_h, minute=0)
+    window_end = day_start.replace(hour=end_h, minute=0) \
+        if end_h < 24 else day_start + datetime.timedelta(days=1)
+    busy: list[tuple[datetime.datetime, datetime.datetime]] = []
+    for event in items or []:
+        parsed = _event_start(event)
+        if parsed is None:
+            continue
+        kind, begin, finish = parsed
+        if kind == "allday":
+            return (f"No free time on {day.isoformat()} — "
+                    f"\"{event.get('summary') or '(untitled event)'}\" "
+                    "is an all-day event.")
+        if finish is None:
+            finish = begin + datetime.timedelta(hours=1)
+        start = max(begin, window_start)
+        end = min(finish, window_end)
+        if end > start:
+            busy.append((start, end))
+    busy.sort()
+    merged: list[list[datetime.datetime]] = []
+    for start, end in busy:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    free: list[tuple[datetime.datetime, datetime.datetime]] = []
+    cursor = window_start
+    for start, end in merged:
+        if start - cursor >= datetime.timedelta(minutes=duration):
+            free.append((cursor, start))
+        cursor = max(cursor, end)
+    if window_end - cursor >= datetime.timedelta(minutes=duration):
+        free.append((cursor, window_end))
+
+    def _hhmm(when):
+        return f"{when:%H:%M}"
+
+    label = day.isoformat()
+    if not free:
+        line = (f"No {duration}-minute free block on {label} between "
+                f"{start_h:02d}:00 and {end_h:02d}:00 — the day is full.")
+    else:
+        slots = ", ".join(
+            f"{_hhmm(s)}–{_hhmm(e)}" for s, e in free)
+        line = (f"Free on {label} for {duration} minutes: {slots}.")
+    if not complete:
+        line += (" (Some of your calendars couldn't be read, so "
+                 "this may miss events on them.)")
+    return line
+
+
+def _resolve_event(svc, event: str, date: str, calendar_id: str):
+    """Raw Google events matching a title fragment on one day — or,
+    with no date, today through the next 7 days. Returns
+    (matches, failure): matches is the list (possibly empty),
+    failure a sentence when the walk itself failed."""
+    fragment = (event or "").strip().lower()
+    if date:
+        day = _parse_day(date)
+        if day is None:
+            return [], "I couldn't understand that date — give it as 2026-11-23."
+        start, end = _day_bounds(day)
+    else:
+        today = datetime.datetime.now().astimezone().date()
+        start, _ = _day_bounds(today)
+        _, end = _day_bounds(today + datetime.timedelta(days=7))
+    try:
+        items, _complete = _fetch_events(svc, start, end)
+    except Exception as e:  # noqa: BLE001
+        return [], f"Couldn't read your calendar just now ({_short(e)})."
+    matches = [ev for ev in items or []
+               if fragment in str(ev.get("summary") or "").lower()]
+    return matches, ""
+
+
+def _describe_raw_event(event: dict) -> str:
+    """\"Dentist, 23 Nov 15:00–16:00\" for a raw Google event."""
+    title = (event.get("summary") or "(untitled event)").strip()
+    parsed = _event_start(event)
+    if parsed is None:
+        return title
+    kind, begin, finish = parsed
+    if kind == "allday":
+        return f"{title}, {begin.isoformat()} (all day)"
+    if finish is None:
+        return f"{title}, {begin:%d %b %H:%M}"
+    return f"{title}, {begin:%d %b %H:%M}–{finish:%H:%M}"
+
+
+def _get_event(svc, calendar_id: str, event_id: str):
+    """One event by id, or None when Google says it is gone
+    (404) or the fetch fails. The 404 is the proof a delete
+    took — it is a return value here, never a raise."""
+    try:
+        return svc.events().get(
+            calendarId=calendar_id or "primary",
+            eventId=event_id).execute()
+    except Exception as e:  # noqa: BLE001
+        status = getattr(getattr(e, "resp", None), "status", None)
+        if status == 404 or "404" in str(e):
+            return None
+        return {"__fetch_error__": _short(e)}
+
+
+def cancel_event(event: str = "", date: str = "", event_id: str = "",
+                 calendar_id: str = "primary") -> str:
+    """Cancels one calendar event, by id or by title (+ date).
+    Confirm-gated at the funnel (like create_calendar_event) and
+    never in a plan's never-ask set. Every failure is an
+    _outcome.failed — a plain string would be read as success by
+    the receipts while nothing was cancelled (F-F501). The delete
+    is verified by re-read: the event must be gone (a GET that
+    404s) before the success line names it (A5-sysreadback)."""
+    from . import tool_outcome as _outcome  # R1b: seam wiring
+    if not (event or "").strip() and not (event_id or "").strip():
+        return _outcome.failed(
+            "Which event should I cancel? Give me its title "
+            "(and the day, if it could be more than one).",
+            "no event named")
+    svc, failure = _write_service_or_failure(
+        "calendar", "your calendar", CALENDAR_EVENTS_SCOPE,
+        "cancelling events")
+    if svc is None:
+        return _outcome.failed(failure, "calendar service unavailable")
+    cid = calendar_id or "primary"
+    if (event_id or "").strip():
+        found = _get_event(svc, cid, event_id.strip())
+        if found is None:
+            return _outcome.failed(
+                "That event is already gone — nothing to cancel.",
+                "event not found")
+        if isinstance(found, dict) and found.get("__fetch_error__"):
+            return _outcome.failed(
+                f"Couldn't check that event just now "
+                f"({found['__fetch_error__']}).",
+                "event fetch failed")
+        target, title = found, _describe_raw_event(found)
+    else:
+        matches, walk_failure = _resolve_event(svc, event, date, cid)
+        if walk_failure:
+            return _outcome.failed(walk_failure, "calendar read failed")
+        if not matches:
+            when = f" on {date}" if date else ""
+            return _outcome.failed(
+                f"I couldn't find \"{event}\"{when} on your calendar.",
+                "event not found")
+        if len(matches) > 1:
+            lines = "\n".join(
+                f"• {_describe_raw_event(ev)}" for ev in matches[:5])
+            return _outcome.failed(
+                f"That matches {len(matches)} events — which one?\n{lines}",
+                "ambiguous event")
+        target = matches[0]
+        title = _describe_raw_event(target)
+    eid = str(target.get("id") or "")
+    if not eid:
+        return _outcome.failed(
+            "That event has no id I can cancel by — try it from "
+            "the calendar itself.",
+            "event has no id")
+    try:
+        svc.events().delete(calendarId=cid, eventId=eid).execute()
+    except Exception as e:  # noqa: BLE001
+        if _is_scope_error(e):
+            return _outcome.failed(
+                _scope_missing_message("cancelling events"),
+                "scope missing")
+        return _outcome.failed(
+            f"Couldn't cancel that event just now ({_short(e)}).",
+            "delete failed")
+    gone = _get_event(svc, cid, eid)
+    if gone is not None:
+        if isinstance(gone, dict) and gone.get("__fetch_error__"):
+            return _outcome.failed(
+                f"The cancel went through but I couldn't verify it "
+                f"({gone['__fetch_error__']}) — check the calendar.",
+                "cancel unverified")
+        return _outcome.failed(
+            "The cancel didn't take — the event is still there.",
+            "cancel unverified")
+    return f"Cancelled — {title}."
+
+
+def reschedule_event(event: str = "", date: str = "", event_id: str = "",
+                     new_start: str = "", new_end: str = "",
+                     calendar_id: str = "primary") -> str:
+    """Moves one calendar event to a new time, by id or by title
+    (+ date). With no new_end the whole event shifts by the same
+    amount as new_start. Confirm-gated at the funnel (like
+    create_calendar_event) and never in a plan's never-ask set.
+    Every failure is an _outcome.failed (F-F501). The move is
+    verified by re-read: a GET after the patch must show the new
+    times before the success line names them (A5-sysreadback).
+    An all-day event moves by date only — a timed move for one
+    is refused honestly."""
+    from . import tool_outcome as _outcome  # R1b: seam wiring
+    if not (event or "").strip() and not (event_id or "").strip():
+        return _outcome.failed(
+            "Which event should I move? Give me its title "
+            "(and the day, if it could be more than one).",
+            "no event named")
+    begin = _parse_event_dt(new_start or "")
+    if begin is None:
+        return _outcome.failed(
+            "I couldn't understand the new start — give it as an "
+            "ISO time, like 2026-11-23T17:00:00.",
+            "new start unparseable")
+    finish = _parse_event_dt(new_end or "") if new_end else None
+    if new_end and finish is None:
+        return _outcome.failed(
+            "I couldn't understand the new end — give it as an "
+            "ISO time, like 2026-11-23T18:00:00.",
+            "new end unparseable")
+    svc, failure = _write_service_or_failure(
+        "calendar", "your calendar", CALENDAR_EVENTS_SCOPE,
+        "moving events")
+    if svc is None:
+        return _outcome.failed(failure, "calendar service unavailable")
+    cid = calendar_id or "primary"
+    if (event_id or "").strip():
+        found = _get_event(svc, cid, event_id.strip())
+        if found is None:
+            return _outcome.failed(
+                "That event is already gone — nothing to move.",
+                "event not found")
+        if isinstance(found, dict) and found.get("__fetch_error__"):
+            return _outcome.failed(
+                f"Couldn't check that event just now "
+                f"({found['__fetch_error__']}).",
+                "event fetch failed")
+        target = found
+    else:
+        matches, walk_failure = _resolve_event(svc, event, date, cid)
+        if walk_failure:
+            return _outcome.failed(walk_failure, "calendar read failed")
+        if not matches:
+            when = f" on {date}" if date else ""
+            return _outcome.failed(
+                f"I couldn't find \"{event}\"{when} on your calendar.",
+                "event not found")
+        if len(matches) > 1:
+            lines = "\n".join(
+                f"• {_describe_raw_event(ev)}" for ev in matches[:5])
+            return _outcome.failed(
+                f"That matches {len(matches)} events — which one?\n{lines}",
+                "ambiguous event")
+        target = matches[0]
+    eid = str(target.get("id") or "")
+    if not eid:
+        return _outcome.failed(
+            "That event has no id I can move by — try it from "
+            "the calendar itself.",
+            "event has no id")
+    old = _describe_raw_event(target)
+    parsed = _event_start(target)
+    if parsed is not None and parsed[0] == "allday":
+        if new_end or ":" in (new_start or "")[10:]:
+            return _outcome.failed(
+                "That's an all-day event — move it by date "
+                f"({parsed[1].isoformat()}), not by time.",
+                "all-day event needs a date")
+        new_day = _parse_day(new_start)
+        if new_day is None:
+            return _outcome.failed(
+                "I couldn't understand the new date — give it as "
+                "2026-11-24.",
+                "new date unparseable")
+        body = {"start": {"date": new_day.isoformat()},
+                "end": {"date": (new_day
+                                 + datetime.timedelta(days=1)).isoformat()}}
+        # want[0] is a date here, matching what _event_start
+        # returns for an all-day event — an isoformat string
+        # would never equal it and every all-day move would
+        # fail verification after landing.
+        want = (new_day, None)
+    else:
+        if finish is None:
+            if parsed is not None:
+                _kind, old_begin, old_finish = parsed
+                if old_begin is not None and old_finish is not None:
+                    finish = begin + (old_finish - old_begin)
+                else:
+                    finish = begin + datetime.timedelta(hours=1)
+            else:
+                # The old event carries nothing parseable — move
+                # it as a one-hour block at the new start.
+                finish = begin + datetime.timedelta(hours=1)
+        if finish is not None and finish <= begin:
+            return _outcome.failed(
+                "That move would end before it starts — check the "
+                "new times.",
+                "new end before new start")
+        body = {"start": {"dateTime": begin.isoformat()},
+                "end": {"dateTime": finish.isoformat()}}
+        want = (begin, finish)
+    try:
+        svc.events().patch(
+            calendarId=cid, eventId=eid, body=body).execute()
+    except Exception as e:  # noqa: BLE001
+        if _is_scope_error(e):
+            return _outcome.failed(
+                _scope_missing_message("moving events"),
+                "scope missing")
+        return _outcome.failed(
+            f"Couldn't move that event just now ({_short(e)}).",
+            "move failed")
+    moved = _get_event(svc, cid, eid)
+    if moved is None:
+        return _outcome.failed(
+            "The move went through but the event is gone now — "
+            "check the calendar.",
+            "move unverified")
+    if isinstance(moved, dict) and moved.get("__fetch_error__"):
+        return _outcome.failed(
+            f"The move went through but I couldn't verify it "
+            f"({moved['__fetch_error__']}) — check the calendar.",
+            "move unverified")
+    check = _event_start(moved)
+    if check is None:
+        return _outcome.failed(
+            "The move went through but I couldn't read the new "
+            "time back — check the calendar.",
+            "move unverified")
+    if check[0] == "allday":
+        if check[1] != want[0]:
+            return _outcome.failed(
+                "The move didn't take — the event is still on the "
+                "old day.",
+                "move unverified")
+        new_label = f"{check[1].isoformat()} (all day)"
+    else:
+        if check[1] != want[0] or check[2] != want[1]:
+            return _outcome.failed(
+                "The move didn't take — the event is still at the "
+                "old time.",
+                "move unverified")
+        new_label = (f"{check[1]:%d %b %H:%M}–{check[2]:%H:%M}"
+                     if check[2] is not None
+                     else f"{check[1]:%d %b %H:%M}")
+    return f"Moved — {old} to {new_label}."

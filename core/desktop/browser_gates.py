@@ -7,7 +7,11 @@ _DANGEROUS_CLICK_RE = re.compile(
     r"\bpay\b|purchase|checkout|check out|place (your )?order|order now|"
     r"\bbuy\b|send money|\bsend\b|donate|delete|remove|erase|"
     r"\bconfirm\b|unsubscribe|complete (your )?(purchase|order|payment)|"
-    r"submit (payment|order)",
+    r"submit (payment|order)|\bupload\b|\battach\b|\bshare\b|\bsave\b|"
+    r"\bsubscribe\b|cancel ((my|the|this|an?) )?(account|subscription|order|membership|booking)|"
+    r"close (your )?account|\bdeactivate\b|\bagree\b|\baccept\b|\bbook\b|"
+    r"\breserve\b|\bpublish\b|\btransfer\b|\bwithdraw\b|sign ?up|log ?in|sign ?in|"
+    r"post (an? )?(comment|reply|message|update)",
     re.IGNORECASE,
 )
 
@@ -57,10 +61,93 @@ def _dangerous_click_verdict(target: str, identity: str,
 _DESTRUCTIVE_SUBMIT_RE = re.compile(
     r"\bpay\b|purchase|checkout|check out|place (your )?order|order now|"
     r"\bbuy\b|send money|donate|delete|remove|erase|destroy|"
-    r"unsubscribe|cancel (an? )?(account|subscription|order)|"
-    r"submit (payment|order)",
+    r"unsubscribe|cancel ((my|the|this|an?) )?(account|subscription|order|membership|booking)|"
+    r"submit (payment|order)|\bupload\b|\battach\b|\bshare\b|\bsave\b|"
+    r"\bsubscribe\b|close (your )?account|\bdeactivate\b|\bagree\b|"
+    r"\baccept\b|\bbook\b|\breserve\b|\bpublish\b|\btransfer\b|\bwithdraw\b|"
+    r"sign ?up|log ?in|sign ?in|post (an? )?(comment|reply|message|update)",
     re.IGNORECASE,
 )
+
+
+_ELEMENT_KIND_JS = (
+    "/* VYUK-ELEMENT-KIND */ el => { try { "
+    "if (!el) return {file: false, submit: false}; "
+    "const tag = (el.tagName || '').toUpperCase(); "
+    "const type = (el.getAttribute('type') || '').toLowerCase(); "
+    "let file = tag === 'INPUT' && type === 'file'; "
+    "if (!file && tag === 'LABEL') { "
+    "const forId = el.getAttribute('for') || ''; "
+    "const target = forId ? document.getElementById(forId) : null; "
+    "const wrapped = el.querySelector('input[type=file]'); "
+    "file = !!(wrapped || (target && target.tagName === 'INPUT' "
+    "&& (target.getAttribute('type') || '').toLowerCase() === 'file')); } "
+    "const submit = (tag === 'BUTTON' && (type === 'submit' || type === '')) "
+    "|| (tag === 'INPUT' && (type === 'submit' || type === 'button')); "
+    "return {file: !!file, submit: !!submit}; } "
+    "catch (e) { return {file: false, submit: false}; } }"
+)
+
+
+def _element_kind(loc) -> dict:
+    """The resolved element's kind: {file, submit}.
+
+    file = the element IS an input[type=file], or a label for one
+    (``for`` pointing at one, or wrapping one) — the attach step
+    of an upload (L-29). submit = the element is a submit control
+    (a button with no type, which defaults to submit inside a
+    form, a button[type=submit], or an input[type=submit|button]).
+
+    A probe failure reads as neither: the probe only ADDS the
+    file-input and submit-control shapes — the regex gate and
+    the form-intent gate still judge the dangerous shapes, and
+    the upload flow's commit step (the send click) is gated by
+    the regex regardless, so a failed probe can never let an
+    upload complete ungated.
+    """
+    try:
+        kind = loc.evaluate(_ELEMENT_KIND_JS)
+    except Exception:  # noqa: BLE001 — a failed probe is neither
+        return {"file": False, "submit": False}
+    if not isinstance(kind, dict):
+        return {"file": False, "submit": False}
+    return {"file": bool(kind.get("file")),
+            "submit": bool(kind.get("submit"))}
+
+
+def _file_input_verdict(target: str, identity: str,
+                        model_confirmed: bool) -> str | None:
+    """Gate a file-input click (L-29: the attach step of an
+    upload — the file chooser hands a local file to the page).
+    The _dangerous_click_verdict shape with upload wording: the
+    HUMAN decides when a handler is present; the model's confirm
+    flag is only the no-handler headless fallback.
+    None = proceed; otherwise the refusal.
+    """
+    try:
+        from .. import confirm_gate  # Phase 3 D2a: confirm_gate stays flat in core/
+    except Exception:  # noqa: BLE001 — a broken import means no handler
+        confirm_gate = None
+    if confirm_gate is not None and confirm_gate.has_handler():
+        approved = confirm_gate.request_confirmation(
+            "browser_click",
+            {"target": target, "element": identity[:120],
+             "upload": True},
+        )
+        if approved:
+            return None
+        return (
+            "Refused: that click attaches a file to the page, and it "
+            "was not approved in VYUK's confirmation popup — so I "
+            "didn't click it."
+        )
+    if model_confirmed:
+        return None
+    return (
+        f"Refused: '{target}' attaches a file to the page. I never "
+        "attach files on a guess — if the user really wants this "
+        "exact click, they must confirm it (pass confirm=true)."
+    )
 
 
 _FORM_INTENT_JS = (

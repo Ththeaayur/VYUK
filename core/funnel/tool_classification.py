@@ -93,6 +93,11 @@ _CONFIRM_GATE_TOOLS = frozenset({
     "batch_rename",         # renames many files at once (v4.4)
     "send_email",           # mail leaves the machine (v5.2)
     "create_calendar_event",  # writes to the user's calendar (v5.2)
+    # Stage 0 features batch 2 (Group E, 2026-11-22): the
+    # calendar actions — cancelling deletes an event, moving
+    # rewrites one; both ask first, like creating one.
+    "cancel_calendar_event",
+    "reschedule_calendar_event",
     # Round-3 section F fix F-F303 (2026-11-21): a toast pops on
     # the user's screen outside the conversation, with no ask and
     # no permission to revoke — the sharp half of F-F303 (the
@@ -521,7 +526,8 @@ _CONFIRM_GATE_TOOLS = frozenset({
 _READ_ONLY_TOOLS = frozenset({
     "battery_health", "battery_info", "bluetooth_devices",
     "disk_health", "display_details", "dns_lookup",
-    "file_hash", "find_duplicates", "find_files", "folder_size",
+    "file_hash", "find_duplicates", "find_files", "find_free_slots",
+    "folder_size",
     "get_active_window", "get_activity_log", "get_crypto_price",
     "get_current_time_date", "get_plan", "get_stock_quote",
     "get_system_info", "get_todays_schedule", "get_unread_email",
@@ -1199,6 +1205,11 @@ _FREE_BY_DESIGN: dict[str, str] = {
     "bill_calendar": "app-state",
     "borrow_log": "app-state",
     "budget_envelope": "app-state",
+    # Stage 0 features batch 3 (Group F, 2026-11-22): the money
+    # alerts check writes only its own dedupe ledger
+    # (data/money_alerts.json) plus the price watches' own
+    # last-seen fields — app-state, never money movement.
+    "check_money_alerts": "app-state",
     "contact_card": "app-state",
     "countdown": "app-state",
     "create_plan": "app-state",
@@ -1260,6 +1271,11 @@ _FREE_BY_DESIGN: dict[str, str] = {
     "social_stay_in_touch": "app-state",
     "social_nudge_snooze": "app-state",
     "social_nudge_pause": "app-state",
+    # Stage 0 features batch 2 (Group E, 2026-11-22): snooze_email
+    # writes only VYUK's own snooze store (data/email_snoozed.json)
+    # — the social_nudge_snooze precedent: local, reversible,
+    # nothing leaves the machine.
+    "snooze_email": "app-state",
     # GAPS-7 (BLOCKS #6): sync_updates reads Google and writes only
     # its own watermark file (data/connector_sync_state.json) — no
     # message sent, no event created, nothing leaves the machine.
@@ -1291,6 +1307,10 @@ _FREE_BY_DESIGN: dict[str, str] = {
     "pet_feeding_log": "app-state",
     "plant_care_log": "app-state",
     "pomodoro": "app-state",
+    # Stage 0 features batch 3 (Group F, 2026-11-22): the
+    # portfolio writes only to VYUK's own memory facts (category
+    # `portfolio`) — app-state, never money movement.
+    "portfolio_tracker": "app-state",
     "practice_log": "app-state",
     "price_watch": "app-state",
     "quiz_me": "app-state",
@@ -1681,6 +1701,73 @@ def _is_read_action(name: str, args: dict[str, Any] | None) -> bool:
     # fixing only one would leave the other leg open.
     if name == "get_pixel_color":
         return action in ("", "read")
+    # Loophole batch 4 (L-27): these read actions were missing
+    # from this table — invisible while the speaker lock
+    # defaulted OFF, but the lock (now ON by default) gates
+    # every call this table does not name a read, so a wake
+    # session's list/status/digest asked for confirmation
+    # despite _gate_action below naming them free reads. Each
+    # branch mirrors _gate_action's own free-read list for the
+    # tool; the acting actions stay non-read (fail-closed).
+    # adapter_action is deliberately NOT mirrored here: its
+    # read-ness depends on running the phrase resolution, so it
+    # stays gated under the lock (conservative, not a hole).
+    if name == "scheduled_agents":
+        # GAPS-8: list / status / digest are free reads of VYUK's
+        # own agent store; setup_digest / cancel / run_now /
+        # save_routine / run_routine act.
+        return action in ("list", "status", "digest")
+    if name == "context_menu_action":
+        # §7 batch 8: listing an already-open menu is a read.
+        return action == "list"
+    if name == "journal_action":
+        # §7 batch 2: list and plan are pure re-reads of the
+        # journal file; reconcile / compensate are effectful.
+        return action in ("list", "plan")
+    if name == "menu_action":
+        # §7 batch 1: listing menus is a read.
+        return action == "list"
+    if name == "system_surface_action":
+        # §7 batch 1: surface listings and Start search are reads.
+        surface = str((args or {}).get("surface", "") or "").strip().lower()
+        if action == "list" and surface in (
+                "tray", "taskbar", "notification", "settings"):
+            return True
+        return surface == "start" and action == "search"
+    if name == "run_command":
+        # v5.45 (H3): polling, waiting on or listing a background
+        # job reads its output — the command was trust-checked
+        # and approved once at launch. Cancelling a job is an
+        # effect, not a read, so it stays gated under the lock.
+        return action in ("poll", "status", "wait", "list")
+    # Loophole batch 5 (L-24): the four app-state tools whose
+    # read actions were missing from this table — their list /
+    # total reads return the owner's stored content (expenses,
+    # bills, subscriptions, books), so the owner-read gate
+    # needs to recognise them as reads. Behaviour change,
+    # stated: under the provenance lock these reads move from
+    # "confirm ask" (state-changing by classification) to the
+    # owner-read refusal in an unproven live session, and to a
+    # free read in a proven session or a typed turn. The write
+    # actions stay non-read (add/remove/mark_read act, and reach
+    # their own confirm gate).
+    if name == "expense_log":
+        return action in ("list", "total")
+    if name == "bill_calendar":
+        return action == "list"
+    if name == "subscription_audit":
+        return action == "list"
+    # Stage 0 features batch 3 (Group F, 2026-11-22): the money
+    # alerts check reads the owner's budgets, watches and
+    # subscriptions on every call (no action param) — owner-only
+    # by construction, the subscription_audit precedent; the
+    # portfolio's list/total read the owner's holdings.
+    if name == "check_money_alerts":
+        return True
+    if name == "portfolio_tracker":
+        return action in ("list", "total")
+    if name == "reading_list":
+        return action == "list"
     return False
 
 

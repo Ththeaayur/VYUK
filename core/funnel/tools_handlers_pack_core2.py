@@ -473,6 +473,66 @@ class MindWorldPacksMixin:
             handler=google_services.create_event,
         )
         self.register(
+            name="find_free_slots",
+            description="Find free time on the user's Google Calendar for a meeting: the open blocks on one day that fit a meeting of a given length, between the hours the user names. This is an owner-only read — it answers only for the owner, never for an unproven voice (the L-24 boundary: a free/busy answer is the owner's schedule). The answer never claims a day is free when the calendar couldn't be read. Requires Google connected (Settings → Your world); if it isn't, the result explains how to connect.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string", "description": "The day to search, ISO date like '2026-11-23' (default: today)"},
+                    "duration_minutes": {"type": "integer", "description": "How long the meeting needs to be, in minutes (default 60)"},
+                    "start_hour": {"type": "integer", "description": "Earliest hour to consider, 0-23 local time (default 8)"},
+                    "end_hour": {"type": "integer", "description": "Latest hour to consider, 1-24 local time (default 20)"},
+                },
+                "required": [],
+            },
+            handler=google_services.find_free_slots,
+        )
+        self.register(
+            name="snooze_email",
+            description="Snooze one of the user's Gmail messages, list snoozed mail, or bring one back early. With a message id (from search_email / get_unread_email results) and a time it snoozes that mail until then — 'tomorrow', an ISO date like '2026-11-23' (09:00 that day), or an ISO datetime; with no time it snoozes until tomorrow 09:00, unless the mail is already snoozed, in which case it brings it back now. With no message id it lists what's snoozed. Snooze is local only: the mail stays unread in Gmail, and only VYUK's own inbox surfaces hide it until the time comes — after that it is back in the inbox on its own. Requires Google connected.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "message_id": {"type": "string", "description": "The Gmail message id to snooze (or bring back); empty to list snoozed mail"},
+                    "until": {"type": "string", "description": "When it comes back: 'tomorrow', an ISO date, or an ISO datetime (default: tomorrow 09:00; empty on an already-snoozed mail brings it back now)"},
+                },
+                "required": [],
+            },
+            handler=google_services.snooze_email,
+        )
+        self.register(
+            name="cancel_calendar_event",
+            description="Cancel one event on the user's Google Calendar, by its title (and the day, if it could be more than one) or by its event id. The user must approve it in VYUK's confirmation popup first. If the title matches more than one event, nothing is cancelled and the result lists the matches so the user can pick. Requires Google connected (Settings → Your world); if it isn't, the result explains how to connect.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "event": {"type": "string", "description": "The event title (or part of it) to cancel"},
+                    "date": {"type": "string", "description": "The day it's on, ISO date like '2026-11-23' (default: search today through the next 7 days)"},
+                    "event_id": {"type": "string", "description": "Optional: the exact event id, when it is known (skips the title search)"},
+                    "calendar_id": {"type": "string", "description": "Optional calendar id (default 'primary')"},
+                },
+                "required": [],
+            },
+            handler=google_services.cancel_event,
+        )
+        self.register(
+            name="reschedule_calendar_event",
+            description="Move one event on the user's Google Calendar to a new time, by its title (and the day, if it could be more than one) or by its event id. The user must approve it in VYUK's confirmation popup first. Times are ISO strings like '2026-11-23T17:00:00' (local time unless an offset is included); with no new end time the whole event shifts by the same amount as the new start. An all-day event moves by date only. If the title matches more than one event, nothing is moved and the result lists the matches so the user can pick. Requires Google connected (Settings → Your world); if it isn't, the result explains how to connect.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "event": {"type": "string", "description": "The event title (or part of it) to move"},
+                    "date": {"type": "string", "description": "The day it's on, ISO date like '2026-11-23' (default: search today through the next 7 days)"},
+                    "event_id": {"type": "string", "description": "Optional: the exact event id, when it is known (skips the title search)"},
+                    "new_start": {"type": "string", "description": "New start time, ISO format, e.g. '2026-11-23T17:00:00' (or an ISO date for an all-day event)"},
+                    "new_end": {"type": "string", "description": "Optional new end time, ISO format; without it the event keeps its length"},
+                    "calendar_id": {"type": "string", "description": "Optional calendar id (default 'primary')"},
+                },
+                "required": ["new_start"],
+            },
+            handler=google_services.reschedule_event,
+        )
+        self.register(
             name="download_email_attachment",
             description="Download an attachment from one of the user's emails to their Downloads folder (or a folder they name). Give the message id (from search_email / get_unread_email results); with no filename, a lone attachment is saved, and with several the result lists them so the user can pick. Filenames are sanitised, existing files are never overwritten, and files over 25 MB are refused. Requires Google connected.",
             parameters={

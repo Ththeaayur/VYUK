@@ -17,7 +17,17 @@ from .tools_registry_validators import (  # INTENTIONAL (batch 1):
 
 class ToolRegistryHelpersMixin:
     def _log_activity(self, name: str, status: str):
-        """Append one line per execution to data/activity.log. Never raises."""
+        """Append one line per execution to data/activity.log. Never raises.
+
+        Loophole batch 5 (#5): private mode suppresses the
+        Activity feed — a private turn leaves no line here (and
+        no voice-task marker line either)."""
+        try:
+            from ..private_mode import private_mode_on
+        except Exception:  # noqa: BLE001 — unreadable: not private
+            private_mode_on = None
+        if private_mode_on is not None and private_mode_on():
+            return
         try:
             import pathlib
 

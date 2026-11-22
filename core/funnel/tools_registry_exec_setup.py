@@ -506,9 +506,24 @@ class ToolRegistryExecSetupMixin:
             except Exception:  # noqa: BLE001 — see above
                 _thread_handle, _thread_stamp = None, None
             _attempt_before = _receipts_mod.attempt_failure_count()
-            ctx._receipt_attempt = _receipts_mod.try_record_attempt(
-                tool=ctx.name, args=ctx.args if isinstance(ctx.args, dict) else {},
-                handle_id=_thread_handle, snapshot_stamp=_thread_stamp)
+            # Loophole batch 5 (#5): private mode suppresses the
+            # receipt — a private turn leaves no attempt row (and
+            # therefore no outcome row: _audited writes the
+            # outcome only when _receipt_dispatched proves a
+            # dispatched record exists, which needs an attempt).
+            # The unknown-outcome GUARD above still runs (it is a
+            # read, not a write) — a private call never re-runs
+            # an unknown-status side effect from an earlier turn.
+            try:
+                from ..private_mode import private_mode_on
+            except Exception:  # noqa: BLE001 — unreadable: not private
+                private_mode_on = None
+            if private_mode_on is not None and private_mode_on():
+                ctx._receipt_attempt = None
+            else:
+                ctx._receipt_attempt = _receipts_mod.try_record_attempt(
+                    tool=ctx.name, args=ctx.args if isinstance(ctx.args, dict) else {},
+                    handle_id=_thread_handle, snapshot_stamp=_thread_stamp)
             ctx._receipt_error = (
                 _receipts_mod.attempt_failure_count() > _attempt_before)
         except Exception:  # noqa: BLE001 — receipts never break

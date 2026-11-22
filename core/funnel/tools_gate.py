@@ -55,10 +55,18 @@ def set_session_provenance(provenance: str) -> None:
     started from the app — Connect button / push-to-talk), "auto"
     (wake word / autostart / auto-reconnect / watcher-initiated),
     or "unknown" (no session / not yet marked). Any other value is
-    stored as "unknown" so a typo can never read as user-started."""
+    stored as "unknown" so a typo can never read as user-started.
+    Owner proof follows the start: a user-started session is proven
+    owner at start (a physical on-screen act); an auto/unknown
+    session starts UNPROVEN and stays so until the owner unlocks
+    it (on screen, or with the voice PIN) — loophole batch 4."""
     global _session_provenance
     _session_provenance = (
         provenance if provenance in ("user", "auto") else "unknown")
+    if _session_provenance == "user":
+        mark_session_owner_proven("user-started")
+    else:
+        mark_session_owner_unproven()
 
 
 def session_provenance() -> str:
@@ -69,6 +77,280 @@ def session_provenance() -> str:
 
 def _session_is_user_started() -> bool:
     return _session_provenance == "user"
+
+
+# ------------------------------------------------------------------
+# Owner proof (loophole batch 4 — #1, #20, L-27, #19).
+#
+# The provenance lock above only makes a state-changing tool ASK
+# in a non-user-started session — and the ask itself was still
+# answerable by voice (gui/window_services_confirm.py:
+# _maybe_confirm_reply resolves a pending ask on a spoken "yes").
+# So any voice in the room could approve anything. Owner proof
+# closes that: a session is PROVEN only when the owner proved it
+# — by starting it from the app UI (provenance "user": an explicit
+# Connect press / push-to-talk, a physical on-screen act) or by
+# unlocking it afterwards (on screen, or with the owner-set voice
+# PIN). A wake-word / autostart / reconnect / watcher session
+# starts UNPROVEN, and an unproven session's spoken yes/no never
+# resolves a pending confirmation — the popup stays up for the
+# owner to answer on screen, or it times out and the act is
+# refused. Reads stay free in every state (reading is not acting).
+#
+# This is a session lock, not voiceprint verification: it does not
+# recognise WHO is speaking. The on-device voiceprint module
+# (core/voice_lock.py, PF-16) has no cleared engine and no cleared
+# weights, so it is unavailable and never a pass — this control
+# is the honest foundation until one is cleared. A visitor at the
+# keyboard pressing Connect is the same boundary as a visitor at
+# the keyboard clicking Yes on a popup: physical screen access,
+# which the (approved, not yet built) app lock covers, not voice.
+#
+# FAIL-CLOSED: the flag starts False (unproven), and anything that
+# is not an explicit owner proof reads as unproven.
+_session_owner_proven: bool = False
+_session_owner_proof_reason: str | None = None
+
+
+def session_owner_proven() -> bool:
+    """True when this session is proven owner: started from the
+    app UI by the owner, or unlocked afterwards (on screen, or
+    with the voice PIN). False until then — including "unknown"."""
+    return bool(_session_owner_proven)
+
+
+def session_owner_proof_reason() -> str | None:
+    """How the session was proven ("user-started" / "screen" /
+    "voice-pin"), or None while unproven."""
+    return _session_owner_proof_reason
+
+
+def mark_session_owner_proven(reason: str = "screen") -> None:
+    """Marks this session proven owner. `reason` names the proof:
+    "user-started" (set by set_session_provenance), "screen" (the
+    owner unlocked it on screen), "voice-pin" (the owner-set PIN
+    matched). Any other value is stored as "screen" so a typo can
+    never invent a proof kind."""
+    global _session_owner_proven, _session_owner_proof_reason
+    _session_owner_proven = True
+    _session_owner_proof_reason = (
+        reason if reason in ("user-started", "screen", "voice-pin")
+        else "screen")
+
+
+def mark_session_owner_unproven() -> None:
+    """Marks this session unproven (disconnect / new session /
+    lock-out). The next voice answer is refused until the owner
+    proves the session again."""
+    global _session_owner_proven, _session_owner_proof_reason
+    _session_owner_proven = False
+    _session_owner_proof_reason = None
+
+
+def session_owner_proof_status() -> dict:
+    """The owner-proof state for display: proven, how, the lock,
+    and the session provenance. Never raises (a broken read reads
+    as unproven with the lock on — fail-closed)."""
+    try:
+        from ..config import config as _app_config  # Phase 3 F1
+
+        lock_on = bool(
+            getattr(_app_config, "session_provenance_lock", False))
+    except Exception:  # noqa: BLE001 — unreadable config: lock on
+        lock_on = True
+    return {"proven": bool(_session_owner_proven),
+            "reason": _session_owner_proof_reason,
+            "lock_on": lock_on,
+            "provenance": _session_provenance}
+
+
+def voice_confirm_allowed() -> bool:
+    """May a SPOKEN yes/no resolve a pending confirmation?
+    True when the session is owner-proven, or when the lock is
+    OFF (the owner explicitly disabled it in Settings). False
+    in an unproven session under the lock — the voice answer is
+    refused and the popup stays up for an on-screen answer.
+    Fail-closed on an unreadable config (a broken read must never
+    let a voice approve)."""
+    if session_owner_proven():
+        return True
+    try:
+        from ..config import config as _app_config  # Phase 3 F1
+
+        if not bool(getattr(_app_config, "session_provenance_lock",
+                            False)):
+            return True
+    except Exception:  # noqa: BLE001 — unreadable config: no voice answer
+        return False
+    return False
+
+
+# ------------------------------------------------------------------
+# Owner-only reads (loophole batch 5 — L-24, #16).
+#
+# Batch 4 proved a session is owner-proven or it is not — but it
+# left READS free in every state ("reading is not acting"). A read
+# is not acting, but it is still an ORACLE: any voice in the room
+# could ask VYUK to read his calendar, inbox, files, contacts and
+# notes aloud, and the answer is the owner's private material.
+# So in an unproven session, reads of the owner's private material
+# are REFUSED in plain words (not asked — a stranger gets no
+# popup for "what is on his calendar"), while the owner in a
+# proven session reads freely, and a typed turn (no live origin)
+# is unaffected.
+#
+# THE BOUNDARY (explicit, reviewable — the suite pins it):
+# Owner-only — the answer names the owner's private state:
+#   calendar/schedule (today, upcoming, briefing, deadlines,
+#     meetings, day review, timeline, pending, birthdays,
+#     occasions, promises, expiries);
+#   mail (unread, search, inbox sort, unsubscribe scan);
+#   files (read, PDF, content/index search, find, recent,
+#     largest, OCR, tail, sniff, age, hash, compare, folders,
+#     CSV/JSON query, clipboard files);
+#   clipboard text; browser history and bookmarks;
+#   activity history (tool log, workflow runs, undo store);
+#   memory and knowledge (recall, day journal, knowledge search);
+#   plans and routines; personal records (habits, mood, social
+#     balances, snippets, taught sequences, saved Wi-Fi networks
+#     — location history); and the read actions of the
+#     action-dispatched tools whose store is the owner's
+#     (scheduled agents, journal, command output, health summary,
+#     personal skills, billing, MCP registry, agent calls, prompt
+#     tuning, localisation, media chat, invoices, translations,
+#     filament, deals, routes, voice agents, wardrobe, ebooks,
+#     lodging, game servers, lighting, scheduled tasks, env vars,
+#     expenses, bills, subscriptions, reading list).
+# Free — the answer is the same for a stranger, or is computed
+# from what the speaker just supplied:
+#   clock, world clock, weather, web search, stock/crypto prices,
+#   public facts; system info (CPU/RAM/disk, battery, drives,
+#   installed apps, services, drivers, fonts, printers, network
+#   state); screen look (what is on screen, the active window,
+#   window lists, pixel probes — visible to anyone in the room);
+#   app chrome (menu/context-menu/surface listings); and every
+#   validator/computer over caller-supplied input (drafts,
+#   readiness checks, loan/split/savings maths, health extract,
+#   wind-down routines, journal prompts — the fixed list by date).
+# Deliberate exclusions, recorded so a reviewer can challenge
+# them: app_settings get (machine config the live loop itself
+# reads; a secret value inside it is still scrubbed by the
+# secret guard); list_backup_snapshots (backup metadata; the
+# snapshots are encrypted and restore is confirm-gated);
+# site_permissions_review and privacy_usage (permission
+# metadata, not content); list_users and session_identity
+# (the machine's own identity, not the owner's content).
+#
+# #16 is the same boundary, not a second one: there is no
+# standalone free-slot tool in the tree — the oracle is the
+# calendar reads (get_upcoming_events / get_todays_schedule),
+# and gating them gates the free-slot answer. When a free-slot
+# finder IS built, it must be owner-only by construction.
+#
+# The gate fires only for a LIVE-ORIGIN call (the voice loop's
+# marker) in an UNPROVEN session under the lock. A typed turn,
+# an app-UI call, a proven session, or the lock OFF all pass
+# through untouched. The check lives in _exec_owner_read (the
+# funnel's exec stage, after live-staleness so route_/toolbox
+# re-entry resolves the true tool name first).
+_OWNER_ONLY_READS = frozenset({
+    # Calendar / schedule.
+    "get_todays_schedule", "get_upcoming_events", "find_free_slots",
+    # Stage 0 features batch 2: find_free_slots answers free/busy
+    # from the owner's calendar — the #16 oracle stays closed by
+    # construction (it answers only for the owner, never a voice).
+    "get_morning_briefing", "deadline_radar",
+    "meeting_prep_card", "meeting_status", "day_review",
+    "timeline_recap", "whats_pending", "birthday_radar",
+    "social_occasion_upcoming", "overdue_promises",
+    "social_promise_list", "expiry_radar",
+    # Mail.
+    "get_unread_email", "search_email", "inbox_zero_assist",
+    "unsubscribe_finder",
+    # Files.
+    "read_file", "read_pdf_text", "search_file_contents",
+    "search_indexed_files", "find_files", "recent_files",
+    "largest_files", "ocr_file", "tail_file", "sniff_file",
+    "file_age_report", "file_hash", "compare_files",
+    "folder_size", "folder_outline", "folder_diff",
+    "csv_preview", "csv_query", "json_query", "clipboard_files",
+    # Clipboard and browser.
+    "read_clipboard", "browser_history", "browser_bookmarks",
+    # Activity history.
+    "get_activity_log", "workflow_runs", "undo_status",
+    # Memory and knowledge.
+    "recall_memories", "recall_day", "knowledge_search",
+    "semantic_search_knowledge",
+    # Plans and routines.
+    "list_plans", "get_plan", "list_routines",
+    # Personal records.
+    "habit_summary", "mood_trend", "social_balances",
+    "list_snippets", "teach_list_sequences",
+    "saved_wifi_networks",
+})
+
+# Action-dispatched tools whose READ actions return the owner's
+# stored content (the read determination is _is_read_action's,
+# except the three tools below whose read set is broader than
+# their owner-content set — see _OWNER_ONLY_READ_ACTIONS).
+_OWNER_ONLY_DISPATCHED = frozenset({
+    "scheduled_agents", "journal_action", "run_command",
+    "health", "personal_skills", "billing", "mcp_registry",
+    "agent_call", "prompt_tune", "audio_localise", "media_chat",
+    "invoice", "translations", "filament", "deals",
+    "vehicle_routes", "voice_agent", "wardrobe", "ebook_library",
+    "lodging", "game_server", "stage_lighting",
+    "task_scheduler_control", "env_var", "expense_log",
+    "bill_calendar", "subscription_audit", "reading_list",
+    # Stage 0 features batch 3 (Group F, 2026-11-22): the money
+    # alerts check reads the owner's budgets, watches and
+    # subscriptions; the portfolio's list/total read the owner's
+    # holdings — both owner-only, the subscription_audit precedent.
+    "check_money_alerts", "portfolio_tracker",
+})
+
+# Tools whose owner-content read actions are a SUBSET of their
+# _is_read_action set — the rest compute over caller-supplied
+# input and stay free: health extract reads pasted record text
+# (summary reads the stored records); invoice template lists
+# the built-in templates (list/get/status/events read his
+# invoices). voice_agent is handled in the function (its
+# agent/flow list/get are mode-gated, and run is a simulation).
+_OWNER_ONLY_READ_ACTIONS = {
+    "health": {"summary"},
+    "invoice": {"list", "get", "status", "events"},
+}
+
+
+def _is_owner_only_read(name: str,
+                        args: dict[str, Any] | None) -> bool:
+    """True when this call reads the owner's private material
+    (the L-24 boundary above). A pure-read tool in the set is
+    owner-only on every call; an action-dispatched tool in the
+    set is owner-only only on its read actions (a write action
+    is not a read, and it reaches its own confirm gate). Never
+    raises — an unjudgeable call reads as NOT owner-only, so a
+    broken check can never refuse a read the owner asked for;
+    the refusal path is the gate's, not this predicate's."""
+    if name in _OWNER_ONLY_READS:
+        return True
+    if name not in _OWNER_ONLY_DISPATCHED:
+        return False
+    action = str((args or {}).get("action", "")).strip().lower()
+    if name in _OWNER_ONLY_READ_ACTIONS:
+        return action in _OWNER_ONLY_READ_ACTIONS[name]
+    if name == "voice_agent":
+        # agent/flow list/get (mode-gated) and status/events are
+        # reads of his agents and flows; run is a local text
+        # simulation over supplied input, not a stored read.
+        if action in ("status", "events"):
+            return True
+        mode = str((args or {}).get("mode", "")).strip().lower()
+        return action in ("agent", "flow") and mode in ("list", "get")
+    try:
+        return bool(_is_read_action(name, args))
+    except Exception:  # noqa: BLE001 — a broken split reads as free
+        return False
 from .tools_gate_readclass import (_is_read_action, _is_read_class)  # refactor P1 step 3 (readclass concern, moved verbatim)
 from .tool_classification import classify_call  # GAPS-23 (F-V3): the canonical per-call classifier
 
@@ -522,6 +804,24 @@ def _confirmation_args(name: str, args: dict[str, Any] | None) -> dict[str, Any]
             "start": args.get("start", ""),
             "end": args.get("end", ""),
             "location": args.get("location", ""),
+        }
+    if name == "cancel_calendar_event":
+        # Stage 0 features batch 2 (Group E): the popup names
+        # the event (and the day) so the human knows what is
+        # about to be deleted.
+        return {
+            "event": args.get("event", "") or args.get("event_id", ""),
+            "date": args.get("date", ""),
+        }
+    if name == "reschedule_calendar_event":
+        # Stage 0 features batch 2 (Group E): the popup names
+        # the event, the day and the new start, so the human can
+        # see the move before approving it.
+        return {
+            "event": args.get("event", "") or args.get("event_id", ""),
+            "date": args.get("date", ""),
+            "new_start": args.get("new_start", ""),
+            "new_end": args.get("new_end", ""),
         }
     if name == "scheduled_agents" and args.get("action") == "save_routine":
         # RET-2: a save confirms the routine's SHAPE — the human

@@ -684,6 +684,26 @@ def request_confirmation(tool_name: str, args: dict | None = None,
                       request_id=request_id, authority="no-handler")
         return False
 
+    # Loophole #2 (F-F402 reversal, 2026-11-21): a popup for a
+    # kind with a remembered always-allow says so — the user
+    # sees, before answering, that a denial pauses the grant
+    # (or, when it is already paused, that the grant is paused
+    # and the call asks again until it is resumed in Settings).
+    # This note is added only when a popup will actually show:
+    # the shortcut path above already returned, so an
+    # allowlisted kind reaching here is one whose shortcut was
+    # defeated for this call (taint, shell foreground, D-18,
+    # provenance lock) or whose grant is paused.
+    if is_allowlisted(tool_name):
+        if is_allowlist_paused(tool_name):
+            summary += (" This kind's always-allow is paused — "
+                        "it asks again until you resume it in "
+                        "Settings.")
+        else:
+            summary += (" This kind has a remembered always-allow "
+                        "— denying this call pauses it (resume it "
+                        "in Settings).")
+
     timeout = max(0.1, float(timeout_s))
     # v5.48 (programme item 19): register the pending entry BEFORE
     # the handler thread starts, so a resolve_pending() racing the
@@ -769,6 +789,22 @@ def request_confirmation(tool_name: str, args: dict | None = None,
         else:
             reason = ("approved by user" if approved
                       else "declined by user")
+        if not approved and is_allowlisted(tool_name):
+            # Loophole #2 — F-F402 REVERSAL (2026-11-21,
+            # user-approved: close all 20 Stage 0 loopholes).
+            # The old ruling said a per-call popup denial does
+            # NOT defeat a remembered always-allow; it now
+            # PAUSES it — the next call for this kind asks
+            # again. The grant is paused, not revoked: the kind
+            # stays in the allowlist store, resumable in
+            # Settings. The pause runs BEFORE _batch_store
+            # below, so the F-F403 sequence guard drops this
+            # denial from the batch (a decision from an earlier
+            # generation is never seeded) and any approval
+            # batched while the grant stood is voided with it.
+            if pause_allowlist(tool_name, how="confirm dialog"):
+                reason += (" — always-allow paused "
+                           "(resume it in Settings)")
         _log_decision(tool_name, approved, reason,
                       request_id=request_id, authority="popup")
         if batch_key is not None:
@@ -845,9 +881,11 @@ from .confirm_gate_scrub import (
 # see that test's INTENTIONAL comment.)
 from .confirm_gate_allowlist import (
     _ALLOWLIST_FILE, _NEVER_ALLOWLIST_KINDS, _EXTRA_ALLOWLISTABLE_KINDS,
-    _allowlist_path, _load_allowlist, _save_allowlist, is_allowlistable,
-    is_allowlisted, allow_kind, revoke_kind, list_allowlisted,
-    _allowlist_shortcut_applies,
+    _PAUSED_FILE, _allowlist_path, _load_allowlist, _save_allowlist,
+    is_allowlistable, is_allowlisted, allow_kind, revoke_kind,
+    list_allowlisted, _paused_path, _load_paused, _save_paused,
+    is_allowlist_paused, list_paused_allowlisted, pause_allowlist,
+    resume_allowlist, _allowlist_shortcut_applies,
 )
 
 # INTENTIONAL (skills split B18): the pure digest/exempt helpers moved

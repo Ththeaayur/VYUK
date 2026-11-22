@@ -424,11 +424,24 @@ class CostLedger:
                     rate_source: str = "unknown",
                     ts: float | None = None) -> int:
         """Append one turn row; returns its id. No update or
-        delete path exists (the triggers enforce it too)."""
+        delete path exists (the triggers enforce it too).
+
+        Loophole batch 5 (#5): private mode suppresses the cost
+        row — a private turn adds nothing to recorded spend, so
+        the cap counts only recorded turns. Returns 0 (no row).
+        The preflight before the turn still runs (the cap is
+        checked against recorded spend, not against the private
+        turn)."""
         if brain not in ("live", "cloud_text", "local"):
             raise ValueError(f"unknown brain: {brain!r}")
         if measurement not in _MEASUREMENTS:
             raise ValueError(f"unknown measurement: {measurement!r}")
+        try:
+            from .private_mode import private_mode_on
+        except Exception:  # noqa: BLE001 — unreadable: not private
+            private_mode_on = None
+        if private_mode_on is not None and private_mode_on():
+            return 0
         stamp = time.time() if ts is None else float(ts)
         local = time.localtime(stamp)
         day = time.strftime("%Y-%m-%d", local)

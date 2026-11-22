@@ -386,10 +386,8 @@ class ToolHandlersCommandUrlMixin:
             if pid is not None:
                 return (f"The {pid} switch lives in Settings → "
                         "Permissions — chat can't flip it, and "
-                        "neither can voice. Voice can grant it "
-                        "for this session only, while we're "
-                        "talking; open Settings for the permanent "
-                        "switch.")
+                        "neither can voice. Voice can't grant it "
+                        "either; open Settings for the switch.")
         return _app_settings.app_settings(action, setting, value)
 
     def _tool_get_time_date(self) -> str:
@@ -494,8 +492,13 @@ class ToolHandlersCommandUrlMixin:
           stored framed as a note about something the user said —
           memories are user data, never standing instructions.
         - Replacing an existing fact says so, with the old value.
-        - Credential-looking values are stored (that's the user's
-          call) but the result warns they sit in a plain-text DB.
+        - Credential-looking values are REFUSED, never stored
+          (loophole batch 3, L-30 / #11): a password, token or
+          other secret must never land in the plain-text memory
+          store — and the refusal never echoes the value back.
+          Raised, not returned (the funnel maps a returned
+          string to status success, so a returned refusal would
+          still record success).
         """
         key = (key or "").strip()
         value = (value or "").strip()
@@ -512,6 +515,35 @@ class ToolHandlersCommandUrlMixin:
                 f"{self._FACT_VALUE_MAX}). Shorten it, or save the "
                 "full text as a file instead — nothing was stored."
             )
+        # Loophole batch 6 (#14): this tool remembers USER facts
+        # only — learned, general, preferences. The old code
+        # wrote any category with no check at all, so a fact
+        # filed under "notes" (or any other name) bypassed the
+        # 100-fact cap entirely: the cap counted three
+        # categories and the fact lived in a fourth. Skill
+        # stores still write their own categories through
+        # save_fact() directly — this refusal is the tool seam
+        # only. Raised, not returned, for the same reason as the
+        # credential refusal below.
+        if category.strip().lower() not in USER_FACT_CATEGORIES:
+            raise RuntimeError(
+                "I can only remember that as a user fact "
+                "(learned, general or preferences) — "
+                f"'{category}' is not a user-fact category, so "
+                "nothing was stored.")
+        if category.strip().lower() in USER_FACT_CATEGORIES and \
+                looks_like_credential(key, value):
+            # Loophole batch 3 (L-30, #11): refuse BEFORE saving
+            # — and before the "already remembered" reply, which
+            # would echo a stored secret's value back. The store's
+            # own guard would raise too; the check here is what
+            # makes the refusal a plain-words handler error
+            # instead of a bare store error.
+            raise RuntimeError(
+                "I can't remember that — it looks like a password, "
+                "token or other secret, and secrets are never "
+                "stored as facts. Keep it in your password manager "
+                "instead; nothing was stored.")
         notes: list[str] = []
         stored_value = value
         if instruction_shaped(value):
@@ -522,7 +554,8 @@ class ToolHandlersCommandUrlMixin:
                 "memories as instructions to follow."
             )
         existing = memory_store.get_fact(category, key)
-        # Section D fix D-F1 (2026-11-20): the 100-fact cap is a
+        # Section D fix D-F1 (2026-11-20), extended by loophole
+        # batch 6 (#14, 2026-11-22): the 100-fact cap is a
         # bound on the user's facts, not on one path to them — the
         # learn path alone cannot enforce it, because this tool
         # used to write any category with no check (a capped-out
@@ -536,13 +569,19 @@ class ToolHandlersCommandUrlMixin:
         # remembered, so the tool says so instead of filing a
         # second copy (the live model files what it hears under
         # "preferences" while the learn path files the same
-        # utterance under "learned"). Raised, not returned: the
-        # funnel maps any handler string to status success, so a
-        # returned refusal would still record success (the same
-        # reason the not-landed write below raises). The refusal
-        # uses the fix-#14 wording, so the user hears one
-        # consistent line whether the learn path or the tool path
-        # hit the cap.
+        # utterance under "learned"). The batch-6 extension:
+        # the count is the DB+file UNION (count_remembered_facts)
+        # — the old count_facts() counted the DB only, so a
+        # file-only fact was remembered and prompted while
+        # invisible to the cap — and non-user categories are
+        # refused above, so the cap cannot be bypassed by
+        # writing into a category it never counted. Raised, not
+        # returned: the funnel maps any handler string to status
+        # success, so a returned refusal would still record
+        # success (the same reason the not-landed write below
+        # raises). The refusal uses the fix-#14 wording, so the
+        # user hears one consistent line whether the learn path
+        # or the tool path hit the cap.
         if existing is None:
             cat = category.strip().lower()
             if cat in USER_FACT_CATEGORIES:
@@ -557,7 +596,8 @@ class ToolHandlersCommandUrlMixin:
                             f"(under '{kept_row.get('category', '')}'). "
                             "Nothing new was stored.")
                 try:
-                    kept = memory_store.count_facts(USER_FACT_CATEGORIES)
+                    kept = memory_store.count_remembered_facts(
+                        USER_FACT_CATEGORIES)
                 except Exception:  # noqa: BLE001 — a broken count
                     # must not block a write the store can still
                     # verify: the save below either lands (read-back
@@ -585,13 +625,6 @@ class ToolHandlersCommandUrlMixin:
             notes.append(
                 f"This replaces what was stored before "
                 f"('{existing.get('value', '')}')."
-            )
-        if looks_like_credential(key, value):
-            notes.append(
-                "Heads-up: this looks like a credential — VYUK "
-                "stores memories as plain text in a local database "
-                "(data/assistant.db), so anyone who can read that "
-                "file can read this too."
             )
         result = f"Saved to memory: '{key}' = '{stored_value}'"
         if notes:

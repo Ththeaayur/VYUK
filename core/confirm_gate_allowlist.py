@@ -105,6 +105,19 @@ log = logging.getLogger("nova.confirm_gate")
 
 _ALLOWLIST_FILE = "confirm_allowlist.json"
 
+# F-F402 REVERSAL (loophole #2, 2026-11-21 — user-approved: close all
+# 20 Stage 0 loopholes). The F-F402 ruling said a per-call popup
+# denial does NOT defeat a remembered always-allow (only a stored
+# denial does). That ruling is REVERSED: a popup denial now PAUSES
+# the always-allow — the next call for that kind asks again. The
+# standing grant is paused, not revoked: the kind stays in the
+# allowlist store, so Settings still lists it and the user can
+# resume it there (or re-grant it from a later popup). The pause
+# lives in its own store (below) so a paused grant is never
+# confused with a revoked one, and the shortcut predicate
+# (_allowlist_shortcut_applies) is the one place that reads it.
+_PAUSED_FILE = "confirm_allowlist_paused.json"
+
 # Kinds with a destructive action, excluded as kinds even
 # though some of their actions are benign (tools_gate.py's
 # args-aware branches + the Tier-2-by-brief launch + the
@@ -182,6 +195,124 @@ def _save_allowlist(kinds: set) -> bool:
         log.warning("confirm_gate allowlist save failed (%s: %s)",
                     type(e).__name__, e)
         return False
+
+
+def _paused_path():
+    return (pathlib.Path(__file__).resolve().parent.parent
+            / "data" / _PAUSED_FILE)
+
+
+def _load_paused() -> set:
+    """The paused kinds, or the empty set on any failure
+    (missing file, bad JSON, wrong shape) — a broken store
+    asks afresh, never skips (same rule as the allowlist)."""
+    try:
+        data = json.loads(_paused_path().read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return {str(x) for x in data
+                    if isinstance(x, str) and x}
+    except Exception:  # noqa: BLE001
+        pass
+    return set()
+
+
+def _save_paused(kinds: set) -> bool:
+    """Atomic paused-store write (same mkstemp pattern as the
+    allowlist). False (never raising) when the file cannot be
+    written — the caller must say so, because a pause that did
+    not stick is exactly the silent-failure class v5.54.1 kills
+    elsewhere."""
+    try:
+        path = _paused_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".",
+                                        dir=str(path.parent))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(sorted(kinds), indent=1))
+            os.replace(tmp_name, path)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+        return True
+    except Exception as e:  # noqa: BLE001
+        log.warning("confirm_gate paused-allowlist save failed "
+                    "(%s: %s)", type(e).__name__, e)
+        return False
+
+
+def is_allowlist_paused(tool_name: str) -> bool:
+    """True when the kind's standing grant is paused (a popup
+    denial suspended it). A paused kind is still stored — only
+    the shortcut is off — so this is False for a kind that was
+    never allowlisted at all."""
+    return tool_name in _load_paused()
+
+
+def list_paused_allowlisted() -> list:
+    """The paused kinds that still hold a standing grant,
+    sorted — the Settings card reads this to mark them. Only
+    allowlistable kinds are ever listed (a hand-edited file
+    with a destructive kind in it is read as if that entry
+    were absent)."""
+    return sorted(k for k in _load_paused()
+                  if is_allowlistable(k) and k in _load_allowlist())
+
+
+def pause_allowlist(tool_name: str, how: str = "popup denial") -> bool:
+    """Pause a standing grant (F-F402 reversal). True when the
+    kind is now paused; False when it holds no standing grant
+    (nothing to pause) or the write itself failed. The kind
+    stays in the allowlist store — paused, not revoked — and
+    the §4.8 receipt names the pause (Activity line with Undo
+    = resume). The in-memory taint batch for the kind is
+    invalidated too (clear_batch_for_kind, the F-F403 idiom):
+    an approval batched while the grant stood must not replay
+    after the pause, or the pause would not take effect until
+    the window expired. The clear never blocks the pause: the
+    file write already succeeded, and a failed clear is
+    logged, not raised."""
+    if not is_allowlisted(tool_name):
+        return False
+    paused = _load_paused()
+    already = tool_name in paused
+    paused.add(tool_name)
+    if not _save_paused(paused):
+        return False
+    if not already:
+        _record_grant_receipt(
+            f"kind:{tool_name}", "paused", how,
+            undo=lambda: resume_allowlist(tool_name, how="Activity"))
+    try:
+        from .confirm_gate import (  # noqa: F401 — lazy: the
+            clear_batch_for_kind as _clear_batch)
+        _clear_batch(tool_name)
+    except Exception as e:  # noqa: BLE001 — pause stands;
+        # the batch clear is best-effort, logged, never raised
+        log.warning("confirm_gate batch clear failed for %s "
+                    "(%s: %s)", tool_name, type(e).__name__, e)
+    return True
+
+
+def resume_allowlist(tool_name: str, how: str = "Settings") -> bool:
+    """Resume a paused grant. True when the store now lacks the
+    pause (including when it never had one); False only when
+    the write itself failed. Records the §4.8 receipt (event +
+    Activity line with Undo = pause again) when a pause is
+    actually lifted."""
+    paused = _load_paused()
+    had = tool_name in paused
+    paused.discard(tool_name)
+    if not _save_paused(paused):
+        return False
+    if had:
+        _record_grant_receipt(
+            f"kind:{tool_name}", "resumed", how,
+            undo=lambda: pause_allowlist(tool_name, how="Activity"))
+    return True
 
 
 # Click kinds whose args carry the element's name/text —
@@ -354,6 +485,14 @@ def allow_kind(tool_name: str, how: str = "confirm dialog") -> bool:
     kinds.add(tool_name)
     if not _save_allowlist(kinds):
         return False
+    # F-F402 reversal: re-granting a paused kind resumes it —
+    # the pause lifts, and the resume is receipted (the grant
+    # receipt above only fires when the kind is newly added).
+    if tool_name in _load_paused():
+        _save_paused(_load_paused() - {tool_name})
+        _record_grant_receipt(
+            f"kind:{tool_name}", "resumed", how,
+            undo=lambda: pause_allowlist(tool_name, how="Activity"))
     if not already:
         _record_grant_receipt(
             f"kind:{tool_name}", "granted", how,
@@ -384,6 +523,11 @@ def revoke_kind(tool_name: str, how: str = "Settings") -> bool:
     kinds.discard(tool_name)
     if not _save_allowlist(kinds):
         return False
+    # F-F402 reversal: a revoked kind holds no pause either —
+    # the paused entry goes with the grant, so a later re-grant
+    # starts unpaused.
+    if tool_name in _load_paused():
+        _save_paused(_load_paused() - {tool_name})
     if had:
         _record_grant_receipt(
             f"kind:{tool_name}", "revoked", how,
@@ -422,6 +566,11 @@ def _allowlist_shortcut_applies(tool_name: str, args=None) -> bool:
     asks, whatever the picker declared. args None for a
     click kind means the click cannot be judged: ask."""
     if not is_allowlisted(tool_name):
+        return False
+    # F-F402 reversal (loophole #2): a paused grant does not
+    # shortcut — the next call asks again, until the user
+    # resumes it in Settings (or re-grants it from a popup).
+    if is_allowlist_paused(tool_name):
         return False
     if _d18_defeats_shortcut(tool_name, args):
         return False

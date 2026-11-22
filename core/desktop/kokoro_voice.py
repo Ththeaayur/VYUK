@@ -942,6 +942,18 @@ def reset_backend():
 def speak(text, *, language=None, voice=None, speed: float = 1.0,
           auto_switch: bool = True,
           timestamp: float | None = None) -> dict:
+    # Loophole batch 5 (L-25): defence in depth — the SIP `say`
+    # and dub paths reach TTS through this module function, not
+    # through LocalLiveSessionSpeechMixin._speak, so the guard
+    # runs here too. Same rule: tainted content is never spoken
+    # verbatim or as the assistant's own words. The guard never
+    # raises; a broken guard leaves the text unchanged.
+    try:
+        from ..speech_guard import guard_spoken_text
+
+        text = guard_spoken_text(text)
+    except Exception:  # noqa: BLE001 — the guard never breaks TTS
+        pass
     return _default_engine().speak(
         text, language=language, voice=voice, speed=speed,
         auto_switch=auto_switch, timestamp=timestamp)

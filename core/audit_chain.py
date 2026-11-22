@@ -359,39 +359,33 @@ def read(kind: str | None = None, limit: int = 50) -> list[dict]:
     return entries
 
 
-def verify_chain_detail() -> dict:
-    """Verify the live chain plus every archived segment still
-    present, in order. Returns a dict::
+def _verified_prefix() -> tuple:
+    """Walk live + archived segments in chronological order,
+    validating every link exactly as verify_chain_detail() does,
+    collecting entries until the FIRST break.
 
-        {ok, checked, first_break, warnings}
+    Returns (entries, first_break, warnings, checked) — entries
+    is the trusted prefix in file order (oldest-first), first_break
+    is None when the whole chain verifies. This is the ONE walk
+    verify and trusted reads share, so a read can never disagree
+    with verify about where the chain breaks.
 
-    ``first_break`` is None when intact, else
-    {segment, index, id, reason} naming the FIRST bad link:
-    a recomputed hash that does not match, a prev_hash that
-    does not equal the previous entry's hash, a genesis entry
-    whose prev_hash is not GENESIS_PREV_HASH, a checkpoint
-    whose recorded archived hash does not match the segment it
-    names, or a non-blank line that does not parse as a record
-    (round-3 C3-F1 — a destroyed chain is a broken chain, not
-    an empty one; a missing / empty / blank-only file still
-    verifies ok with checked 0). ``warnings`` lists
-    non-breaking notes (currently only ``archive_missing``
-    entries for checkpoint-named segments that are no longer
-    on disk).
-    """
+    Loophole batch 6 (#12): reads must stop at the first break
+    instead of reading through it — a tampered line's values (a
+    forged receipt, an edited amount) were named as a break by
+    verify but still trusted by later reads. read_trusted() is
+    built on this walk; the old read() keeps its tolerant shape
+    for callers that already handle breaks themselves."""
     warnings: list[dict] = []
     checked = 0
-    segments: list[tuple[str, list[tuple[int, dict | None]]]] = []
+    entries: list[dict] = []
     live = _read_lines_detailed(store_path())
-    # Archived segments, oldest first (filename timestamp order).
     arch = archive_dir()
     archived: list[tuple[str, list[tuple[int, dict | None]]]] = []
     if arch.is_dir():
         for p in sorted(arch.glob("*.jsonl")):
             archived.append((p.name, _read_lines_detailed(p)))
-    # A checkpoint in the live file names its archived segment;
-    # verify archived segments first, then the live file, so the
-    # reported first break follows chronological order.
+    segments: list[tuple[str, list[tuple[int, dict | None]]]] = []
     for name, lines in archived:
         segments.append((f"archive:{name}", lines))
     segments.append(("live", live))
@@ -419,12 +413,10 @@ def verify_chain_detail() -> dict:
                               f"not an empty one")
                 else:
                     reason = f"unparseable line {line_no}"
-                return {"ok": False, "checked": checked,
-                        "first_break": {"segment": segment_name,
-                                        "index": line_no,
-                                        "id": None,
-                                        "reason": reason},
-                        "warnings": warnings}
+                return entries, {"segment": segment_name,
+                                 "index": line_no,
+                                 "id": None,
+                                 "reason": reason}, warnings, checked
             i += 1
             checked += 1
             try:
@@ -432,18 +424,14 @@ def verify_chain_detail() -> dict:
                 recomputed = _entry_hash(seq, eid, e["ts"], e["kind"],
                                          e["data"], e["prev_hash"])
             except (KeyError, TypeError):
-                return {"ok": False, "checked": checked,
-                        "first_break": {"segment": segment_name,
-                                        "index": i,
-                                        "id": e.get("id"),
-                                        "reason": "malformed entry"},
-                        "warnings": warnings}
+                return entries, {"segment": segment_name,
+                                 "index": i,
+                                 "id": e.get("id"),
+                                 "reason": "malformed entry"}, warnings, checked
             if e.get("hash") != recomputed:
-                return {"ok": False, "checked": checked,
-                        "first_break": {"segment": segment_name,
-                                        "index": i, "id": eid,
-                                        "reason": "hash mismatch"},
-                        "warnings": warnings}
+                return entries, {"segment": segment_name,
+                                 "index": i, "id": eid,
+                                 "reason": "hash mismatch"}, warnings, checked
             # Checkpoint re-anchor: a checkpoint's prev_hash is
             # the archived segment's last hash by construction.
             # When that segment is still on disk it was already
@@ -464,23 +452,18 @@ def verify_chain_detail() -> dict:
                 if _seg and not (arch / _seg).exists():
                     if e.get("prev_hash") != \
                             _cdata.get("archived_last_hash"):
-                        return {"ok": False, "checked": checked,
-                                "first_break": {
-                                    "segment": segment_name,
-                                    "index": i, "id": eid,
-                                    "reason": "checkpoint "
-                                    "prev_hash != recorded "
-                                    "archived_last_hash"},
-                                "warnings": warnings}
+                        return entries, {
+                            "segment": segment_name,
+                            "index": i, "id": eid,
+                            "reason": "checkpoint "
+                            "prev_hash != recorded "
+                            "archived_last_hash"}, warnings, checked
                     _reanchored = True
             if not _reanchored and e.get("prev_hash") != expected_prev:
-                return {"ok": False, "checked": checked,
-                        "first_break": {"segment": segment_name,
-                                        "index": i, "id": eid,
-                                        "reason": "link break: prev_hash "
-                                        "!= previous hash"},
-                        "warnings": warnings}
-            expected_prev = e["hash"]
+                return entries, {"segment": segment_name,
+                                 "index": i, "id": eid,
+                                 "reason": "link break: prev_hash "
+                                 "!= previous hash"}, warnings, checked
             if e.get("kind") == "checkpoint":
                 data = e.get("data") or {}
                 seg_name = data.get("archived_file")
@@ -495,16 +478,67 @@ def verify_chain_detail() -> dict:
                             if data.get("archived_last_hash") \
                                     and last.get("hash") != \
                                     data["archived_last_hash"]:
-                                return {"ok": False, "checked": checked,
-                                        "first_break": {
-                                            "segment": segment_name,
-                                            "index": i, "id": eid,
-                                            "reason": "checkpoint "
-                                            "archived_last_hash "
-                                            "mismatch"},
-                                        "warnings": warnings}
-    return {"ok": True, "checked": checked, "first_break": None,
-            "warnings": warnings}
+                                return entries, {
+                                    "segment": segment_name,
+                                    "index": i, "id": eid,
+                                    "reason": "checkpoint "
+                                    "archived_last_hash "
+                                    "mismatch"}, warnings, checked
+            expected_prev = e["hash"]
+            entries.append(e)
+    return entries, None, warnings, checked
+
+
+def read_trusted(kind: str | None = None, limit: int = 50) -> dict:
+    """Read only the VERIFIED prefix of the chain, newest-first.
+
+    Returns {"entries", "ok", "first_break", "warnings"} — entries
+    stop at the first break, so a tampered line (and everything
+    after it) is never returned as a trusted value; first_break
+    names the break the same way verify_chain_detail() does, so
+    callers can show it instead of silently returning less.
+    ``limit`` <= 0 means no limit. The old read() is unchanged:
+    it still returns every parseable entry, for callers that
+    already verify separately."""
+    entries, first_break, warnings, _checked = _verified_prefix()
+    if kind is not None:
+        entries = [e for e in entries if e.get("kind") == kind]
+    entries.reverse()
+    if limit and limit > 0:
+        entries = entries[:limit]
+    return {"entries": entries, "ok": first_break is None,
+            "first_break": first_break, "warnings": warnings}
+
+
+def chain_break() -> dict | None:
+    """The chain's first break, or None when it verifies intact."""
+    _entries, first_break, _warnings, _checked = _verified_prefix()
+    return first_break
+
+
+def verify_chain_detail() -> dict:
+    """Verify the live chain plus every archived segment still
+    present, in order. Returns a dict::
+
+        {ok, checked, first_break, warnings}
+
+    ``first_break`` is None when intact, else
+    {segment, index, id, reason} naming the FIRST bad link:
+    a recomputed hash that does not match, a prev_hash that
+    does not equal the previous entry's hash, a genesis entry
+    whose prev_hash is not GENESIS_PREV_HASH, a checkpoint
+    whose recorded archived hash does not match the segment it
+    names, or a non-blank line that does not parse as a record
+    (round-3 C3-F1 — a destroyed chain is a broken chain, not
+    an empty one; a missing / empty / blank-only file still
+    verifies ok with checked 0). ``warnings`` lists
+    non-breaking notes (currently only ``archive_missing``
+    entries for checkpoint-named segments that are no longer
+    on disk).
+    """
+    _entries, first_break, warnings, checked = _verified_prefix()
+    return {"ok": first_break is None, "checked": checked,
+            "first_break": first_break, "warnings": warnings}
 
 
 def verify_chain() -> bool:

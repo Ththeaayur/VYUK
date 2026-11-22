@@ -1,7 +1,7 @@
 """browser_click concern extracted from core/browser.py (refactor Phase 1 step 4). Behaviour identical; every name here stays importable from core/browser."""
 
 from .browser_session import (_ELEMENT_TIMEOUT_MS, _active_page, _need_connection, _page_label, _settle, _short, _read_snapshot)  # GAPS-18: narrowed to the 7 used names
-from .browser_gates import (_DANGEROUS_CLICK_RE, _MATCH_SCAN_CAP, _DESTRUCTIVE_SUBMIT_RE, _FORM_INTENT_JS, _FOCUSED_FORM_INTENT_JS, _is_submit_key, _dangerous_click_verdict, _dangerous_submit_verdict, _uninspectable_submit_verdict, _raw_point_verdict, _classify_submit_intent, _submit_gate, _loc_visible, _narrow_visible, _LOGIN_WALL_JS, _login_wall_result)
+from .browser_gates import (_DANGEROUS_CLICK_RE, _MATCH_SCAN_CAP, _DESTRUCTIVE_SUBMIT_RE, _FORM_INTENT_JS, _FOCUSED_FORM_INTENT_JS, _is_submit_key, _dangerous_click_verdict, _dangerous_submit_verdict, _uninspectable_submit_verdict, _raw_point_verdict, _classify_submit_intent, _submit_gate, _loc_visible, _narrow_visible, _LOGIN_WALL_JS, _login_wall_result, _element_kind, _file_input_verdict)
 from .browser_read import (_FIELDS_JS, _LINKS_JS, _EXTRACT_LIMITS_NOTE, _page_text_usage, _page_text, _fields_payload, _field_lines, _impl_read_text, _impl_read_find, _impl_read_links, _impl_read_fields, _impl_read_elements)
 from .browser_elements import (_ELEMENTS_CAP, _ELEMENT_JS_HELPERS, _COLLECT_ELEMENTS_JS, _TAG_REFS_JS, _SINGLE_ELEMENT_JS, _element_row, _frame_marker, _KIND_FILTERS, _take_snapshot, _snapshot_from_candidates, _base_locator, _scoped_locator, _element_identity, _probe_int, _PAGE_PROBE_JS, _page_probe, _change_sentence)
 
@@ -99,6 +99,33 @@ def _act_on_element(page, loc, *, display: str, ask: str, kind: str,
                                                confirm)
             if verdict is not None:
                 return verdict
+        # L-29 / batch 2: the regex reads only the element's words,
+        # so it cannot see a file input (whose words are empty) or
+        # a submit control whose own words are benign ("Next") in a
+        # dangerous form. Probe the element's kind (one evaluate):
+        # a file input is the attach step of an upload and asks
+        # first; a submit control is judged by the form it submits
+        # (dangerous form -> ask, uninspectable form -> ask, benign
+        # form -> proceed). The probe runs only when the regex did
+        # not already ask, so a dangerous click costs no probe.
+        el_kind = _element_kind(loc)
+        if el_kind.get("file"):
+            verdict = _file_input_verdict(ask, identity or ask, confirm)
+            if verdict is not None:
+                return verdict
+        elif el_kind.get("submit"):
+            intent, _detail, _signals = _classify_submit_intent(
+                page, loc=loc)
+            if intent == "dangerous":
+                verdict = _dangerous_submit_verdict(
+                    "browser_click", ask, identity or ask, confirm)
+                if verdict is not None:
+                    return verdict
+            elif intent == "uninspectable":
+                verdict = _uninspectable_submit_verdict(
+                    "browser_click", ask, confirm)
+                if verdict is not None:
+                    return verdict
     before = _page_probe(page)
     try:
         loc.scroll_into_view_if_needed(timeout=_ELEMENT_TIMEOUT_MS)

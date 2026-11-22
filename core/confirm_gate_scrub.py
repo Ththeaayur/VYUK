@@ -7,6 +7,15 @@ masked args summary. No module state lives here.
 import math
 import re
 
+# The canonical text scrubber (loophole batch 3, L-33): the
+# secret-shaped-text patterns live in distribution_hardening
+# and are re-exported here so the confirm gate, the receipts
+# store and the clipboard handler all share ONE scrubber —
+# never a second, divergent copy. _sanitize_value (same module)
+# is the recursive dict/list form of the same scrub.
+from .distribution_hardening import _dict_names_credential  # noqa: F401
+from .distribution_hardening import _scrub_text  # noqa: F401
+
 
 # Exact sensitive key NAMES (v5.45, H22b): a value under a key that
 # IS one of these is masked whatever it looks like. This replaces
@@ -175,6 +184,18 @@ def summarize_args(args: dict | None, limit: int = 300,
       summary is then longer than `limit`, deliberately."""
     if not args:
         return "(no arguments)"
+    # Loophole batch 3 (L-33): a call whose args NAME a credential
+    # — {"key": "my_password", "value": "hunter2"} — carries the
+    # secret in a sibling value under a generic key, which neither
+    # the sensitive-key rule nor the value-shape rule can see.
+    # When the args name a credential, every non-decision-critical
+    # value is masked (it is the credential itself or adjacent to
+    # it). Decision-critical values are still shown — the human is
+    # deciding on them — but scrubbed, so a credential shape
+    # inside a command or URL ("curl -u alice:pass …") masks
+    # while the rest of the command stays readable.
+    names_cred = _dict_names_credential(args) \
+        if isinstance(args, dict) else False
     critical_parts = []
     normal_parts = []
     for key in sorted(args, key=str):
@@ -189,9 +210,10 @@ def summarize_args(args: dict | None, limit: int = 300,
             # F-F201: decision-critical wins over the secret shape.
             # A dated/versioned path, target, command or URL is
             # shown in full even when its entropy reads secret-like.
-            critical_parts.append(f"{key}={text}")
+            # L-33: the credential SHAPES inside it still mask.
+            critical_parts.append(f"{key}={_scrub_text(text)}")
             continue
-        if _looks_like_secret(text):
+        if names_cred or _looks_like_secret(text):
             normal_parts.append(f"{key}=•••")
             continue
         if len(text) > _NONCRITICAL_CLIP:

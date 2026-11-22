@@ -334,6 +334,17 @@ def _read_observability() -> list[dict]:
                         + (f" (last: {err})" if err else "")
                         + " — they were dropped from the live file.")
                 kind = "degraded"
+            elif _key == "archive_rotated":
+                # Loophole batch 6 (#15): the archive itself is
+                # capped — old archive files are removed to keep
+                # it under its size bound. The rows are gone, not
+                # moved: say so, never render a rotation as an
+                # archive.
+                text = (f"Receipts archive rotated: {count} older "
+                        "receipt row(s) removed to keep the archive "
+                        "under its size cap — the live file keeps "
+                        "the newest 5,000.")
+                kind = "archived"
             else:
                 text = (f"Receipts archived: {count} older receipt "
                         "row(s) moved to "
@@ -348,6 +359,31 @@ def _read_observability() -> list[dict]:
                 "detail": text,
             })
     except Exception:  # noqa: BLE001 - a broken receipts read
+        pass  # must never break the feed
+    try:
+        # Loophole batch 6 (#12): the Activity feed reads the
+        # VERIFIED prefix only — when the chain is broken, the
+        # entries after the break are not shown. The gap itself
+        # is a marker, so a shorter feed never reads as a quiet
+        # day: it names where the record breaks and why.
+        from . import record_family as _rf_mod
+
+        _break = _rf_mod.chain_break()
+        if _break is not None:
+            _seg = str(_break.get("segment") or "")
+            _idx = _break.get("index")
+            _why = str(_break.get("reason") or "")
+            text = (f"Activity record broken at {_seg} entry "
+                    f"{_idx} ({_why}) — entries after that point "
+                    "can't be trusted and are not shown.")
+            markers.append({
+                "source": "observability",
+                "ts": "",
+                "title": text,
+                "kind": "degraded",
+                "detail": text,
+            })
+    except Exception:  # noqa: BLE001 - a broken chain read
         pass  # must never break the feed
     try:
         # Round-3 section D fix queue item D-F3: a chain

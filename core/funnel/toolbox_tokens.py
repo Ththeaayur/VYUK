@@ -249,6 +249,22 @@ TOOL_SYNONYMS: dict[str, tuple[str, ...]] = {
     "get_morning_briefing": ("morning briefing", "what's on today",
                             "my briefing today", "brief me"),
     "get_upcoming_events": ("what's coming up", "future meetings"),
+    # Stage 0 features batch 2 (Group E, 2026-11-22): the mail
+    # and calendar actions — ROUTE-01 precedent, one row each.
+    "find_free_slots": ("find a free slot", "when am I free",
+                        "free time today", "find me time for a meeting"),
+    "snooze_email": ("snooze this email", "remind me about this email",
+                     "snooze that mail", "bring that email back later"),
+    "cancel_calendar_event": ("cancel that meeting", "delete that event",
+                              "cancel my meeting", "remove that event"),
+    "reschedule_calendar_event": ("move that meeting", "reschedule that event",
+                                  "push that meeting", "move my meeting"),
+    # Stage 0 features batch 3 (Group F, 2026-11-22): the money
+    # actions — ROUTE-01 precedent, one row each.
+    "check_money_alerts": ("check my money alerts", "any money alerts",
+                           "am I over budget", "what's renewing soon"),
+    "portfolio_tracker": ("my portfolio", "what's my portfolio worth",
+                          "my holdings", "what do I hold"),
     "get_unread_email": ("new mail", "unread messages", "check my inbox"),
     "search_email": ("find an email", "look through my mail"),
     "find_files": ("locate a file", "search my documents"),
@@ -379,6 +395,11 @@ CORE_TOOL_PRIORITY: tuple[str, ...] = (
     "mouse_control", "get_system_info", "app_settings", "lock_screen",
     "power_control", "network_control", "wifi_info",
     "get_todays_schedule", "get_morning_briefing", "get_upcoming_events",
+    # Stage 0 features batch 2 (Group E): find_free_slots is a
+    # read, so it joins the assistant profile — the effectful
+    # three (snooze/cancel/reschedule) do not, the
+    # send_email/create_calendar_event precedent.
+    "find_free_slots",
     "get_unread_email",
     "search_email", "find_files", "file_control", "quick_math",
     "browser_control", "browser_read", "browser_click",

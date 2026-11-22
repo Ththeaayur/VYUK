@@ -131,6 +131,12 @@ EXECUTE_STAGES: tuple[str, ...] = (
 # for live-origin calls; every other caller passes
 # through with zero behaviour change.
     "_exec_live_staleness",
+# Loophole batch 5 (L-24, #16): the owner-read stage — AFTER
+# live-staleness (the true tool name is resolved) and BEFORE
+# confirm (a refusal needs no dialog). Runs ONLY for
+# live-origin calls in an unproven session under the lock;
+# every other caller passes through untouched.
+    "_exec_owner_read",
     "_exec_validate",
     "_exec_failsafe",
     "_exec_killchain",

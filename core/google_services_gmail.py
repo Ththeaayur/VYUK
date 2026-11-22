@@ -2,6 +2,8 @@
 
 import datetime
 import html
+import json
+import os
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime, parseaddr
 from pathlib import Path
@@ -141,6 +143,22 @@ def unread_email(limit: int = 8) -> str:
             return ("Couldn't read your mail just now"
                     f"{describe_partial(listing)}.")
         return "No unread email — inbox zero."
+    # Snoozed mail stays in the inbox on Google's side but is
+    # hidden from VYUK's own inbox surfaces while the snooze is
+    # active (Stage 0 features batch 2, item 20). The count
+    # below names what was hidden, so a fully-snoozed inbox is
+    # never reported as inbox zero.
+    hidden = 0
+    snoozed = _active_snooze_ids()
+    if snoozed:
+        kept = [s for s in stubs
+                if str(s.get("id") or "") not in snoozed]
+        hidden = len(stubs) - len(kept)
+        stubs = kept
+    if not stubs:
+        return (f"No unread email showing — {hidden} snoozed "
+                f"{'mail' if hidden == 1 else 'mails'} will be "
+                "back in your inbox when the time comes.")
     today = datetime.datetime.now().astimezone().date()
     lines: list[str] = []
     total = listing.get("resultSizeEstimate") or 0
@@ -173,6 +191,11 @@ def unread_email(limit: int = 8) -> str:
     if failed:
         lines.append(
             f"({failed} message{'s' if failed != 1 else ''} couldn't be loaded.)")
+    if hidden:
+        lines.append(
+            f"({hidden} snoozed — "
+            f"{'it is' if hidden == 1 else 'they are'} back in your "
+            "inbox when the time comes.)")
     if not listing.get("complete", True):
         # GAPS-7: a partial set is disclosed with the reason, never
         # silently presented as the whole inbox.
@@ -284,6 +307,308 @@ def search_email(query: str, limit: int = 6,
             f"(Couldn't load the rest — showing "
             f"{len(stubs)} of them{describe_partial(listing)}.)")
     return "\n".join(lines)
+
+
+def recent_messages(limit: int = 20) -> list[dict]:
+    """The inbox as structured data — NOT a tool.
+
+    Powers the Inbox view (Stage 0 features batch 1): the newest
+    messages as {"id", "sender", "subject", "when", "snippet"}
+    dicts, newest first. Same never-raises contract as the other
+    reads: not connected, missing libraries, or any Google-side
+    failure all come back as an empty list, which callers read as
+    "nothing to show". A partial page walk still returns whatever
+    messages did land.
+    """
+    svc, _failure = _service_or_failure("gmail", "your mail")
+    if svc is None:
+        return []
+    try:
+        limit = max(1, min(int(limit), 50))
+    except Exception:  # noqa: BLE001
+        limit = 20
+    try:
+        listing = _list_messages(svc, "", limit)
+    except Exception:  # noqa: BLE001
+        return []
+    stubs = listing.get("messages") or []
+    today = datetime.datetime.now().astimezone().date()
+    out: list[dict] = []
+    # Snoozed mail is hidden from the inbox surface while the
+    # snooze is active (Stage 0 features batch 2, item 20) —
+    # explicit search still finds it.
+    snoozed = _active_snooze_ids()
+    if snoozed:
+        stubs = [s for s in stubs
+                 if str(s.get("id") or "") not in snoozed]
+    for stub in stubs:
+        try:
+            msg = (
+                svc.users()
+                .messages()
+                .get(userId="me", id=stub.get("id"), format="metadata")
+                .execute()
+            )
+        except Exception:  # noqa: BLE001 — one bad message shouldn't sink the list
+            continue
+        headers = (msg.get("payload") or {}).get("headers") or []
+        snippet = html.unescape(" ".join((msg.get("snippet") or "").split()))
+        if len(snippet) > 140:
+            snippet = snippet[:137].rstrip() + "…"
+        out.append(
+            {
+                "id": str(stub.get("id") or ""),
+                "sender": _sender_name(_header(headers, "From")),
+                "subject": _decode_mime(_header(headers, "Subject")).strip()
+                or "(no subject)",
+                "when": _message_time(_header(headers, "Date"), today),
+                "snippet": snippet,
+            }
+        )
+    return out
+
+
+def message_body(message_id: str) -> str:
+    """One message's body as plain text — NOT a tool.
+
+    Powers the Inbox view's reading pane (Stage 0 features batch
+    1): the first text/plain part, whitespace-collapsed and capped
+    at 600 characters (see ``_message_body_text``). "" when the id
+    is empty, the message can't be read, or nothing readable is
+    there — never raises.
+    """
+    message_id = str(message_id or "").strip()
+    if not message_id:
+        return ""
+    svc, _failure = _service_or_failure("gmail", "your mail")
+    if svc is None:
+        return ""
+    try:
+        return _message_body_text(svc, message_id)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+# ----------------------------------------------------------------------
+# Email snooze (Stage 0 features batch 2, item 20).
+#
+# Where snoozed mail lives: NOWHERE in Gmail. Snooze is a local
+# record in data/email_snoozed.json — the message stays in the
+# inbox on Google's side, unread and untouched, and only VYUK's
+# own inbox surfaces (get_unread_email, recent_messages / the
+# Inbox view) hide it while the snooze is active. How it comes
+# back: expiry is checked at READ time, so a snooze whose time
+# has passed is simply not hidden any more — no daemon, no
+# re-delivery, nothing to go wrong while VYUK is closed. The
+# snooze tool itself lists what's snoozed (empty message id) and
+# brings one back early (message id, no until). Explicit search
+# (search_email) still finds snoozed mail — searching for a mail
+# is not the inbox, and hiding a search hit would be a lie.
+# ----------------------------------------------------------------------
+
+def _snooze_path(path=None):
+    """The local snooze file (data/email_snoozed.json). Resolved
+    lazily so importing this module never touches data/ — the
+    feedback_report precedent."""
+    if path is not None:
+        return Path(path)
+    from .config import DATA_DIR  # noqa: E402
+    return DATA_DIR / "email_snoozed.json"
+
+
+def _load_snoozed(path=None):
+    """Snooze rows as a list — [] when the file is absent or
+    unreadable. Never raises: a broken snooze file must not sink
+    the inbox."""
+    try:
+        rows = json.loads(
+            Path(_snooze_path(path)).read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    if not isinstance(rows, list):
+        return []
+    return [r for r in rows
+            if isinstance(r, dict) and r.get("message_id")]
+
+
+def _save_snoozed(rows, path=None):
+    """Atomic whole-store write (A3-atomic): mkstemp + os.replace,
+    True only when the bytes landed. Callers check the return and
+    report failure honestly."""
+    target = Path(_snooze_path(path))
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(rows, indent=1), encoding="utf-8")
+        os.replace(tmp, target)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _parse_snooze_until(value: str):
+    """\"tomorrow\" / ISO date / ISO datetime → an aware local
+    datetime, or None. A bare date means 09:00 that day; an empty
+    value means tomorrow 09:00 (the default)."""
+    now = datetime.datetime.now().astimezone()
+    text = (value or "").strip().lower()
+    if not text or text == "tomorrow":
+        day = (now + datetime.timedelta(days=1)).date()
+        return datetime.datetime(day.year, day.month, day.day,
+                                 9, 0, tzinfo=_local_tz())
+    try:
+        day = datetime.date.fromisoformat(text[:10])
+    except Exception:  # noqa: BLE001
+        return None
+    if len(text) <= 10:
+        return datetime.datetime(day.year, day.month, day.day,
+                                 9, 0, tzinfo=_local_tz())
+    try:
+        when = datetime.datetime.fromisoformat(
+            text.replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=_local_tz())
+    return when.astimezone(_local_tz())
+
+
+def _active_snooze_ids(path=None):
+    """Message ids whose snooze has not expired yet. Never raises
+    — a broken store hides nothing, it never breaks the inbox."""
+    try:
+        now = datetime.datetime.now().astimezone()
+        active = set()
+        for row in _load_snoozed(path=path):
+            until = _parse_snooze_until(str(row.get("snooze_until") or ""))
+            if until is not None and until > now:
+                active.add(str(row.get("message_id")))
+        return active
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _list_snoozed(path=None):
+    """Snoozed mail as plain text — what is snoozed, from whom,
+    and when it comes back. Expired rows are shown as due back
+    (they are already visible in the inbox again)."""
+    rows = _load_snoozed(path=path)
+    if not rows:
+        return "No mail snoozed."
+    now = datetime.datetime.now().astimezone()
+    lines = [f"Snoozed mail ({len(rows)}):"]
+    for row in rows:
+        until = _parse_snooze_until(str(row.get("snooze_until") or ""))
+        when = (f"{until:%d %b %H:%M}" if until is not None
+                else "some time")
+        due = "" if (until is not None and until > now) else " — due back"
+        lines.append(
+            f"• \"{row.get('subject') or '(no subject)'}\" from "
+            f"{row.get('sender') or 'Unknown sender'} — back {when}{due}")
+    return "\n".join(lines)
+
+
+def _unsnooze(message_id: str, path=None):
+    """Removes one snooze record. True when a row was removed and
+    the store saved; False when there was nothing to remove or the
+    save failed."""
+    rows = _load_snoozed(path=path)
+    kept = [r for r in rows
+            if str(r.get("message_id")) != str(message_id)]
+    if len(kept) == len(rows):
+        return False
+    return _save_snoozed(kept, path=path)
+
+
+def _fetch_message_meta(svc, message_id: str):
+    """{subject, sender, thread_id} for one message, or None when
+    Gmail can't show it."""
+    try:
+        msg = (svc.users().messages().get(
+            userId="me", id=message_id, format="metadata").execute())
+    except Exception:  # noqa: BLE001
+        return None
+    headers = (msg.get("payload") or {}).get("headers") or []
+    return {
+        "subject": _decode_mime(_header(headers, "Subject")).strip()
+        or "(no subject)",
+        "sender": _sender_name(_header(headers, "From")),
+        "thread_id": str(msg.get("threadId") or ""),
+    }
+
+
+def snooze_email(message_id: str = "", until: str = "") -> str:
+    """Snoozes one mail, lists snoozed mail, or brings one back
+    early. With no message id it lists what's snoozed; with a
+    message id and no ``until`` it snoozes until tomorrow 09:00 —
+    unless the mail is already snoozed, in which case it brings
+    it back now. ``until`` takes \"tomorrow\", an ISO date (09:00
+    that day) or an ISO datetime. Free by design (app-state):
+    the record lives only in VYUK's own data store, nothing is
+    sent, deleted or changed in Gmail. Every failure is an
+    _outcome.failed — a plain string would be read as success
+    by the receipts while the mail was never snoozed (F-F501).
+    The write is verified by re-read (A3-atomic + the record
+    present after the save)."""
+    from . import tool_outcome as _outcome  # R1b: seam wiring
+    message_id = str(message_id or "").strip()
+    if not message_id:
+        return _list_snoozed()
+    if not (until or "").strip():
+        rows = _load_snoozed()
+        if any(str(r.get("message_id")) == message_id for r in rows):
+            if _unsnooze(message_id):
+                return ("That mail is back in your inbox now — "
+                        "the snooze is off.")
+            return _outcome.failed(
+                "I couldn't lift that snooze just now — the "
+                "snooze file wouldn't save.",
+                "snooze store write failed")
+    when = _parse_snooze_until(until)
+    if when is None:
+        return _outcome.failed(
+            "I couldn't understand that time — say \"tomorrow\", a "
+            "date like 2026-11-23, or an ISO time.",
+            "snooze time unparseable")
+    svc, failure = _service_or_failure("gmail", "your mail")
+    if svc is None:
+        return _outcome.failed(failure, "gmail service unavailable")
+    meta = _fetch_message_meta(svc, message_id)
+    if meta is None:
+        return _outcome.failed(
+            "I couldn't find that message — check the message id.",
+            "message not found")
+    rows = _load_snoozed()
+    now = datetime.datetime.now().astimezone()
+
+    def _live(row):
+        until = _parse_snooze_until(str(row.get("snooze_until") or ""))
+        return until is not None and until > now
+
+    # Prune expired rows and drop any old record for this message;
+    # the new record below replaces it.
+    rows = [r for r in rows
+            if str(r.get("message_id")) != message_id and _live(r)]
+    rows.append({
+        "message_id": message_id,
+        "thread_id": meta["thread_id"],
+        "subject": meta["subject"],
+        "sender": meta["sender"],
+        "snoozed_at": now.isoformat(),
+        "snooze_until": when.isoformat(),
+    })
+    if not _save_snoozed(rows):
+        return _outcome.failed(
+            "I couldn't save that snooze just now.",
+            "snooze store write failed")
+    check = _load_snoozed()
+    if not any(str(r.get("message_id")) == message_id for r in check):
+        return _outcome.failed(
+            "The snooze didn't stick — the record isn't there.",
+            "snooze unverified")
+    return (f"Snoozed \"{meta['subject']}\" from {meta['sender']} "
+            f"until {when:%d %b %H:%M}. It will be back in your "
+            f"inbox then.")
 
 
 _ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024  # Gmail's own attachment ceiling

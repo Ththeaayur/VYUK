@@ -447,7 +447,19 @@ def write_record(tool, args=None, *, gate="free", kind="",
     ``data/audit.jsonl``. Returns True when the record landed
     (a non-empty chain id), False when it did not; NEVER raises,
     so a failing audit can never fail the tool call it
-    describes."""
+    describes.
+
+    Loophole batch 5 (#5): private mode suppresses the audit
+    record — a private turn leaves no row in the chain, and the
+    chain stays valid (the next record links to the last
+    pre-private record). Returns False: no record landed.
+    """
+    try:
+        from .private_mode import private_mode_on
+    except Exception:  # noqa: BLE001 — unreadable: not private
+        private_mode_on = None
+    if private_mode_on is not None and private_mode_on():
+        return False
     try:
         record = {
             "ts": ts or datetime.datetime.now().isoformat(
@@ -535,12 +547,18 @@ def _read_all() -> list[dict]:
     timestamp. A record exists in exactly one stream (a given
     execute() call wrote to one place — audit.jsonl before the
     GAPS-27 merge, the chain after it), so no dedup is needed;
-    the merge only orders the two histories together."""
+    the merge only orders the two histories together.
+
+    Loophole batch 6 (#12): the chain part reads the VERIFIED
+    prefix only — entries at and after the chain's first break
+    are never returned as trusted values. The legacy file
+    predates the chain (no hashes to verify) and reads as before."""
     records = _read_legacy()
     try:
         from . import audit_chain
 
-        for entry in audit_chain.read(kind="audit", limit=None):
+        for entry in audit_chain.read_trusted(
+                kind="audit", limit=None)["entries"]:
             mapped = _chain_record_to_audit(entry)
             if mapped is not None:
                 records.append(mapped)
@@ -548,6 +566,17 @@ def _read_all() -> list[dict]:
         pass  # stands when the chain is unreadable
     records.sort(key=lambda r: str(r.get("ts", "")))
     return records
+
+
+def chain_break() -> dict | None:
+    """The audit chain's first break, or None when it verifies
+    intact (loophole batch 6, #12)."""
+    try:
+        from . import audit_chain
+
+        return audit_chain.chain_break()
+    except Exception:  # noqa: BLE001 — an unreadable chain
+        return None  # reports no break rather than breaking callers
 
 
 def read_recent(limit=50) -> list[dict]:

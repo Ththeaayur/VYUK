@@ -142,11 +142,14 @@ import time
 from pathlib import Path
 
 from .browser_cdp import (_cdp_handshake, _cdp_port,
+                         _cdp_port_answers,
                          _real_chrome_attach_allowed, _DEFAULT_CDP_PORT,
                          _chrome_running, _default_chrome_profile_dir,
                          _debug_profile_dir, _diagnose_profile_dir,
                          _read_devtools_active_port, _launch_argv,
                          _CHROME_136_WALL, note_launched_chrome)
+from .browser_toggle import (clear_toggle_flag, note_toggle_attach,
+                             toggle_flag, toggle_flag_set)
 
 _HANDSHAKE_WAIT_S = 15.0
 _HANDSHAKE_POLL_S = 0.5
@@ -432,6 +435,18 @@ def _attach_and_verify(port=None, note="") -> dict:
         message = f"Attached to your Chrome. {_status_line()}"
         if note:
             message = f"{message} {note}"
+        if note == _TOGGLE_NOTE:
+            # Batch 2, #4: the session came through Chrome's own
+            # chrome://inspect toggle, which VYUK cannot flip
+            # back — record it, so the toggle does not stay on
+            # silently. A record that did not stick is said in the
+            # message (the same rule as the paused allowlist: a
+            # silent failure here is the hole itself).
+            if not note_toggle_attach(port if port is not None
+                                      else _port()):
+                message = (f"{message} I could not record that the "
+                           "toggle is on, so check it yourself in "
+                           "chrome://inspect.")
         return {"state": "attached", "message": message}
     return {"state": "attach_failed",
             "message": (f"Couldn't attach to Chrome: {result} "
@@ -439,6 +454,68 @@ def _attach_and_verify(port=None, note="") -> dict:
                         "Chrome is running without the connection "
                         "port, use Restart Chrome with browser "
                         "control.")}
+
+
+def _toggle_port_still_answers_chrome() -> bool:
+    """True when the toggle's port still answers Chrome. Uses
+    _cdp_port_answers — the C2-F1 probe, which tries /json/version
+    then /json/list and judges each by L-21's identity rule, so a
+    toggle-mode server that 404s /json/version still counts and a
+    foreign server on the port does not. False on any failure
+    (port closed, no answer, not Chrome): the toggle is not
+    provably on, so the flag clears. The DevToolsActivePort file
+    outlives the server, so the file alone never counts."""
+    flag = toggle_flag()
+    if flag is None:
+        return False
+    try:
+        discovered = _read_devtools_active_port(
+            _default_chrome_profile_dir())
+    except Exception:  # noqa: BLE001 — an unreadable file is off
+        return False
+    if discovered is None:
+        return False
+    try:
+        return bool(_cdp_port_answers(discovered))
+    except Exception:  # noqa: BLE001 — a probe failure reads closed
+        return False
+
+
+def toggle_left_on() -> bool:
+    """True when the chrome://inspect toggle is still on — a flag
+    recorded at a toggle attach AND the toggle's port still
+    answering Chrome. Self-heals: when the flag is set but the
+    port no longer answers Chrome, the flag is cleared and this
+    returns False (the toggle was flipped off since). Never
+    raises; a broken store or probe reads as off."""
+    try:
+        if not toggle_flag_set():
+            return False
+        if _toggle_port_still_answers_chrome():
+            return True
+        clear_toggle_flag()
+        return False
+    except Exception:  # noqa: BLE001 — status never breaks
+        return False
+
+
+def toggle_notice() -> dict:
+    """The toggle's plain-words status for the UI: {toggle_on,
+    toggle_line}. toggle_line is empty when the toggle is not
+    on; when it is on it names chrome://inspect and says how to
+    turn it off, because the toggle is Chrome's own switch and
+    VYUK cannot flip it."""
+    if toggle_left_on():
+        return {
+            "toggle_on": True,
+            "toggle_line": (
+                "The remote-debugging toggle in your Chrome "
+                "(chrome://inspect) is still on from your last "
+                "browser session — VYUK can't turn it off for you. "
+                "Open chrome://inspect in Chrome and turn the "
+                "toggle off, then press Check again."),
+        }
+    return {"toggle_on": False, "toggle_line": ""}
 
 
 def _fail(message: str) -> dict:
@@ -454,14 +531,18 @@ def browser_enable_status() -> dict:
         port = _port()
         connected = _is_connected()
         line = _status_line() if connected else "Not attached."
+        notice = toggle_notice()
         return {"opt_in": bool(on), "port": int(port),
                 "connected": bool(connected), "status": str(line),
-                "profile_dir": str(_debug_profile_dir())}
+                "profile_dir": str(_debug_profile_dir()),
+                "toggle_on": bool(notice["toggle_on"]),
+                "toggle_line": str(notice["toggle_line"])}
     except Exception as exc:  # noqa: BLE001 — status never breaks
         return {"opt_in": False, "port": _DEFAULT_CDP_PORT,
                 "connected": False,
                 "status": f"Browser status unavailable ({exc}).",
-                "profile_dir": str(_debug_profile_dir())}
+                "profile_dir": str(_debug_profile_dir()),
+                "toggle_on": False, "toggle_line": ""}
 
 
 def browser_connect_path() -> dict:

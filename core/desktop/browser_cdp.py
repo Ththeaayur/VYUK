@@ -112,11 +112,55 @@ def _cdp_fetch_json(port: int, path: str, timeout: float = 1.5):
         return json.loads(resp.read().decode("utf-8", "replace"))
 
 
+# Chrome target types a /json/list reply may carry (L-21): the
+# identity check below accepts a list only when at least one entry
+# carries one of these. The set is the DevTools target taxonomy
+# (browser / page / worker / service_worker / background_page /
+# shared_worker / other) — a foreign JSON server answering a
+# generic list has none of them.
+_CDP_TARGET_TYPES = frozenset({
+    "browser", "page", "worker", "service_worker",
+    "background_page", "shared_worker", "other",
+})
+
+
+def _cdp_response_is_chrome(data) -> bool:
+    """True when a /json/version or /json/list reply is shaped
+    like Chrome's own (L-21): a version dict must name Chrome in
+    its Browser field ("Chrome/..." — headless Chrome reports
+    "HeadlessChrome/...", which contains it), and a target list
+    must carry at least one entry with a Chrome target type (see
+    _CDP_TARGET_TYPES). A generic JSON dict or list — a foreign
+    local server that merely answers JSON — is NOT Chrome,
+    however well-formed. A server that deliberately mimics
+    Chrome's whole shape is outside this check's threat model (a
+    local attacker crafting a fake Chrome is not "any JSON
+    server"); the check's job is to stop a foreign server being
+    accepted as the user's browser on the strength of JSON alone.
+    The list check deliberately does NOT require a
+    webSocketDebuggerUrl: the toggle-mode server's list shape is
+    unrecorded (N-9 recording OWED) and the lab fake carries a
+    bare {"id", "type": "page"} entry, so requiring the socket
+    URL could reject a real toggle server."""
+    if isinstance(data, dict):
+        browser = data.get("Browser")
+        return isinstance(browser, str) and "Chrome/" in browser
+    if isinstance(data, list):
+        return any(isinstance(t, dict)
+                   and t.get("type") in _CDP_TARGET_TYPES
+                   for t in data)
+    return False
+
+
 def _cdp_port_answers(port: int, timeout: float = 1.0) -> bool:
     """True when a DevTools endpoint answers on ``port`` — a
     /json/version or /json/list reply (a toggle-mode server 404s
-    /json/version, so the list is tried too). False when nothing
-    answers (port closed / not yet up). This is the C2-F1 probe:
+    /json/version, so the list is tried too) that is shaped like
+    Chrome's own (see _cdp_response_is_chrome). False when nothing
+    answers (port closed / not yet up), when the reply is not
+    JSON, or when the reply is JSON but not Chrome-shaped (L-21:
+    a foreign local server answering generic JSON must not be
+    accepted as the user's browser). This is the C2-F1 probe:
     whether the endpoint answers is the authority on whether a
     Chrome is reachable — a process name is not. Never raises."""
     for path in ("/json/version", "/json/list"):
@@ -124,7 +168,7 @@ def _cdp_port_answers(port: int, timeout: float = 1.0) -> bool:
             data = _cdp_fetch_json(port, path, timeout=timeout)
         except Exception:  # noqa: BLE001 — no answer on this path
             continue
-        if isinstance(data, (dict, list)):
+        if _cdp_response_is_chrome(data):
             return True
     return False
 

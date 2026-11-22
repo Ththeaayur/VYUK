@@ -223,12 +223,48 @@ _BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9_\-\.~+/=]+")
 _URL_CREDENTIAL_RE = re.compile(r"(?i)(://[^:/@\s]+:)[^@\s]+@")
 _LONG_TOKEN_RE = re.compile(r"[A-Za-z0-9_\-]{32,}")
 
+# Loophole batch 3 (L-33): credential shapes the original scrub
+# missed — a password in a run_command lands in the receipt, the
+# archive and the backup unless these are masked too.
+# * `-u user:pass` / `--user user:pass` (curl / basic-auth flag):
+#   the value must contain a colon, so `python -u script.py`
+#   (a bare flag) never matches.
+_BASIC_AUTH_FLAG_RE = re.compile(
+    r"(?i)(--user(?:name)?(?:\s+|=)|-u\s+)"
+    r"(\"[^\"]*:[^\"]*\"|'[^']*:[^']*'|[^\s\"']+:[^\s\"']+)")
+# * `--password <value>` / `--password=<value>` / `-p <value>`.
+_PASSWORD_FLAG_RE = re.compile(
+    r"(?i)(--password(?:\s+|=)|-p\s+)"
+    r"(\"[^\"]*\"|'[^']*'|\S+)")
+# * `password is X` / `passphrase is X` (prose — the assign rule
+#   above only covers `password:` / `password=`).
+_PASSWORD_IS_RE = re.compile(
+    r"(?i)\b(password|passwd|passphrase|api[_-]?key|secret)\b\s+is\s+"
+    r"(\"[^\"]*\"|'[^']*'|\S+)")
+# * Bare `user:pass@host` with no URL scheme in front of it.
+#   The password may itself contain "@" (it is matched greedily
+#   up to the LAST "@" before the host), so `alice:MyP@ss123@`
+#   still masks. The host must carry a dot (or be localhost) so
+#   `word: word` prose and `host:port` never match; the lookbehind
+#   keeps the URL rule's already-scrubbed `://user:[redacted]@`
+#   untouched, and the scheme lookahead keeps a `mailto:` /
+#   `tel:` URI from reading as a credential (its "user" would be
+#   the scheme word).
+_BARE_CREDENTIAL_RE = re.compile(
+    r"(?i)(?<![\w/.:-])(?!(?:mailto|tel|sms):)"
+    r"([A-Za-z0-9._%+\-]+):([^\s]+)@"
+    r"([A-Za-z0-9.\-]*\.[A-Za-z]{2,}|localhost)")
+
 
 def _scrub_text(text: str) -> str:
     """Remove secret-shaped values from one string, keeping prose."""
     text = _CREDENTIAL_ASSIGN_RE.sub(r"\1: [redacted]", text)
     text = _BEARER_RE.sub("Bearer [redacted]", text)
     text = _URL_CREDENTIAL_RE.sub(r"\1[redacted]@", text)
+    text = _BASIC_AUTH_FLAG_RE.sub(r"\1[redacted]", text)
+    text = _PASSWORD_FLAG_RE.sub(r"\1[redacted]", text)
+    text = _PASSWORD_IS_RE.sub(r"\1 is [redacted]", text)
+    text = _BARE_CREDENTIAL_RE.sub(r"\1:[redacted]@\3", text)
     text = _LONG_TOKEN_RE.sub("[redacted]", text)
     return text
 
@@ -236,12 +272,34 @@ def _scrub_text(text: str) -> str:
 def _sanitize_value(value):
     """Recursively sanitize one value: sensitive key names at
     EVERY nesting level become [redacted]; strings are scrubbed
-    of secret-shaped text; numbers/bools/None pass through."""
+    of secret-shaped text; numbers/bools/None pass through.
+
+    Loophole batch 3 (L-33): a dict whose values NAME a
+    credential — {"key": "my_password", "value": "hunter2"} —
+    carries the secret in a SIBLING value, under a generic key
+    ("value") no key-name rule can see. When a string value in
+    the dict names a credential (token-exact, so "author" and
+    "spinning" never trigger), every OTHER string value in that
+    dict is masked: it is the credential itself. The naming value
+    is kept — it says WHAT was refused, not the secret — but
+    scrubbed, so an embedded shape in it ("password is hunter2")
+    still masks. A command that merely mentions the word
+    ("grep password file.txt") is the naming value itself, so it
+    is kept in full: the audit trail keeps the command."""
     if isinstance(value, dict):
+        naming_keys = {k for k, item in value.items()
+                       if isinstance(item, str)
+                       and _value_names_credential(item)}
         out = {}
         for key, item in value.items():
+            if key in naming_keys:
+                out[key] = _scrub_text(item) \
+                    if isinstance(item, str) else _sanitize_value(item)
+                continue
             lowered = str(key).lower()
             if any(word in lowered for word in _SENSITIVE_KEY_WORDS):
+                out[key] = "[redacted]"
+            elif naming_keys and isinstance(item, str):
                 out[key] = "[redacted]"
             else:
                 out[key] = _sanitize_value(item)
@@ -251,6 +309,35 @@ def _sanitize_value(value):
     if isinstance(value, str):
         return _scrub_text(value)
     return value
+
+
+# Credential words as whole tokens (loophole batch 3, L-33): a
+# VALUE that names a credential — "my_password", "api key" —
+# marks its dict. Deliberately narrower than
+# _SENSITIVE_KEY_WORDS: "key", "auth" and "private" are ordinary
+# words as values ("the key point is…"), so they do not trigger.
+_CREDENTIAL_VALUE_WORDS = frozenset({
+    "password", "passwd", "passphrase", "token", "secret",
+    "credential", "credentials", "apikey", "pin", "passcode",
+    "bearer", "privatekey", "accesstoken", "refreshtoken",
+    "otp", "sessiontoken",
+})
+
+
+def _value_names_credential(text: str) -> bool:
+    """True when one string value names a credential (whole-token
+    match on the credential words above)."""
+    tokens = re.split(r"[^a-z0-9]+", str(text or "").lower())
+    return any(t in _CREDENTIAL_VALUE_WORDS for t in tokens)
+
+
+def _dict_names_credential(mapping: dict) -> bool:
+    """True when any string value in `mapping` names a credential.
+    Used by the confirm gate's summarize_args, so both share one
+    definition of "this call's args name a credential"."""
+    return any(isinstance(item, str)
+               and _value_names_credential(item)
+               for item in mapping.values())
 
 
 def sanitize_report(error: str, context: dict | None, *,
