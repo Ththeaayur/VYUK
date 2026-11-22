@@ -88,6 +88,156 @@ def _play_samples(samples, rate: int = _RATE_OUT) -> None:
             f"no speaker could be opened ({e})") from e
 
 
+# ---------------------------------------------------------------------------
+# Voice-memo play-back state (Stage 0 features batch 4, Group G)
+#
+# voice_note records memos to ~/Music/Nova; voice_memos lists and
+# plays them back. One memo plays at a time (the ambient_scene
+# precedent): the player runs in a daemon thread so the handler
+# answers at once, and stop halts it via sd.stop().
+# ---------------------------------------------------------------------------
+
+_MEMO_LOCK = threading.Lock()
+_MEMO = {"stop": None, "thread": None, "label": None, "started": None}
+
+
+def _memo_folder() -> Path:
+    """Where voice_note saves memos."""
+    return Path.home() / "Music" / "Nova"
+
+
+def _memo_transcript_excerpt(txt_path: Path) -> tuple[str, str]:
+    """(title, excerpt) from a memo's transcript file. The file
+    is "{heading} — {when}\\n\\n{transcript}"; the excerpt is the
+    body's first 120 chars. A file whose body is the honest
+    no-transcription note reads as no transcript, not as words."""
+    try:
+        text = txt_path.read_text(encoding="utf-8")
+    except Exception:  # noqa: BLE001 — unreadable = no transcript
+        return "", ""
+    head, _, body = text.partition("\n\n")
+    title = head.rsplit(" — ", 1)[0].strip() if " — " in head else head.strip()
+    body = (body or "").strip()
+    if not body or body.startswith("(Transcription wasn't available"):
+        return title, ""
+    excerpt = body.replace("\n", " ")[:120]
+    if len(body) > 120:
+        excerpt += "…"
+    return title, excerpt
+
+
+def _list_memos() -> list:
+    """Every memo in ~/Music/Nova, newest first: {path, title,
+    when, excerpt}. The filename is {slug}-{stamp}.wav with the
+    stamp %Y%m%d-%H%M%S, so name order is time order."""
+    folder = _memo_folder()
+    if not folder.is_dir():
+        return []
+    try:
+        wavs = sorted(folder.glob("*.wav"), reverse=True)
+    except Exception:  # noqa: BLE001 — unreadable folder = no memos
+        return []
+    memos = []
+    for wav_path in wavs:
+        title, excerpt = _memo_transcript_excerpt(
+            wav_path.with_suffix(".txt"))
+        if not title:
+            slug = wav_path.stem.rsplit("-", 2)[0]
+            title = slug.replace("-", " ").strip() or "Voice note"
+        stamp = wav_path.stem.rsplit("-", 2)[-2:]
+        when = ""
+        if len(stamp) == 2:
+            try:
+                when = datetime.strptime(
+                    f"{stamp[0]}-{stamp[1]}",
+                    "%Y%m%d-%H%M%S").strftime("%d %b %Y, %H:%M")
+            except ValueError:
+                when = "-".join(stamp)
+        memos.append({"path": wav_path, "title": title,
+                      "when": when, "excerpt": excerpt})
+    return memos
+
+
+def _read_memo_wav(path: Path):
+    """(samples, rate): a memo WAV as float32 mono samples, via
+    stdlib wave. Raises _DeviceUnavailable with a user-ready
+    reason when the file can't be read or the audio library
+    isn't available."""
+    try:
+        with wave.open(str(path), "rb") as wav:
+            channels = wav.getnchannels()
+            width = wav.getsampwidth()
+            rate = wav.getframerate()
+            frames = wav.readframes(wav.getnframes())
+    except Exception as e:  # noqa: BLE001
+        raise _DeviceUnavailable(
+            f"the memo file couldn't be read ({e})") from e
+    if width != 2:
+        raise _DeviceUnavailable(
+            "that memo isn't 16-bit audio, so I can't play it")
+    if channels not in (1, 2):
+        raise _DeviceUnavailable(
+            "that memo has an unusual channel count, so I can't "
+            "play it")
+    try:
+        import numpy as np
+    except Exception as e:  # noqa: BLE001
+        raise _DeviceUnavailable(
+            f"the audio library isn't available ({e})") from e
+    samples = np.frombuffer(frames, dtype=np.int16)
+    if channels == 2:
+        samples = samples.reshape(-1, 2).mean(axis=1).astype(np.int16)
+    return samples.astype(np.float32) / 32768.0, rate
+
+
+def _audio_library_available() -> bool:
+    """True when the audio library imports (the presence probe
+    the memo player checks before claiming a play)."""
+    try:
+        import sounddevice  # noqa: F401
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _memo_player_main(samples, rate: int, stop_event) -> None:
+    """Play one memo until it ends (runs in a thread)."""
+    try:
+        _play_samples(samples, rate)
+    except Exception:  # noqa: BLE001 — a dead thread = silence
+        return
+
+
+def _start_memo_player(samples, rate: int, stop_event):
+    """Start the memo player thread (monkeypatchable)."""
+    thread = threading.Thread(target=_memo_player_main,
+                              args=(samples, rate, stop_event),
+                              daemon=True, name="visor-memo")
+    thread.start()
+    return thread
+
+
+def _halt_memo_playback() -> None:
+    try:
+        import sounddevice as sd
+
+        sd.stop()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _stop_memo_locked() -> str | None:
+    """Stop whatever memo is playing; returns its label or None.
+    Caller holds _MEMO_LOCK."""
+    if _MEMO["stop"] is None:
+        return None
+    label = _MEMO["label"]
+    _MEMO["stop"].set()
+    _MEMO.update(stop=None, thread=None, label=None, started=None)
+    _halt_memo_playback()
+    return label
+
+
 def _default_device_name(kind: str) -> str | None:
     """Name of the OS-default input/output device, or None."""
     try:
@@ -420,6 +570,92 @@ def voice_note(seconds: int = 10, title: str = "") -> str:
 
 
 # ---------------------------------------------------------------------------
+# 4b. voice_memos — list and play back the recorded memos
+# (Stage 0 features batch 4, Group G, 2026-11-22)
+# ---------------------------------------------------------------------------
+
+
+def voice_memos(action: str = "list", index=0) -> str:
+    """List your recorded voice memos, play one back, or stop
+    the one playing. 'list' shows them newest first, numbered,
+    with the date and the transcript's first line when one was
+    saved; 'play' plays one by its number from the list (a memo
+    already playing is stopped first); 'stop' stops whatever is
+    playing. Memos are the owner's private material: list and
+    play are owner-only reads (L-24). Playback needs the audio
+    library; without it she says so honestly, never a fake
+    success."""
+    action = str(action or "list").strip().lower()
+    if action not in ("list", "play", "stop"):
+        return ("Voice memo actions are 'list', 'play' and "
+                "'stop' — e.g. voice_memos with action 'list'.")
+    if action == "stop":
+        with _MEMO_LOCK:
+            label = _stop_memo_locked()
+        if label is None:
+            return "No voice memo is playing — nothing to stop."
+        return f"Stopped playing '{label}'."
+    try:
+        memos = _list_memos()
+    except Exception as e:  # noqa: BLE001
+        return f"I couldn't list the voice memos: {e}"
+    if action == "list":
+        if not memos:
+            return ("No voice memos yet. Record one with "
+                    "voice_note — say 'take a voice note'.")
+        lines = [f"Voice memos ({len(memos)}):"]
+        for n, memo in enumerate(memos, 1):
+            line = f"{n}. {memo['title']} ({memo['when']})"
+            if memo["excerpt"]:
+                line += f" — “{memo['excerpt']}”"
+            else:
+                line += " — no transcript saved"
+            lines.append(line)
+        with _MEMO_LOCK:
+            playing = _MEMO["label"]
+        if playing:
+            lines.append(f"Now playing: '{playing}'.")
+        return "\n".join(lines)
+    # action == "play"
+    try:
+        n = int(float(index))
+    except (TypeError, ValueError):
+        return ("That needs the memo's number from the list, "
+                "e.g. 1.")
+    if n < 1 or n > len(memos):
+        if not memos:
+            return ("No voice memos yet. Record one with "
+                    "voice_note first.")
+        return (f"That number is out of range — there "
+                f"{'is' if len(memos) == 1 else 'are'} "
+                f"{len(memos)} memo{'s' if len(memos) != 1 else ''}, "
+                f"numbered 1 to {len(memos)}.")
+    memo = memos[n - 1]
+    with _MEMO_LOCK:
+        _stop_memo_locked()
+    try:
+        samples, rate = _read_memo_wav(memo["path"])
+    except _DeviceUnavailable as e:
+        return f"I couldn't play that memo: {e}."
+    except Exception as e:  # noqa: BLE001
+        return f"I couldn't play that memo: {e}"
+    if not _audio_library_available():
+        # The ambient_scene precedent: refuse honestly here,
+        # never claim a play that cannot sound.
+        return ("I can't play that memo — the audio library "
+                "isn't available on this machine.")
+    stop_event = threading.Event()
+    with _MEMO_LOCK:
+        _MEMO.update(stop=stop_event, label=memo["title"],
+                     started=time.time())
+        _MEMO["thread"] = _start_memo_player(samples, rate,
+                                             stop_event)
+    secs = len(samples) / rate if rate else 0
+    return (f"Playing memo {n} — '{memo['title']}' (about "
+            f"{secs:.0f} seconds).")
+
+
+# ---------------------------------------------------------------------------
 # 5. read_selection_aloud
 # ---------------------------------------------------------------------------
 
@@ -682,6 +918,19 @@ def register_all(registry) -> None:
             "required": [],
         },
         handler=voice_note,
+    )
+    registry.register(
+        name="voice_memos",
+        description="List your recorded voice memos and play one back. Actions: 'list' shows them newest first, numbered, with the date and the transcript's first line when one was saved; 'play' plays one by its number from the list (a memo already playing is stopped first); 'stop' stops whatever is playing. Memos live in ~/Music/Nova as WAV files with a text transcript beside each one when transcription is set up. Use when the user asks what voice memos they have, or to hear one again. Playback needs the audio library; without it she says so honestly.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "'list', 'play' or 'stop' (default 'list')"},
+                "index": {"type": "integer", "description": "The memo's number from the list, for 'play'"},
+            },
+            "required": [],
+        },
+        handler=voice_memos,
     )
     registry.register(
         name="read_selection_aloud",

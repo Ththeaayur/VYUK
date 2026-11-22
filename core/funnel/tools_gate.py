@@ -307,6 +307,15 @@ _OWNER_ONLY_DISPATCHED = frozenset({
     # subscriptions; the portfolio's list/total read the owner's
     # holdings — both owner-only, the subscription_audit precedent.
     "check_money_alerts", "portfolio_tracker",
+    # Stage 0 features batch 4 (Group G, 2026-11-22): notes,
+    # wishlist, watchlist, goals and voice memos are the owner's
+    # private material — their list/read actions are owner-only,
+    # the reading_list precedent. And the owner-gate extension
+    # (parent ruling, batch 3): the budget report and the
+    # price-watch list/check read the same stores
+    # check_money_alerts reads, so they are owner-only too.
+    "notes", "wishlist", "watchlist", "goal_tracker",
+    "voice_memos", "budget_envelope", "price_watch",
 })
 
 # Tools whose owner-content read actions are a SUBSET of their

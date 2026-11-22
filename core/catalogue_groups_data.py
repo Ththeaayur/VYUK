@@ -378,6 +378,11 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
         # alerts check and the portfolio tracker, with the other
         # money tools.
         "check_money_alerts", "portfolio_tracker",
+        # Stage 0 features batch 4 (Group G, 2026-11-22): notes,
+        # wishlist, watchlist and goal tracker, with the other
+        # personal-list tools; voice_memos with the senses tools.
+        "notes", "wishlist", "watchlist", "goal_tracker",
+        "voice_memos",
         "fund_returns", "mutual_fund_nav",  # R8-8 mftool port
         "habit_track",
         "habit_summary",

@@ -1311,6 +1311,17 @@ _FREE_BY_DESIGN: dict[str, str] = {
     # portfolio writes only to VYUK's own memory facts (category
     # `portfolio`) — app-state, never money movement.
     "portfolio_tracker": "app-state",
+    # Stage 0 features batch 4 (Group G, 2026-11-22): notes,
+    # wishlist, watchlist and goals write only to VYUK's own
+    # memory facts (categories `notes`, `wishlist`, `watchlist`,
+    # `goals`) and voice_memos only reads the memo folder and
+    # plays through the audio library — app-state, the
+    # reading_list precedent.
+    "notes": "app-state",
+    "wishlist": "app-state",
+    "watchlist": "app-state",
+    "goal_tracker": "app-state",
+    "voice_memos": "app-state",
     "practice_log": "app-state",
     "price_watch": "app-state",
     "quiz_me": "app-state",
@@ -1768,6 +1779,37 @@ def _is_read_action(name: str, args: dict[str, Any] | None) -> bool:
         return action in ("list", "total")
     if name == "reading_list":
         return action == "list"
+    # Stage 0 features batch 4 (Group G, 2026-11-22): the notes,
+    # lists, goals and voice memos — their list/read actions
+    # return the owner's stored content, so the owner-read gate
+    # needs to recognise them as reads. Voice-memo play reads
+    # the memo audio; stop acts on the owner's memo session, so
+    # it refuses unproven too.
+    if name == "notes":
+        return action in ("list", "read")
+    if name == "wishlist":
+        return action == "list"
+    if name == "watchlist":
+        return action == "list"
+    if name == "goal_tracker":
+        return action == "list"
+    if name == "voice_memos":
+        return action in ("list", "play", "stop")
+    # Stage 0 features batch 4 (Group G, 2026-11-22): the
+    # owner-gate extension (parent ruling, batch 3) — the budget
+    # report and the price-watch list/check read the owner's
+    # budgets and watches, the same stores check_money_alerts
+    # reads, so they are owner-only reads too. Behaviour change,
+    # stated (the batch-5 precedent): under the provenance lock
+    # these reads move from "confirm ask" to the owner-read
+    # refusal in an unproven live session, and to a free read in
+    # a proven session or a typed turn. The write actions stay
+    # non-read (set/spend/add/remove act, and reach their own
+    # free app-state path).
+    if name == "budget_envelope":
+        return action == "report"
+    if name == "price_watch":
+        return action in ("list", "check")
     return False
 
 

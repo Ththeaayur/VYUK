@@ -157,6 +157,12 @@ TOOL_FRIENDLY_NAMES = {
     "get_stock_quote": "Stock price",
     "check_money_alerts": "Money alerts",
     "portfolio_tracker": "Portfolio",
+    # Stage 0 features batch 4 (Group G, 2026-11-22).
+    "notes": "Notes",
+    "wishlist": "Wishlist",
+    "watchlist": "Watchlist",
+    "goal_tracker": "Goals",
+    "voice_memos": "Voice memos",
     "get_todays_schedule": "Today's schedule",
     "get_morning_briefing": "Morning briefing",
     "get_upcoming_events": "Upcoming events",

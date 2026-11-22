@@ -250,6 +250,11 @@ DESKTOP_TOOL_PRIORITY: tuple[str, ...] = (
     # Stage 0 features batch 3 (Group F, 2026-11-22): the money
     # actions — same shape as batch 2 above.
     "check_money_alerts", "portfolio_tracker",
+    # Stage 0 features batch 4 (Group G, 2026-11-22): the notes,
+    # lists, goals and voice memos — same shape as batches 2–3
+    # above.
+    "notes", "wishlist", "watchlist", "goal_tracker",
+    "voice_memos",
 )
 
 #: Backwards-friendly alias (the set, not the ordering claim).

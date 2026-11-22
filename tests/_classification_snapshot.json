@@ -1,3822 +1,3847 @@
 {
- "access_record_preference": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "access_text_clarity": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "access_voice_first_routine": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "access_window_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "accessconf_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "accessconf_record": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "acronym_finder": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "adapter_action": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "add_border": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "adjust_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "adjust_volume": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "agent_call": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "air_quality_advice": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "ambient_scene": {
-  "confirm": false,
-  "free": "output to user",
-  "read": false
- },
- "anagram_finder": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "antic_cards_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "antic_grant_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "antic_suggest_cards": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "app_crash_digest": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "app_settings": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "app_volume": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "ascii_art": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "asset_inventory": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "audio_fade": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "audio_localise": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "audio_speed_change": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "audio_to_midi": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "audio_to_midi_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "audio_trim": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "backup_files": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "backup_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "base64_codec": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "base_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "batch_rename": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "batch_watermark": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "battery_drain_detective": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "battery_health": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "battery_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "bill_calendar": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "billing": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "binaural_tone": {
-  "confirm": false,
-  "free": "fixed-folder generative output",
-  "read": false
- },
- "birthday_radar": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "bluetooth_devices": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "bmi_calculator": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "bookings": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "borrow_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "breathing_guide": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "browser_bookmarks": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "browser_click": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "browser_console": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "browser_control": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "browser_history": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "browser_network": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "browser_performance": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "browser_press": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "browser_read": {
-  "confirm": false,
-  "free": "effectful read",
-  "read": false
- },
- "browser_select": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "browser_type": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "budget_envelope": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "business": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "cancel_calendar_event": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "capture_route": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "capture_window": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "case_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "check_money_alerts": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "check_port": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "check_url_blocked": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "chord_notes": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "citation_format": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "clean_temp_files": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "clear_clipboard": {
-  "confirm": false,
-  "free": "v5.9 deliberate exemption",
-  "read": false
- },
- "click_and_drag_path": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "click_anywhere": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "click_by_mark": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "click_element": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "click_text": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "clipboard_files": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "close_application": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "coffee_ratio": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "coin_decision": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "color_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "color_from_image": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "comms_check_recipient": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "comms_draft_message": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "comms_record_draft": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "comms_send_readiness": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "companion_pairing": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "companion_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "compare_files": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "compass_bearing": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "compliment_engine": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "compose_song": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "compound_growth": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "compound_interest": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "compress_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "connect_wifi": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "contact_card": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "context_menu_action": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "continuous_choice_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "continuous_delete_data": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "continuous_first_open": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "continuous_record_choice": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "convert_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "cooking_time_per_weight": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "copy_file_to_clipboard": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "countdown": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "create_art": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "create_calendar_event": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "create_plan": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "create_restore_point": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "create_shortcut": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "creative_mark_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "creative_rights_add": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "creative_rights_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "creative_subtitle_edit": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "creative_subtitle_export": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "creative_timeline": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "cron_explain": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "crop_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "csv_column_stats": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "csv_preview": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "csv_query": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "curl_cffi_read": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "cursor_control": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "custom_wake_model_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "date_calculator": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "day_review": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "daylight_hours": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "deadline_radar": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "decision_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "deep_research": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "define_workflow": {
-  "confirm": false,
-  "free": "workflow",
-  "read": false
- },
- "delete_plan": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "delete_routine": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "delete_snippet": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "delete_window_layout": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "describe_camera_view": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "desktop_control": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "dev_codebase_qa": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "diagnostics_preview": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "dice_roller_plus": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "discord_presence": {
-  "confirm": false,
-  "free": "presence",
-  "read": false
- },
- "discount_stack": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "disk_health": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "disk_index_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "disk_speed_test": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "disk_write_hogs": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "display_control": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "display_details": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "distance_between": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "dns_flush": {
-  "confirm": false,
-  "free": "v5.9 deliberate exemption",
-  "read": false
- },
- "dns_lookup": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "document_vault": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "domain_lookup": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "dough_hydration": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "download_email_attachment": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "download_eta": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "download_file": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "drag_drop_action": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "drag_file_onto": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "drag_mouse": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "drive_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "duotone_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "duplicate_photo_finder": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "ebook_library": {
-  "confirm": false,
-  "free": "ebook",
-  "read": false
- },
- "egg_timer_math": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "eject_drive": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "embed_knowledge": {
-  "confirm": false,
-  "free": "knowledge",
-  "read": false
- },
- "emergency_card": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "empty_recycle_bin": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "enable_custom_wake_model": {
-  "confirm": false,
-  "free": "wake",
-  "read": false
- },
- "ent_shelf_list": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "env_backup": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "env_var": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "epoch_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "erp": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "event_budget": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "event_guest": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "event_milestone": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "event_plan": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "event_schedule": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "event_tickets": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "event_vendor": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "expense_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "filament": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "deals": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "find_free_slots": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "portfolio_tracker": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "reschedule_calendar_event": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "snooze_email": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "vehicle_routes": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "expiry_radar": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "extension_approve": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "extension_audit": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "extension_disable": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "extension_enable": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "extension_register": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "extension_revoke": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "extension_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "extract_article": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "extract_from_text": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "eye_rest_timer": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "eyes_fusion": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "fast_startup_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "feel_orb_map": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "feel_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "feel_validate": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "file_age_report": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "file_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "file_dialog_action": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "file_hash": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "filler_word_count": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "filter_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "filter_list_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "fin_plan_record": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "finance_playbook_add": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "finance_playbook_curate": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "finance_playbook_delete": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "finance_playbook_list": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "finance_playbook_vote": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "find_duplicates": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "find_files": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "find_process_on_port": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "firewall_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "firstrun_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "firstrun_record": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "flashcard_add": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "flashcard_answer": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "flashcard_review": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "flashcard_stats": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "focus_score": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "focus_session": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "focus_timer_report": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "focus_window_by_text": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "folder_diff": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "folder_outline": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "folder_size": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "folder_size_map": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "folder_watch_cook": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "forget_wifi": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "forgiving_select": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "fortune_cookie": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "fractal_art": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "fuel_cost_split": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "fund_returns": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "game_macro_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "game_media_note": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "game_record_gaming": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "game_server": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "game_session_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "garden_watering": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "generate_beat": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "generate_melody": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "generate_palette": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "generate_password": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "generate_uuid": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_active_window": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_activity_log": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_crypto_price": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_current_time_date": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_pixel_color": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "get_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_stock_quote": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_system_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_todays_schedule": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_morning_briefing": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_unread_email": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_upcoming_events": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_weather": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "get_window_controls": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "gift_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "glitch_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "gpu_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "grad_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "grad_record": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "gradient_css": {
-  "confirm": false,
-  "free": "fixed-folder generative output",
-  "read": false
- },
- "gratitude_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "grocery_list": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "habit_checkin": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "habit_summary": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "habit_track": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "haiku": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "hangman": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "hardware_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "hardware_inventory": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "hardware_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "hardware_record_plan": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "hardware_safety": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "hash_text": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "health": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "hibernate_setting": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "home_inventory": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "hosts_view": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "hotkey_cheatsheet": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "hourly_rate_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "http_headers": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "image_compare": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "image_contact_sheet": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "image_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "improvement_propose": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "improvement_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "inbox_zero_assist": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "index_files": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "init_backup_repo": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "installer_validate": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "interval_name": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "invoice": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "iot_device_state": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "iot_local_device": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "iot_network_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "iot_record_device": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "ip_camera": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "ip_geolocate": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "ip_renew": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "ip_subnet_calc": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "journal_action": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "journal_prompt": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "journey_time": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "json_diff": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "json_format": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "json_query": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "kaleidoscope_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "keep_awake": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "knowledge_embedding_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "knowledge_search": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "largest_files": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "launch_application": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "layover_time": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "learnlast_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "learnlast_spec": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "lifeadmin": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "link_health_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "link_unshorten": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_app_updates": {
-  "confirm": false,
-  "free": "effectful read",
-  "read": false
- },
- "list_audio_devices": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_backup_snapshots": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_connections": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_custom_wake_models": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_drivers": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_fonts": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_installed_apps": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_local_devices": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_network_shares": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_plans": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_printers": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_proactivity_scores": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_restore_points": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_routines": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_services": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_snippets": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_startup_programs": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_users": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_window_layouts": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "list_workflows": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "listen_for_sound": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "loan_calculator": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "loan_payment": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "lock_screen": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "lodging": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "log_glass": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "lorem_text": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mad_libs": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "maintenance_due": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "make_collage": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "make_sprite_sheet": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "make_wallpaper": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "mcp_registry": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "meal_rotation": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "media_chat": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "media_control": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "meeting_cost": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "meeting_prep_card": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "meeting_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "menu_action": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "merge_pdfs": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "metronome": {
-  "confirm": false,
-  "free": "fixed-folder generative output",
-  "read": false
- },
- "metronome_bpm": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mic_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mic_control": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "miss_capability_map": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "miss_compound": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "miss_to_playbook_steps": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mission_build_brief": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mission_build_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mission_evidence_board": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mission_journal_append": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "mission_journal_entry": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mission_run_job": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "mnemonic_maker": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "monitor_action": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "monitor_control": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "mood_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "mood_trend": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "moon_phase": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "morse_translate": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "mouse_control": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "mouse_settings": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "move_window_to_monitor": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "multiverse_compile": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "multiverse_compile_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "multiverse_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "music_trivia": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "mutual_fund_nav": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "name_generator": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "nato_spell": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "net_network_descriptor": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "net_network_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "net_readonly_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "net_record_network": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "network_adapters": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "network_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "network_quality": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "note_frequency": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "notify_user": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "number_guess": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "occluded_capture": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "ocr_file": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "ocr_screen": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "ollama_delete": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "ollama_pull": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "ollama_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "open_path": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "open_settings_page": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "open_url": {
-  "confirm": false,
-  "free": "launch/nav args-gated",
-  "read": false
- },
- "optimise": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "organise_photos": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "oven_temp_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "overdue_promises": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "packing_list": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "page_change_summary": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "page_watch": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "page_word_search": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "palette_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "pantry_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "passive_voice_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "password_strength": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "paste_snippet": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "paste_text": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "path_audit": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "pdf_extract_images": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "pdf_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "pdf_merge_bookmarks": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "pdf_split_by_text": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "peripheral_roll_call": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "personal_skills": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "pet_feeding_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "phase5_interface_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "phase5_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "photo_face_blur": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "pilot_bench": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "pilot_build_steps": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "pilot_dev_workflow": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "pilot_record_pilot": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "pilot_review_note": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "pilot_revision_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "pilot_study_session": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "ping_host": {
-  "confirm": false,
-  "free": "effectful read",
-  "read": false
- },
- "pixelate_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "plant_care_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "plat_tools_record": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "play_music": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "pomodoro": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "port_roundtrip": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "power_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "power_plans": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "power_requests": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "practice_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "presence_report": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "press_hotkey": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "preview_photo_organisation": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "price_per_unit": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "price_watch": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "print_file": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "privacy_usage": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "proactivity_bench_results": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "process_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "prompt_tune": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "public_ip": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "qr_decode_image": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "quick_math": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "quiz_me": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "quote_of_morning": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "quote_vault": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "rain_from_forecast": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "random_choice": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "read_clipboard": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "read_file": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "read_page_aloud": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "read_pdf_text": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "read_selection_aloud": {
-  "confirm": false,
-  "free": "output to user",
-  "read": false
- },
- "reading_level": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "reading_list": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "reading_time": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "recall_day": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "recall_memories": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "recent_files": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "recipe_scale": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "record_audio": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "regex_test": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "registry_read": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "release_checklist": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "release_checklist_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "release_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "release_record": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "remember_person": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "remember_promise": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "remember_today": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "remember_user_fact": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "rent_split": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "replace_in_file": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "replay_programme": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "research": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "resize_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "restore_backup": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "restore_point_before_changes": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "restore_window_layout": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "rhythm_subdivide": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "riddle_time": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "rock_paper_scissors": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "roll_dice": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "roman_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "room_brightness": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "room_noise_level": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "rotate_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "rotate_pdf": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "rss_digest": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "run_anticipation_routine": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "run_command": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "run_plan": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "run_proactivity_bench": {
-  "confirm": false,
-  "free": "proactivity",
-  "read": false
- },
- "run_routine": {
-  "confirm": false,
-  "free": "executor dispatch",
-  "read": false
- },
- "run_workflow": {
-  "confirm": false,
-  "free": "workflow",
-  "read": false
- },
- "safe_eject_all": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "sandbox_list": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sandbox_run": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "save_routine": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "save_snippet": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "save_window_layout": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "saved_wifi_networks": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "savings_goal": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "scale_notes": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "scan_wifi_networks": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "scheduled_agents": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "score_intervention": {
-  "confirm": false,
-  "free": "proactivity",
-  "read": false
- },
- "screen_break_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "screen_brightness_auto": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "screen_diff": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "screen_look": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "screen_time_today": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "screenshot_region": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "screenshot_to_text_note": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "scroll_until_found": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "search_email": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "search_file_contents": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "search_indexed_files": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "security_scan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "security_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "semantic_search_knowledge": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "semver_compare": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "send_email": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "sense_trends": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sentence_stats": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "service_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "service_schedule": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "session_identity": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "set_brightness": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "set_default_printer": {
-  "confirm": false,
-  "free": "v5.9 deliberate exemption",
-  "read": false
- },
- "set_discord_client_id": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "set_focus_assist": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "set_microphone_mute": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "set_process_priority": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "set_refresh_rate": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "set_reminder": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "set_resolution": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "set_screen_rotation": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "set_screen_timeout": {
-  "confirm": false,
-  "free": "v5.9 deliberate exemption",
-  "read": false
- },
- "set_startup_program": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "set_volume_level": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "set_wallpaper": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "shopping_list": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "shred_file": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "signature_block": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "silence_trim": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "sim_predict_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sim_predict_report": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "site_permissions_review": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sleep_states": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "slug_maker": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sniff_file": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sniff_link": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sniff_text": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "social_balances": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "social_debt_add": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_debt_settle": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_entry_delete": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "social_gift_add": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_nudge_check": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "social_nudge_pause": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_nudge_snooze": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_occasion_add": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_occasion_upcoming": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "social_promise_add": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_promise_complete": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "social_promise_list": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "social_send": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "social_stay_in_touch": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "solar_yield": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "song_length_beats": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "speak_text": {
-  "confirm": false,
-  "free": "output to user",
-  "read": false
- },
- "speaker_check": {
-  "confirm": false,
-  "free": "output to user",
-  "read": false
- },
- "speed_distance_time": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "speed_test": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "spelling_bee": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "spice_substitute": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "split_bill": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "split_pdf": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "ssl_cert_info": {
-  "confirm": false,
-  "free": "effectful read",
-  "read": false
- },
- "stage_lighting": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "stand_up_nudge": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "stargazing_score": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "start_companion": {
-  "confirm": false,
-  "free": "companion",
-  "read": false
- },
- "start_meeting": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "startup_impact": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "startup_time_report": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "status_strip": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "step_goal_math": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "stop_companion": {
-  "confirm": false,
-  "free": "companion",
-  "read": false
- },
- "stop_meeting": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "stopwatch": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "story_chain": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "story_dice": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "story_outline": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "strip_image_metadata": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "study_exam_prep": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "study_export_deck": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "study_plan": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "study_practice": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "study_progress": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "study_review": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "study_session": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "subscription_audit": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "summarise_text": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sunrise_sunset": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "sync_folder": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "sync_folders_two_way": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "sync_updates": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "system_event_log": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "system_surface_action": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "tab_census": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "tail_file": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "take_screenshot": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "task_scheduler_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "teach_list_sequences": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "teach_record_sequence": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "teach_replay_sequence": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "technical_analysis": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "tempo_terms": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "text_diff": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "text_stats": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "tic_tac_toe": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "tile_windows": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "time_sync_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "time_tracker": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "timeline_recap": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "timezone_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "timezone_meeting_planner": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "tip_and_tax": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "toggle_dark_mode": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "top_processes": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "trace_route": {
-  "confirm": false,
-  "free": "effectful read",
-  "read": false
- },
- "train_custom_wake_word": {
-  "confirm": false,
-  "free": "wake",
-  "read": false
- },
- "transcribe_audio": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "translations": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "travel_door_to_door": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_loadout": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_recipe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_record": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "travel_scene": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_scoreboard": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_sonify": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_spatial": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_transport": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "travel_trip": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "trip_countdown": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "trivia_quiz": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "trust_describe": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "trust_record": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "tuning_cents": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "two_way_sync_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "type_clipboard": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "type_text": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "typing_test": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "uia_click_control": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "uia_find_control": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "uia_read_tree": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "uia_type_text": {
-  "confirm": false,
-  "free": "hands",
-  "read": false
- },
- "undo_cannot_list": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "undo_last_change": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "undo_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "uninstall_app": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "unit_convert": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "unsubscribe_finder": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "update_plan_step": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "update_restart_planner": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "url_encode_decode": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "use_toolbox": {
-  "confirm": false,
-  "free": "executor dispatch",
-  "read": false
- },
- "uuid_generate": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "uv_advice": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "vcard_export": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "vcard_import": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "virtual_desktop": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "vocab_word": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "voice_agent": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "voice_note": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "vpn_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "wake_on_lan": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "walk_time": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "wallpaper_apply": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "wallpaper_revert": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "wallpaper_state": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "wardrobe": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "warehouse_stock": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "warranty_log": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "watch_gestures": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "watcher_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "water_break": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "water_intake_math": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "watermark_image": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "wayback_lookup": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "web_search": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "webcam_snapshot": {
-  "confirm": false,
-  "free": "capture",
-  "read": false
- },
- "website_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "well_break_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "well_day_summary": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "well_record_plan": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "well_reminder": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "well_winddown": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "whats_pending": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "wifi_dead_spot_map": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "wifi_info": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "window_always_on_top": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "window_control": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "window_opacity": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "window_pin_toggle_all": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "window_place": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "window_snap": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "windows_update_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "winget_install": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "winget_upgrade_all": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "word_frequency": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "word_game": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "word_of_the_day": {
-  "confirm": false,
-  "free": "app-state",
-  "read": false
- },
- "workflow_build_plan": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "workflow_distil": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "workflow_runs": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "workflow_to_playbook_steps": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "world_clock": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "wormhole_offer": {
-  "confirm": false,
-  "free": "wormhole",
-  "read": false
- },
- "wormhole_receive": {
-  "confirm": false,
-  "free": "wormhole",
-  "read": false
- },
- "wormhole_status": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "write_clipboard": {
-  "confirm": false,
-  "free": "window/display session state",
-  "read": false
- },
- "write_file": {
-  "confirm": true,
-  "free": null,
-  "read": false
- },
- "writing_prompt": {
-  "confirm": false,
-  "free": null,
-  "read": true
- },
- "zip_control": {
-  "confirm": true,
-  "free": null,
-  "read": false
- }
+  "access_record_preference": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "access_text_clarity": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "access_voice_first_routine": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "access_window_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "accessconf_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "accessconf_record": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "acronym_finder": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "adapter_action": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "add_border": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "adjust_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "adjust_volume": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "agent_call": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "air_quality_advice": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "ambient_scene": {
+    "confirm": false,
+    "free": "output to user",
+    "read": false
+  },
+  "anagram_finder": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "antic_cards_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "antic_grant_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "antic_suggest_cards": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "app_crash_digest": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "app_settings": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "app_volume": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "ascii_art": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "asset_inventory": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "audio_fade": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "audio_localise": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "audio_speed_change": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "audio_to_midi": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "audio_to_midi_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "audio_trim": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "backup_files": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "backup_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "base64_codec": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "base_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "batch_rename": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "batch_watermark": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "battery_drain_detective": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "battery_health": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "battery_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "bill_calendar": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "billing": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "binaural_tone": {
+    "confirm": false,
+    "free": "fixed-folder generative output",
+    "read": false
+  },
+  "birthday_radar": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "bluetooth_devices": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "bmi_calculator": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "bookings": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "borrow_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "breathing_guide": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "browser_bookmarks": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "browser_click": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "browser_console": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "browser_control": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "browser_history": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "browser_network": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "browser_performance": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "browser_press": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "browser_read": {
+    "confirm": false,
+    "free": "effectful read",
+    "read": false
+  },
+  "browser_select": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "browser_type": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "budget_envelope": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "business": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "cancel_calendar_event": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "capture_route": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "capture_window": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "case_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "check_money_alerts": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "check_port": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "check_url_blocked": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "chord_notes": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "citation_format": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "clean_temp_files": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "clear_clipboard": {
+    "confirm": false,
+    "free": "v5.9 deliberate exemption",
+    "read": false
+  },
+  "click_and_drag_path": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "click_anywhere": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "click_by_mark": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "click_element": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "click_text": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "clipboard_files": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "close_application": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "coffee_ratio": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "coin_decision": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "color_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "color_from_image": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "comms_check_recipient": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "comms_draft_message": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "comms_record_draft": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "comms_send_readiness": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "companion_pairing": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "companion_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "compare_files": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "compass_bearing": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "compliment_engine": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "compose_song": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "compound_growth": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "compound_interest": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "compress_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "connect_wifi": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "contact_card": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "context_menu_action": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "continuous_choice_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "continuous_delete_data": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "continuous_first_open": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "continuous_record_choice": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "convert_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "cooking_time_per_weight": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "copy_file_to_clipboard": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "countdown": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "create_art": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "create_calendar_event": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "create_plan": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "create_restore_point": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "create_shortcut": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "creative_mark_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "creative_rights_add": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "creative_rights_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "creative_subtitle_edit": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "creative_subtitle_export": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "creative_timeline": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "cron_explain": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "crop_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "csv_column_stats": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "csv_preview": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "csv_query": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "curl_cffi_read": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "cursor_control": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "custom_wake_model_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "date_calculator": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "day_review": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "daylight_hours": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "deadline_radar": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "deals": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "decision_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "deep_research": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "define_workflow": {
+    "confirm": false,
+    "free": "workflow",
+    "read": false
+  },
+  "delete_plan": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "delete_routine": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "delete_snippet": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "delete_window_layout": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "describe_camera_view": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "desktop_control": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "dev_codebase_qa": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "diagnostics_preview": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "dice_roller_plus": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "discord_presence": {
+    "confirm": false,
+    "free": "presence",
+    "read": false
+  },
+  "discount_stack": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "disk_health": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "disk_index_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "disk_speed_test": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "disk_write_hogs": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "display_control": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "display_details": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "distance_between": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "dns_flush": {
+    "confirm": false,
+    "free": "v5.9 deliberate exemption",
+    "read": false
+  },
+  "dns_lookup": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "document_vault": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "domain_lookup": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "dough_hydration": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "download_email_attachment": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "download_eta": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "download_file": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "drag_drop_action": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "drag_file_onto": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "drag_mouse": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "drive_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "duotone_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "duplicate_photo_finder": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "ebook_library": {
+    "confirm": false,
+    "free": "ebook",
+    "read": false
+  },
+  "egg_timer_math": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "eject_drive": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "embed_knowledge": {
+    "confirm": false,
+    "free": "knowledge",
+    "read": false
+  },
+  "emergency_card": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "empty_recycle_bin": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "enable_custom_wake_model": {
+    "confirm": false,
+    "free": "wake",
+    "read": false
+  },
+  "ent_shelf_list": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "env_backup": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "env_var": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "epoch_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "erp": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "event_budget": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "event_guest": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "event_milestone": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "event_plan": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "event_schedule": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "event_tickets": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "event_vendor": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "expense_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "expiry_radar": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "extension_approve": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "extension_audit": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "extension_disable": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "extension_enable": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "extension_register": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "extension_revoke": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "extension_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "extract_article": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "extract_from_text": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "eye_rest_timer": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "eyes_fusion": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "fast_startup_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "feel_orb_map": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "feel_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "feel_validate": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "filament": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "file_age_report": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "file_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "file_dialog_action": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "file_hash": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "filler_word_count": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "filter_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "filter_list_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "fin_plan_record": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "finance_playbook_add": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "finance_playbook_curate": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "finance_playbook_delete": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "finance_playbook_list": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "finance_playbook_vote": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "find_duplicates": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "find_files": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "find_free_slots": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "find_process_on_port": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "firewall_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "firstrun_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "firstrun_record": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "flashcard_add": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "flashcard_answer": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "flashcard_review": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "flashcard_stats": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "focus_score": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "focus_session": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "focus_timer_report": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "focus_window_by_text": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "folder_diff": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "folder_outline": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "folder_size": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "folder_size_map": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "folder_watch_cook": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "forget_wifi": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "forgiving_select": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "fortune_cookie": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "fractal_art": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "fuel_cost_split": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "fund_returns": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "game_macro_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "game_media_note": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "game_record_gaming": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "game_server": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "game_session_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "garden_watering": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "generate_beat": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "generate_melody": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "generate_palette": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "generate_password": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "generate_uuid": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_active_window": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_activity_log": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_crypto_price": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_current_time_date": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_morning_briefing": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_pixel_color": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "get_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_stock_quote": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_system_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_todays_schedule": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_unread_email": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_upcoming_events": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_weather": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "get_window_controls": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "gift_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "glitch_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "goal_tracker": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "gpu_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "grad_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "grad_record": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "gradient_css": {
+    "confirm": false,
+    "free": "fixed-folder generative output",
+    "read": false
+  },
+  "gratitude_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "grocery_list": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "habit_checkin": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "habit_summary": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "habit_track": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "haiku": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "hangman": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "hardware_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "hardware_inventory": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "hardware_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "hardware_record_plan": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "hardware_safety": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "hash_text": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "health": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "hibernate_setting": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "home_inventory": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "hosts_view": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "hotkey_cheatsheet": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "hourly_rate_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "http_headers": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "image_compare": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "image_contact_sheet": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "image_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "improvement_propose": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "improvement_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "inbox_zero_assist": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "index_files": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "init_backup_repo": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "installer_validate": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "interval_name": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "invoice": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "iot_device_state": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "iot_local_device": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "iot_network_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "iot_record_device": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "ip_camera": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "ip_geolocate": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "ip_renew": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "ip_subnet_calc": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "journal_action": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "journal_prompt": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "journey_time": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "json_diff": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "json_format": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "json_query": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "kaleidoscope_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "keep_awake": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "knowledge_embedding_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "knowledge_search": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "largest_files": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "launch_application": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "layover_time": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "learnlast_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "learnlast_spec": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "lifeadmin": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "link_health_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "link_unshorten": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_app_updates": {
+    "confirm": false,
+    "free": "effectful read",
+    "read": false
+  },
+  "list_audio_devices": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_backup_snapshots": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_connections": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_custom_wake_models": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_drivers": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_fonts": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_installed_apps": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_local_devices": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_network_shares": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_plans": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_printers": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_proactivity_scores": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_restore_points": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_routines": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_services": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_snippets": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_startup_programs": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_users": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_window_layouts": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_workflows": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "listen_for_sound": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "loan_calculator": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "loan_payment": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "lock_screen": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "lodging": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "log_glass": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "lorem_text": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mad_libs": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "maintenance_due": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "make_collage": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "make_sprite_sheet": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "make_wallpaper": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "mcp_registry": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "meal_rotation": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "media_chat": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "media_control": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "meeting_cost": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "meeting_prep_card": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "meeting_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "menu_action": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "merge_pdfs": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "metronome": {
+    "confirm": false,
+    "free": "fixed-folder generative output",
+    "read": false
+  },
+  "metronome_bpm": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mic_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mic_control": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "miss_capability_map": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "miss_compound": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "miss_to_playbook_steps": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mission_build_brief": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mission_build_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mission_evidence_board": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mission_journal_append": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "mission_journal_entry": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mission_run_job": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "mnemonic_maker": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "monitor_action": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "monitor_control": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "mood_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "mood_trend": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "moon_phase": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "morse_translate": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "mouse_control": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "mouse_settings": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "move_window_to_monitor": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "multiverse_compile": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "multiverse_compile_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "multiverse_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "music_trivia": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "mutual_fund_nav": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "name_generator": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "nato_spell": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "net_network_descriptor": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "net_network_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "net_readonly_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "net_record_network": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "network_adapters": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "network_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "network_quality": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "note_frequency": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "notes": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "notify_user": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "number_guess": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "occluded_capture": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "ocr_file": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "ocr_screen": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "ollama_delete": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "ollama_pull": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "ollama_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "open_path": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "open_settings_page": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "open_url": {
+    "confirm": false,
+    "free": "launch/nav args-gated",
+    "read": false
+  },
+  "optimise": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "organise_photos": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "oven_temp_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "overdue_promises": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "packing_list": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "page_change_summary": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "page_watch": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "page_word_search": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "palette_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "pantry_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "passive_voice_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "password_strength": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "paste_snippet": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "paste_text": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "path_audit": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "pdf_extract_images": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "pdf_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "pdf_merge_bookmarks": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "pdf_split_by_text": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "peripheral_roll_call": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "personal_skills": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "pet_feeding_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "phase5_interface_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "phase5_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "photo_face_blur": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "pilot_bench": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "pilot_build_steps": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "pilot_dev_workflow": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "pilot_record_pilot": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "pilot_review_note": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "pilot_revision_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "pilot_study_session": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "ping_host": {
+    "confirm": false,
+    "free": "effectful read",
+    "read": false
+  },
+  "pixelate_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "plant_care_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "plat_tools_record": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "play_music": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "pomodoro": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "port_roundtrip": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "portfolio_tracker": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "power_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "power_plans": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "power_requests": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "practice_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "presence_report": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "press_hotkey": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "preview_photo_organisation": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "price_per_unit": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "price_watch": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "print_file": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "privacy_usage": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "proactivity_bench_results": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "process_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "prompt_tune": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "public_ip": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "qr_decode_image": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "quick_math": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "quiz_me": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "quote_of_morning": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "quote_vault": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "rain_from_forecast": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "random_choice": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "read_clipboard": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "read_file": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "read_page_aloud": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "read_pdf_text": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "read_selection_aloud": {
+    "confirm": false,
+    "free": "output to user",
+    "read": false
+  },
+  "reading_level": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "reading_list": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "reading_time": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "recall_day": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "recall_memories": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "recent_files": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "recipe_scale": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "record_audio": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "regex_test": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "registry_read": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "release_checklist": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "release_checklist_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "release_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "release_record": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "remember_person": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "remember_promise": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "remember_today": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "remember_user_fact": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "rent_split": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "replace_in_file": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "replay_programme": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "reschedule_calendar_event": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "research": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "resize_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "restore_backup": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "restore_point_before_changes": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "restore_window_layout": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "rhythm_subdivide": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "riddle_time": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "rock_paper_scissors": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "roll_dice": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "roman_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "room_brightness": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "room_noise_level": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "rotate_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "rotate_pdf": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "rss_digest": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "run_anticipation_routine": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "run_command": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "run_plan": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "run_proactivity_bench": {
+    "confirm": false,
+    "free": "proactivity",
+    "read": false
+  },
+  "run_routine": {
+    "confirm": false,
+    "free": "executor dispatch",
+    "read": false
+  },
+  "run_workflow": {
+    "confirm": false,
+    "free": "workflow",
+    "read": false
+  },
+  "safe_eject_all": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "sandbox_list": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sandbox_run": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "save_routine": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "save_snippet": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "save_window_layout": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "saved_wifi_networks": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "savings_goal": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "scale_notes": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "scan_wifi_networks": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "scheduled_agents": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "score_intervention": {
+    "confirm": false,
+    "free": "proactivity",
+    "read": false
+  },
+  "screen_break_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "screen_brightness_auto": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "screen_diff": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "screen_look": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "screen_time_today": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "screenshot_region": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "screenshot_to_text_note": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "scroll_until_found": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "search_email": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "search_file_contents": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "search_indexed_files": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "security_scan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "security_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "semantic_search_knowledge": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "semver_compare": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "send_email": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "sense_trends": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sentence_stats": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "service_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "service_schedule": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "session_identity": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "set_brightness": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "set_default_printer": {
+    "confirm": false,
+    "free": "v5.9 deliberate exemption",
+    "read": false
+  },
+  "set_discord_client_id": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "set_focus_assist": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "set_microphone_mute": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "set_process_priority": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "set_refresh_rate": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "set_reminder": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "set_resolution": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "set_screen_rotation": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "set_screen_timeout": {
+    "confirm": false,
+    "free": "v5.9 deliberate exemption",
+    "read": false
+  },
+  "set_startup_program": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "set_volume_level": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "set_wallpaper": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "shopping_list": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "shred_file": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "signature_block": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "silence_trim": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "sim_predict_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sim_predict_report": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "site_permissions_review": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sleep_states": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "slug_maker": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sniff_file": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sniff_link": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sniff_text": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "snooze_email": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_balances": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "social_debt_add": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_debt_settle": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_entry_delete": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "social_gift_add": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_nudge_check": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "social_nudge_pause": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_nudge_snooze": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_occasion_add": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_occasion_upcoming": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "social_promise_add": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_promise_complete": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "social_promise_list": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "social_send": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "social_stay_in_touch": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "solar_yield": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "song_length_beats": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "speak_text": {
+    "confirm": false,
+    "free": "output to user",
+    "read": false
+  },
+  "speaker_check": {
+    "confirm": false,
+    "free": "output to user",
+    "read": false
+  },
+  "speed_distance_time": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "speed_test": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "spelling_bee": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "spice_substitute": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "split_bill": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "split_pdf": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "ssl_cert_info": {
+    "confirm": false,
+    "free": "effectful read",
+    "read": false
+  },
+  "stage_lighting": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "stand_up_nudge": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "stargazing_score": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "start_companion": {
+    "confirm": false,
+    "free": "companion",
+    "read": false
+  },
+  "start_meeting": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "startup_impact": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "startup_time_report": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "status_strip": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "step_goal_math": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "stop_companion": {
+    "confirm": false,
+    "free": "companion",
+    "read": false
+  },
+  "stop_meeting": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "stopwatch": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "story_chain": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "story_dice": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "story_outline": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "strip_image_metadata": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "study_exam_prep": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "study_export_deck": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "study_plan": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "study_practice": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "study_progress": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "study_review": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "study_session": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "subscription_audit": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "summarise_text": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sunrise_sunset": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "sync_folder": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "sync_folders_two_way": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "sync_updates": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "system_event_log": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "system_surface_action": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "tab_census": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "tail_file": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "take_screenshot": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "task_scheduler_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "teach_list_sequences": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "teach_record_sequence": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "teach_replay_sequence": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "technical_analysis": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "tempo_terms": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "text_diff": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "text_stats": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "tic_tac_toe": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "tile_windows": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "time_sync_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "time_tracker": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "timeline_recap": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "timezone_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "timezone_meeting_planner": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "tip_and_tax": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "toggle_dark_mode": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "top_processes": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "trace_route": {
+    "confirm": false,
+    "free": "effectful read",
+    "read": false
+  },
+  "train_custom_wake_word": {
+    "confirm": false,
+    "free": "wake",
+    "read": false
+  },
+  "transcribe_audio": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "translations": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "travel_door_to_door": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_loadout": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_recipe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_record": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "travel_scene": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_scoreboard": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_sonify": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_spatial": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_transport": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "travel_trip": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "trip_countdown": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "trivia_quiz": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "trust_describe": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "trust_record": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "tuning_cents": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "two_way_sync_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "type_clipboard": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "type_text": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "typing_test": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "uia_click_control": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "uia_find_control": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "uia_read_tree": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "uia_type_text": {
+    "confirm": false,
+    "free": "hands",
+    "read": false
+  },
+  "undo_cannot_list": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "undo_last_change": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "undo_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "uninstall_app": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "unit_convert": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "unsubscribe_finder": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "update_plan_step": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "update_restart_planner": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "url_encode_decode": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "use_toolbox": {
+    "confirm": false,
+    "free": "executor dispatch",
+    "read": false
+  },
+  "uuid_generate": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "uv_advice": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "vcard_export": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "vcard_import": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "vehicle_routes": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "virtual_desktop": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "vocab_word": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "voice_agent": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "voice_memos": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "voice_note": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "vpn_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "wake_on_lan": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "walk_time": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "wallpaper_apply": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "wallpaper_revert": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "wallpaper_state": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "wardrobe": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "warehouse_stock": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "warranty_log": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "watch_gestures": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "watcher_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "watchlist": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "water_break": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "water_intake_math": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "watermark_image": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "wayback_lookup": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "web_search": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "webcam_snapshot": {
+    "confirm": false,
+    "free": "capture",
+    "read": false
+  },
+  "website_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "well_break_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "well_day_summary": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "well_record_plan": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "well_reminder": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "well_winddown": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "whats_pending": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "wifi_dead_spot_map": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "wifi_info": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "window_always_on_top": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "window_control": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "window_opacity": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "window_pin_toggle_all": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "window_place": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "window_snap": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "windows_update_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "winget_install": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "winget_upgrade_all": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "wishlist": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "word_frequency": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "word_game": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "word_of_the_day": {
+    "confirm": false,
+    "free": "app-state",
+    "read": false
+  },
+  "workflow_build_plan": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "workflow_distil": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "workflow_runs": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "workflow_to_playbook_steps": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "world_clock": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "wormhole_offer": {
+    "confirm": false,
+    "free": "wormhole",
+    "read": false
+  },
+  "wormhole_receive": {
+    "confirm": false,
+    "free": "wormhole",
+    "read": false
+  },
+  "wormhole_status": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "write_clipboard": {
+    "confirm": false,
+    "free": "window/display session state",
+    "read": false
+  },
+  "write_file": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
+  "writing_prompt": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "zip_control": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  }
 }

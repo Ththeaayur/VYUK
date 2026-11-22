@@ -2,18 +2,22 @@
 Productivity V skills pack for VYUK — the money-and-decisions
 shelf: an expense log with month totals, a decision log with
 revisit dates, a reading list, one combined "what's pending"
-view across reminders, the stopwatch and the Pomodoro, and a
-meeting cost calculator.
+view across reminders, the stopwatch and the Pomodoro, a
+meeting cost calculator, and — Stage 0 features batch 4
+(Group G, 2026-11-22) — the owner's own lists: notes, a
+wishlist, a movie/show watchlist and a goal tracker.
 
 Where each tool's truth lives — and what it honestly can't know:
 
-- Expenses, decisions and the reading list persist as memory
-  facts (core/memory/memory.py) — small JSON payloads under the fixed
-  categories `expenses`, `decisions` and `reading` — so they
-  survive restarts and show up in the user's memory like
-  anything else VYUK remembers. Amounts are stored as
-  plain numbers exactly as given: this pack never assumes a
-  currency, and its sentences never print one.
+- Expenses, decisions, the reading list, notes, the wishlist,
+  the watchlist and goals persist as memory facts
+  (core/memory/memory.py) — small JSON payloads under the fixed
+  categories `expenses`, `decisions`, `reading`, `notes`,
+  `wishlist`, `watchlist` and `goals` — so they survive restarts
+  and show up in the user's memory like anything else VYUK
+  remembers. Amounts are stored as plain numbers exactly as
+  given: this pack never assumes a currency, and its sentences
+  never print one.
 - whats_pending invents nothing. Reminders and the Pomodoro are
   read live from the in-memory ProactiveScheduler
   (core/scheduler.py) — the same list the Pomodoro tool itself
@@ -72,6 +76,13 @@ from .skills_productivity5_logs import (
     meeting_cost,
 )
 
+from .skills_notes import (  # Stage 0 features batch 4 (Group G)
+    goal_tracker,
+    notes,
+    watchlist,
+    wishlist,
+)
+
 def register_all(registry) -> None:
     """Register every Productivity-5 pack tool on a
     ToolRegistry-like object."""
@@ -117,6 +128,67 @@ def register_all(registry) -> None:
             "required": [],
         },
         handler=reading_list,
+    )
+    registry.register(
+        name="notes",
+        description="Take a note, list your notes, read one back, or remove one. Actions: 'add' stores the text (title optional — without one the first line is the title); 'list' shows them newest first, numbered; 'read' reads one back by its number from the list; 'remove' drops one by its number. Notes persist as memory facts. Use when the user says 'take a note', 'remember this', or asks what their notes say.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "'add', 'list', 'read' or 'remove'"},
+                "text": {"type": "string", "description": "The note's text, for 'add'"},
+                "title": {"type": "string", "description": "Optional title for the note, for 'add'"},
+                "index": {"type": "integer", "description": "The note's number from the list, for 'read' or 'remove'"},
+            },
+            "required": [],
+        },
+        handler=notes,
+    )
+    registry.register(
+        name="wishlist",
+        description="Keep a wishlist of things you want. Actions: 'add' records one (price and a note are optional — prices are plain numbers, no currency assumed), 'list' shows it, 'remove' drops one by name. The list persists as memory facts. Use when the user says they want something, or asks what's on their wishlist.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "'add', 'list' or 'remove'"},
+                "item": {"type": "string", "description": "The thing you want"},
+                "price": {"type": "number", "description": "Optional price noted for the item, for 'add'"},
+                "note": {"type": "string", "description": "Optional note about the item, for 'add'"},
+            },
+            "required": [],
+        },
+        handler=wishlist,
+    )
+    registry.register(
+        name="watchlist",
+        description="Keep a watchlist of films and shows to watch. Actions: 'add' queues a title (kind 'movie' or 'show', optional), 'list' shows the to-watch shelf and the watched shelf separately, 'mark_watched' moves a title to watched, 'remove' drops one by title. The list persists as memory facts. Use when the user says they want to watch something, or asks what's on their watchlist.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "'add', 'list', 'mark_watched' or 'remove'"},
+                "title": {"type": "string", "description": "The film or show's title"},
+                "kind": {"type": "string", "description": "'movie' or 'show', optional, for 'add'"},
+                "note": {"type": "string", "description": "Optional note about the title, for 'add'"},
+            },
+            "required": [],
+        },
+        handler=watchlist,
+    )
+    registry.register(
+        name="goal_tracker",
+        description="Track your own goals with a target and progress — read a book, run a distance, save an amount. Actions: 'add' records one with a target (unit optional, e.g. 'pages', 'km'), 'list' shows each with its progress against the target, 'update' sets the current progress, 'remove' drops one by name. Targets and progress are plain numbers, no currency assumed. Goals persist as memory facts. Use when the user sets a personal goal or asks how one is going.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "description": "'add', 'list', 'update' or 'remove'"},
+                "name": {"type": "string", "description": "The goal's name"},
+                "target": {"type": "number", "description": "The target to reach, for 'add'"},
+                "unit": {"type": "string", "description": "Optional unit for the target and progress, e.g. 'pages', for 'add'"},
+                "progress": {"type": "number", "description": "The current progress, for 'update'"},
+            },
+            "required": [],
+        },
+        handler=goal_tracker,
     )
     registry.register(
         name="whats_pending",
