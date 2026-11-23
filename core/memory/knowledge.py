@@ -47,6 +47,7 @@ tool, or an executor, and it performs no network egress.
 
 import os
 import sqlite3
+import time
 
 from ..config import DATA_DIR
 from .. import config_spec
@@ -118,10 +119,12 @@ def sqlite_vec_available():
 # (pure Python — the embeddings table IS the index, no sqlite-vec
 # needed), and let search() run a real semantic lane. The model
 # stays operator-supplied (data/embeddings/, pinned sha256, the
-# local_assets discipline); its licence row in
-# THIRD_PARTY_LICENSES.md is PROPOSED pending the parent's ruling.
-# The four head-to-head seats (E5-small, Model2Vec, Qwen3,
-# BGE-M3) are untouched — they stay honest-empty.
+# local_assets discipline); its licence is PARENT-RULED Apache-2.0
+# (R8-1, 2026-11-10 — the model MAY ship bundled under Apache-2.0,
+# but this product keeps it operator-supplied only; bundling is a
+# future model-distribution-gate decision). No new licence check is
+# owed for the model. The four head-to-head seats (E5-small,
+# Model2Vec, Qwen3, BGE-M3) are untouched — they stay honest-empty.
 # ---------------------------------------------------------------------------
 
 EMBEDDING_MODEL_NAME = "minilm-l6-v2"
@@ -239,6 +242,21 @@ class KnowledgeStore:
                     PRIMARY KEY (doc_id)
                 )
             """)
+            # Darwin D1: the incremental bridge state for disk
+            # documents. One row per indexed FILE (not per passage):
+            # its mtime + size decide whether a re-index re-reads
+            # it, and `passages` is the re-read count the bridge
+            # claims (A4-filestat — verified against the table,
+            # never trusted from the loop counter).
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS file_index (
+                    source TEXT NOT NULL PRIMARY KEY,
+                    mtime REAL NOT NULL,
+                    size INTEGER NOT NULL,
+                    passages INTEGER NOT NULL DEFAULT 0,
+                    indexed_at REAL NOT NULL
+                )
+            """)
             conn.commit()
         finally:
             conn.close()
@@ -273,6 +291,291 @@ class KnowledgeStore:
             return dict(row) if row else None
         finally:
             conn.close()
+
+    # -- document files (Darwin D1: the disk-index bridge) --------
+
+    def delete_documents_by_source(self, source):
+        """Remove every stored passage for one file (documents +
+        FTS rows + vectors) and its bridge state. Returns the
+        counts actually removed (re-read from the tables, never
+        trusted from the loop). External-content FTS5 does NOT
+        follow a DELETE on `documents`, so the FTS rows are
+        deleted explicitly by rowid."""
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT id FROM documents WHERE source = ?",
+                (source,)).fetchall()
+            ids = [r["id"] for r in rows]
+            if not ids:
+                conn.execute(
+                    "DELETE FROM file_index WHERE source = ?",
+                    (source,))
+                conn.commit()
+                return {"documents": 0, "vectors": 0}
+            placeholders = ",".join("?" for _ in ids)
+            vectors = conn.execute(
+                "SELECT COUNT(*) FROM embeddings WHERE doc_rowid IN "
+                f"({placeholders})", ids).fetchone()[0]
+            conn.execute(
+                "DELETE FROM embeddings WHERE doc_rowid IN "
+                f"({placeholders})", ids)
+            if fts5_available():
+                conn.execute(
+                    "DELETE FROM documents_fts WHERE rowid IN "
+                    f"({placeholders})", ids)
+            conn.execute(
+                "DELETE FROM documents WHERE id IN "
+                f"({placeholders})", ids)
+            conn.execute(
+                "DELETE FROM file_index WHERE source = ?", (source,))
+            conn.commit()
+            # A4-filestat: the delete is verified by re-read —
+            # zero rows may remain for the source.
+            remaining = conn.execute(
+                "SELECT COUNT(*) FROM documents WHERE source = ?",
+                (source,)).fetchone()[0]
+            return {"documents": len(ids), "vectors": int(vectors),
+                    "verified_remaining": int(remaining)}
+        finally:
+            conn.close()
+
+    def delete_documents_under_root(self, root):
+        """Remove every stored passage whose source sits under a
+        folder (plus their bridge states). Used by the forget-a-
+        root path. Returns the files and passages removed."""
+        root = str(root)
+        prefix = root if root.endswith(os.sep) else root + os.sep
+        conn = self._connect()
+        try:
+            sources = [r["source"] for r in conn.execute(
+                "SELECT DISTINCT source FROM documents "
+                "WHERE source = ? OR source LIKE ?",
+                (root, prefix + "%")).fetchall()]
+            state_sources = [r["source"] for r in conn.execute(
+                "SELECT source FROM file_index "
+                "WHERE source = ? OR source LIKE ?",
+                (root, prefix + "%")).fetchall()]
+        finally:
+            conn.close()
+        files = 0
+        passages = 0
+        vectors = 0
+        for source in sources:
+            removed = self.delete_documents_by_source(source)
+            files += 1
+            passages += removed["documents"]
+            vectors += removed["vectors"]
+        if state_sources:
+            conn = self._connect()
+            try:
+                for source in state_sources:
+                    if source not in sources:
+                        conn.execute(
+                            "DELETE FROM file_index WHERE source = ?",
+                            (source,))
+                conn.commit()
+            finally:
+                conn.close()
+        return {"files": files, "passages": passages,
+                "vectors": vectors}
+
+    def get_file_state(self, source):
+        """The bridge state for one file, or None when it was
+        never indexed (or predates D1)."""
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT source, mtime, size, passages, indexed_at "
+                "FROM file_index WHERE source = ?",
+                (source,)).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def set_file_state(self, source, mtime, size, passages):
+        conn = self._connect()
+        try:
+            conn.execute(
+                "INSERT INTO file_index "
+                "(source, mtime, size, passages, indexed_at) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(source) DO UPDATE SET "
+                "mtime=excluded.mtime, size=excluded.size, "
+                "passages=excluded.passages, "
+                "indexed_at=excluded.indexed_at",
+                (source, float(mtime), int(size), int(passages),
+                 time.time()))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def list_file_states(self, root=None):
+        """All bridge states, optionally under one folder root."""
+        conn = self._connect()
+        try:
+            if root is None:
+                rows = conn.execute(
+                    "SELECT source, mtime, size, passages, "
+                    "indexed_at FROM file_index "
+                    "ORDER BY source").fetchall()
+            else:
+                root = str(root)
+                prefix = (root if root.endswith(os.sep)
+                          else root + os.sep)
+                rows = conn.execute(
+                    "SELECT source, mtime, size, passages, "
+                    "indexed_at FROM file_index "
+                    "WHERE source = ? OR source LIKE ? "
+                    "ORDER BY source",
+                    (root, prefix + "%")).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def list_document_files(self, limit=10, offset=0):
+        """One row per indexed FILE (not per passage): title,
+        source, passage count, and the first passage as a
+        snippet. Newest first. Only disk-bridged documents
+        (doc_id 'disk:…') appear — learned / researched facts
+        never do."""
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = 10
+        try:
+            offset = int(offset)
+        except (TypeError, ValueError):
+            offset = 0
+        limit = max(1, min(100, limit))
+        offset = max(0, offset)
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT source, MAX(title) AS title, "
+                "COUNT(*) AS passages, MAX(id) AS last_id "
+                "FROM documents WHERE doc_id LIKE 'disk:%' "
+                "GROUP BY source ORDER BY MAX(id) DESC "
+                "LIMIT ? OFFSET ?",
+                (limit, offset)).fetchall()
+            files = []
+            for row in rows:
+                first = conn.execute(
+                    "SELECT passage FROM documents "
+                    "WHERE source = ? ORDER BY id LIMIT 1",
+                    (row["source"],)).fetchone()
+                snippet = ""
+                if first is not None:
+                    snippet = " ".join(
+                        str(first["passage"]).split())[:200]
+                files.append({
+                    "title": row["title"],
+                    "source": row["source"],
+                    "passages": int(row["passages"]),
+                    "snippet": snippet,
+                })
+            return files
+        finally:
+            conn.close()
+
+    def count_document_files(self):
+        """How many distinct files the document memory holds."""
+        conn = self._connect()
+        try:
+            return int(conn.execute(
+                "SELECT COUNT(DISTINCT source) FROM documents "
+                "WHERE doc_id LIKE 'disk:%'").fetchone()[0])
+        finally:
+            conn.close()
+
+    def get_document_passages(self, source):
+        """Every stored passage for one file, in order — the
+        per-document view. Empty list when the file is unknown."""
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT id, doc_id, title, passage, source, "
+                "licence FROM documents WHERE source = ? "
+                "ORDER BY id", (source,)).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def search_documents(self, query, limit=10, embedder=None):
+        """Disk-only hybrid search: semantic first (when the
+        model is ready AND vectors exist), FTS5 fill after.
+        The FTS lane quotes every word (operators in the user's
+        text are data, never syntax — the disk-index rule).
+        Returns lanes + semantic_available honestly, exactly
+        like search(): a lane that did not run is never listed.
+        Only disk-bridged documents (doc_id 'disk:…') can match
+        — learned facts are never returned here."""
+        if not query or not str(query).strip():
+            return {"results": [], "lanes": [],
+                    "available": True, "semantic_available": False}
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = 10
+        limit = max(1, min(50, limit))
+        results = []
+        lanes = []
+        semantic = self.semantic_search(query, limit=limit,
+                                        embedder=embedder)
+        semantic_available = bool(semantic.get("available"))
+        if semantic_available and semantic.get("results"):
+            for item in semantic["results"]:
+                if str(item.get("doc_id", "")).startswith("disk:"):
+                    results.append(item)
+            if results:
+                lanes.append("semantic")
+        if len(results) < limit:
+            terms = []
+            for word in str(query).split():
+                cleaned = "".join(
+                    ch for ch in word if ch.isalnum()
+                    or ch in ("_", "-"))
+                if cleaned:
+                    terms.append('"' + cleaned.replace('"', "") + '"')
+            conn = self._connect()
+            try:
+                if fts5_available() and terms:
+                    match = " AND ".join(terms)
+                    rows = conn.execute(
+                        "SELECT d.id, d.doc_id, d.title, "
+                        "d.passage, d.source, d.licence, "
+                        "rank AS score FROM documents_fts "
+                        "JOIN documents d "
+                        "ON d.id = documents_fts.rowid "
+                        "WHERE documents_fts MATCH ? "
+                        "AND d.doc_id LIKE 'disk:%' "
+                        "ORDER BY rank LIMIT ?",
+                        (match, limit)).fetchall()
+                    lanes.append("fts5")
+                else:
+                    pattern = f"%{query}%"
+                    rows = conn.execute(
+                        "SELECT id, doc_id, title, passage, "
+                        "source, licence, 0.0 AS score "
+                        "FROM documents WHERE passage LIKE ? "
+                        "AND doc_id LIKE 'disk:%' LIMIT ?",
+                        (pattern, limit)).fetchall()
+                    lanes.append("like_fallback")
+                seen = {r.get("id") for r in results}
+                for row in rows:
+                    item = dict(row)
+                    if item["id"] in seen:
+                        continue
+                    item["semantic_score"] = None
+                    results.append(item)
+                    seen.add(item["id"])
+                    if len(results) >= limit:
+                        break
+            finally:
+                conn.close()
+        return {"results": results[:limit], "lanes": lanes,
+                "available": True,
+                "semantic_available": semantic_available}
 
     # -- search ---------------------------------------------------
 

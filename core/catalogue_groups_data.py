@@ -117,6 +117,9 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
         # the knowledge family — same local store, same Mind group.
         "semantic_search_knowledge", "embed_knowledge",
         "knowledge_embedding_status",
+        # Darwin D1: the document-memory tools join the knowledge
+        # family — same local store, same Mind group.
+        "search_documents", "list_documents", "forget_documents",
         # Research wiring batch: deep_research joins its family —
         # the A6 loop over the local store, via the funnel.
         "deep_research",

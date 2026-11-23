@@ -57,6 +57,10 @@ TOOL_FRIENDLY_NAMES = {
     # v5.64.1 conversion — friendly names for the newly registered tools
     "knowledge_search": "Knowledge search",
     "research": "Research",
+    # Darwin D1 — friendly names for the document-memory tools.
+    "search_documents": "Search my documents",
+    "list_documents": "My documents",
+    "forget_documents": "Forget documents",
     # Research wiring batch — friendly name for the deep-research tool.
     "deep_research": "Deep research",
     "remember_person": "Remember person",

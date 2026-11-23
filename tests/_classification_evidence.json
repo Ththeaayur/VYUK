@@ -939,6 +939,10 @@
     "basis": "Run or remember a folder tidy-up recipe: rename_by_date prefixes each file with its modified date, move_pdfs files PDFs into a 'PDFs' subfolder, zip_folder archives the folder's files into one zip inside it. Handler core.skills_files5_watch_blur_notes.folder_watch_cook.",
     "class": "confirm"
   },
+  "forget_documents": {
+    "basis": "Forget a document or a whole folder of documents: removes its passages from VYUK's document memory. Handler core.funnel.tools_handlers_data_services.ToolHandlersDataServicesMixin._tool_forget_documents.",
+    "class": "confirm"
+  },
   "forget_wifi": {
     "basis": "Forget a saved Wi-Fi network so this PC stops auto-joining it (deletes its Windows profile). Handler core.skills_network_wifi_net.forget_wifi.",
     "class": "confirm"
@@ -1337,6 +1341,10 @@
   },
   "list_custom_wake_models": {
     "basis": "List the trained custom wake-word models on this machine, with their phrase, threshold, held-out accuracy and size, and which one is active. Handler core.voice.wake_training.list_custom_wake_models.",
+    "class": "read"
+  },
+  "list_documents": {
+    "basis": "What do you remember from my files: list the documents VYUK indexed from the folders you chose (index_files) \u2014 one row per file with its title, path and passage count. Handler core.funnel.tools_handlers_data_services.ToolHandlersDataServicesMixin._tool_list_documents.",
     "class": "read"
   },
   "list_drivers": {
@@ -2206,6 +2214,10 @@
   "scroll_until_found": {
     "basis": "Scroll the focused window down step by step, reading the screen with OCR after each scroll, until a word or phrase appears \u2014 then report where it is. Handler core.skills_hands3_capture_scroll.scroll_until_found.",
     "class": "free"
+  },
+  "search_documents": {
+    "basis": "Search my documents for X: semantic-first search over the files VYUK indexed from the folders you chose (index_files) \u2014 plain text, Office documents and PDFs. Handler core.funnel.tools_handlers_data_services.ToolHandlersDataServicesMixin._tool_search_documents.",
+    "class": "read"
   },
   "search_email": {
     "basis": "Search the user's Gmail inbox with a Gmail search query (a name, a subject word, 'from:someone', 'subject:invoice', or plain words) and return the matching messages. Handler core.google_services_gmail.search_email.",

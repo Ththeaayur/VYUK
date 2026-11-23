@@ -9,11 +9,13 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -229,6 +231,15 @@ class PagesMemoryMixin:
         self._mem_add_row_widgets = [self.input_mem_k, self.input_mem_v,
                                      btn_save]
 
+        # Darwin D1: the Documents section — the Memory page's
+        # document half, beside the learned-facts views above
+        # (untouched). Lists indexed documents, searches them by
+        # meaning (semantic first, FTS fallback, honest when the
+        # model is absent), shows one document at a time, and
+        # forgets one document on request. "Forget everything
+        # learned" stays facts-only.
+        self._build_documents_section(layout)
+
         # The web itself: graph on the left (created lazily on the
         # first switch), fact detail panel on the right, hidden
         # until a node is picked.
@@ -268,6 +279,276 @@ class PagesMemoryMixin:
         # page must stay transparent over the dark shell.
         page.setAutoFillBackground(False)
         return scroll
+
+    # ------------------------------------------------- documents (D1)
+
+    def _build_documents_section(self, layout) -> None:
+        """Darwin D1: the Documents section of the Memory page.
+        List + semantic search + per-document view + forget, over
+        the user's indexed folders. The learned-facts views above
+        are untouched; this section is the document half, so it
+        lives in the LIST view — _set_memory_view hides the whole
+        section (self._doc_section) in Web view, like the list
+        card, so the graph keeps its pre-D1 geometry."""
+        section = QWidget()
+        self._doc_section = section
+        s_layout = QVBoxLayout(section)
+        s_layout.setContentsMargins(0, 0, 0, 0)
+        s_layout.setSpacing(layout.spacing())
+        title_row = QHBoxLayout()
+        title_row.setSpacing(6)
+        doc_title = QLabel("Documents")
+        doc_title.setObjectName("cardTitle")
+        title_row.addWidget(doc_title)
+        self._doc_count_label = QLabel("")
+        self._doc_count_label.setObjectName("muted")
+        # Wraps: the count line ("3 file(s) · 3 passage(s) ·
+        # semantic search off — …") is ~500 px unwrapped and
+        # would force the whole Memory page 65 px wider than
+        # its pre-D1 658 px minimum at a 640 px window; wrapped
+        # it takes two lines at narrow widths and one at 1280.
+        self._doc_count_label.setWordWrap(True)
+        # Stretch 1 (no separate spacer): the label takes the
+        # row's free width — one line at 1280, two wrapped lines
+        # at 640 — while its wrapped minimum stays one word
+        # wide, so it never forces the page wider.
+        title_row.addWidget(self._doc_count_label, stretch=1)
+        btn_doc_refresh = QPushButton("Refresh")
+        btn_doc_refresh.setObjectName("chipBtn")
+        btn_doc_refresh.setToolTip(
+            "Re-index the remembered folders")
+        btn_doc_refresh.clicked.connect(self._on_doc_refresh)
+        title_row.addWidget(btn_doc_refresh)
+        s_layout.addLayout(title_row)
+        self._doc_hint = QLabel(
+            "Your indexed folders, searchable by meaning. "
+            "Say “remember this folder” to add one.")
+        self._doc_hint.setObjectName("cardHint")
+        self._doc_hint.setWordWrap(True)
+        s_layout.addWidget(self._doc_hint)
+
+        card = QFrame()
+        card.setObjectName("card")
+        self.mem_doc_card = card
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(16, 12, 16, 12)
+        search_row = QHBoxLayout()
+        search_row.setSpacing(6)
+        self._doc_search = QLineEdit()
+        self._doc_search.setPlaceholderText(
+            "Search documents by meaning…")
+        self._doc_search.returnPressed.connect(self._on_doc_search)
+        search_row.addWidget(self._doc_search, stretch=1)
+        btn_doc_search = QPushButton("Search")
+        btn_doc_search.setObjectName("chipBtn")
+        btn_doc_search.clicked.connect(self._on_doc_search)
+        search_row.addWidget(btn_doc_search)
+        c_layout.addLayout(search_row)
+        self._doc_list = QListWidget()
+        self._doc_list.setMinimumHeight(120)
+        self._doc_list.itemClicked.connect(self._on_doc_selected)
+        c_layout.addWidget(self._doc_list)
+        self._doc_detail = QLabel("Pick a document to read it.")
+        self._doc_detail.setObjectName("cardHint")
+        self._doc_detail.setWordWrap(True)
+        self._doc_detail.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        c_layout.addWidget(self._doc_detail)
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(6)
+        btn_add = QPushButton("Add folder…")
+        btn_add.setObjectName("chipBtn")
+        btn_add.clicked.connect(self._on_doc_add_folder)
+        btn_row.addWidget(btn_add)
+        self._doc_forget_btn = QPushButton("Forget document")
+        self._doc_forget_btn.setObjectName("chipBtn")
+        self._doc_forget_btn.setEnabled(False)
+        self._doc_forget_btn.clicked.connect(self._on_doc_forget)
+        btn_row.addWidget(self._doc_forget_btn)
+        btn_row.addStretch()
+        c_layout.addLayout(btn_row)
+        s_layout.addWidget(card, stretch=1)
+        layout.addWidget(section, stretch=1)
+        self._doc_results: list = []
+        self._doc_selected_source: str | None = None
+        self._refresh_documents()
+
+    def _refresh_documents(self) -> None:
+        """Re-list the indexed documents + the semantic state."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                document_memory as _dm)
+            if not _dm.document_store_exists():
+                # No store file yet: opening the page must not
+                # create one. The user bridges their folders in
+                # with Refresh (or adds one below).
+                self._doc_count_label.setText(
+                    "No documents in memory yet")
+                self._doc_list.clear()
+                self._doc_results = []
+                self._doc_selected_source = None
+                self._doc_forget_btn.setEnabled(False)
+                self._doc_detail.setText(
+                    "Press Refresh to bring your indexed folders "
+                    "into document memory, or add a folder below.")
+                return
+            data = _dm.list_documents(limit=50)
+        except Exception:  # noqa: BLE001 — the page must still build
+            self._doc_count_label.setText(
+                "Document memory unavailable")
+            return
+        files = data.get("files", []) or []
+        if data.get("semantic_available"):
+            state = "semantic search ready"
+        elif data.get("model_ready"):
+            state = "semantic search readying — documents not yet embedded"
+        else:
+            state = "semantic search off — embedding model not installed"
+        self._doc_count_label.setText(
+            f"{data.get('total_files', 0)} file(s) · "
+            f"{data.get('total_passages', 0)} passage(s) · {state}")
+        self._doc_results = files
+        self._doc_selected_source = None
+        self._doc_forget_btn.setEnabled(False)
+        self._doc_list.clear()
+        for entry in files:
+            title = str(entry.get("title") or "Untitled")
+            snippet = " ".join(
+                str(entry.get("snippet") or "").split())
+            self._doc_list.addItem(
+                f"{title}  ·  {snippet}" if snippet else title)
+        self._doc_detail.setText("Pick a document to read it.")
+
+    def _on_doc_search(self) -> None:
+        """Semantic-first document search (FTS fallback, honest
+        when the model is absent). An empty query re-lists."""
+        query = self._doc_search.text().strip()
+        if not query:
+            self._refresh_documents()
+            return
+        try:
+            from voice_assistant.core.gui_facade import (
+                document_memory as _dm)
+            data = _dm.search_documents(query, limit=20)
+        except Exception as exc:  # noqa: BLE001 — say so, don't crash
+            self._doc_detail.setText(f"Document search failed: {exc}")
+            return
+        results = data.get("results", []) or []
+        lanes = data.get("lanes", []) or []
+        self._doc_results = results
+        self._doc_selected_source = None
+        self._doc_forget_btn.setEnabled(False)
+        self._doc_list.clear()
+        for item in results:
+            title = str(item.get("title") or "Untitled")
+            passage = " ".join(str(item.get("passage") or "").split())
+            self._doc_list.addItem(
+                f"{title}  ·  {passage[:160]}" if passage else title)
+        if not results:
+            self._doc_detail.setText(
+                "No documents matched that — try different words, "
+                "or index a folder first.")
+            return
+        lane_line = "Matched by: " + ", ".join(lanes) + "."
+        if not data.get("semantic_available"):
+            lane_line += (" Semantic search is unavailable "
+                          "(embedding model not installed) — "
+                          "these are keyword matches.")
+        self._doc_detail.setText(
+            f"{len(results)} match(es). {lane_line} "
+            "Pick one to read it.")
+
+    def _on_doc_selected(self, item) -> None:
+        """Show one document: its passages, in order, capped so
+        a huge file cannot flood the panel."""
+        row = self._doc_list.row(item)
+        if row < 0 or row >= len(self._doc_results):
+            return
+        entry = self._doc_results[row]
+        source = str(entry.get("source") or "")
+        title = str(entry.get("title") or "Untitled")
+        self._doc_selected_source = source or None
+        self._doc_forget_btn.setEnabled(bool(source))
+        # A search hit already carries its passage; a list row
+        # fetches the file's passages.
+        if entry.get("passage"):
+            self._doc_detail.setText(
+                f"{title}\n{source}\n\n{entry.get('passage')}")
+            return
+        try:
+            from voice_assistant.core.gui_facade import (
+                document_memory as _dm)
+            data = _dm.get_document_passages(source)
+        except Exception as exc:  # noqa: BLE001 — say so, don't crash
+            self._doc_detail.setText(f"Couldn't read it: {exc}")
+            return
+        passages = data.get("passages", []) or []
+        if not passages:
+            self._doc_detail.setText(
+                f"{title}\n{source}\n\nNo passages stored for this file.")
+            return
+        text = "\n\n".join(
+            str(p.get("passage") or "") for p in passages)
+        if len(text) > 6000:
+            text = text[:6000] + "\n\n… (truncated — the file is longer)"
+        self._doc_detail.setText(f"{title}\n{source}\n\n{text}")
+
+    def _on_doc_add_folder(self) -> None:
+        """Pick a folder to index into document memory."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Index a folder into document memory")
+        if not folder:
+            return
+        try:
+            from voice_assistant.core.gui_facade import (
+                document_memory as _dm)
+            summary = _dm.index_folder(folder)
+        except Exception as exc:  # noqa: BLE001 — say so, don't crash
+            self._doc_detail.setText(f"Couldn't index it: {exc}")
+            return
+        self._doc_detail.setText(str(summary))
+        self._refresh_documents()
+
+    def _on_doc_refresh(self) -> None:
+        """Re-index the remembered folders, then re-list."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                document_memory as _dm)
+            summary = _dm.refresh_documents()
+        except Exception as exc:  # noqa: BLE001 — say so, don't crash
+            self._doc_detail.setText(f"Refresh failed: {exc}")
+            return
+        self._doc_detail.setText(str(summary))
+        self._refresh_documents()
+
+    def _on_doc_forget(self) -> None:
+        """Forget the selected document (confirm first)."""
+        source = self._doc_selected_source
+        if not source:
+            return
+        answer = QMessageBox.question(
+            self, "Forget document",
+            f"Forget this document?\n{source}\n\nIts passages leave "
+            "VYUK's memory. The file itself is not deleted.",
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            from voice_assistant.core.gui_facade import (
+                document_memory as _dm)
+            result = _dm.forget_documents(source)
+        except Exception as exc:  # noqa: BLE001 — say so, don't crash
+            self._doc_detail.setText(f"Couldn't forget it: {exc}")
+            return
+        if not result.get("ok"):
+            self._doc_detail.setText(
+                f"Couldn't forget it: {result.get('reason', 'unknown')}")
+            return
+        self._doc_detail.setText(
+            f"Forgotten: {result.get('passages_removed', 0)} "
+            "passage(s) removed.")
+        self._refresh_documents()
 
     def _build_skills_page(self) -> QWidget:
         page, layout = self._page_shell("Skills", "Everything VYUK can do — her built-in skills, plus your own plugins.", kicker=True)

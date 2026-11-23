@@ -406,7 +406,7 @@ class TestCensusUnmoved(unittest.TestCase):
             (self.totals["total"], self.totals["read"],
              self.totals["effectful"], self.totals["confirm_gated"],
              self.totals["already_verified_in_handler"]),
-            (769, 384, 385, 169, 319))
+            (772, 386, 386, 170, 320))  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_params_grouped_closed(self):
         total_params = sum(
@@ -417,14 +417,14 @@ class TestCensusUnmoved(unittest.TestCase):
             1 for d in self.decls.values()
             if d.get("parameters", {}).get("additionalProperties")
             is False)
-        self.assertEqual(total_params, 2121)
-        self.assertEqual(grouped, 766)
-        self.assertEqual(closed, 768)
+        self.assertEqual(total_params, 2126)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(grouped, 769)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(closed, 771)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_section_2c_rows_labels(self):
-        self.assertEqual(len(self.rows_2c), 385)
-        self.assertEqual(len(set(self.rows_2c)), 385)
-        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 694)
+        self.assertEqual(len(self.rows_2c), 386)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(len(set(self.rows_2c)), 386)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 697)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_profiles(self):
         from core.funnel import tool_profiles as profiles  # noqa: E402

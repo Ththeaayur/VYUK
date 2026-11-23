@@ -281,6 +281,9 @@ _OWNER_ONLY_READS = frozenset({
     # Memory and knowledge.
     "recall_memories", "recall_day", "knowledge_search",
     "semantic_search_knowledge",
+    # Darwin D1: document-memory reads return the owner's stored
+    # file content — owner-only like knowledge_search.
+    "search_documents", "list_documents",
     # Plans and routines.
     "list_plans", "get_plan", "list_routines",
     # Personal records.

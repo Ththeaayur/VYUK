@@ -164,9 +164,10 @@ EMBEDDER_ADOPTION_OWED = (
     "search ranks by cosine over it. The E5-small, Model2Vec, "
     "Qwen3-Embedding and BGE-M3 head-to-head seats still report "
     "available=False (weights absent) — they are a bake-off, not "
-    "the producer. The MiniLM model licence row is PROPOSED "
-    "pending the parent's ruling; until ruled, the model stays "
-    "operator-supplied and is never bundled."
+    "the producer. The MiniLM model licence is PARENT-RULED "
+    "Apache-2.0 (R8-1, 2026-11-10); the model stays "
+    "operator-supplied and is never bundled (bundling is a "
+    "future model-distribution-gate decision)."
 )
 MEMORY_DUAL_READ_EVIDENCE = (
     "core/memory/memory.py:288 imports dual_read/file_store_has_records/"
@@ -283,6 +284,38 @@ def knowledge_add_document(doc_id, title, passage, source="",
     rowid = store.add_document(doc_id, title, passage,
                                source=source, licence=licence)
     return {"rowid": rowid, "doc_id": doc_id, "licence": licence}
+
+
+def search_documents(query: str, limit: int = 10, db_path=None,
+                     embedder=None) -> dict:
+    """Darwin D1: semantic-first search over the user's documents
+    only (the disk-index bridge). Lanes disclosed; with no model
+    the FTS lane runs and the record says semantics was
+    unavailable — never a fabricated ranking."""
+    from . import document_memory
+
+    return document_memory.search_documents(
+        query, limit=limit, db_path=db_path, embedder=embedder)
+
+
+def list_documents(limit: int = 10, offset: int = 0,
+                   db_path=None) -> dict:
+    """Darwin D1: the indexed-document list for the Memory page
+    (one row per file) plus the embedding status, so the page can
+    say honestly whether semantic search is available."""
+    from . import document_memory
+
+    return document_memory.list_documents(
+        limit=limit, offset=offset, db_path=db_path)
+
+
+def forget_documents(source: str, db_path=None) -> dict:
+    """Darwin D1: forget one document, or a whole folder (which
+    also drops it from the remembered index roots, so a later
+    refresh cannot re-index it)."""
+    from . import document_memory
+
+    return document_memory.forget_documents(source, db_path=db_path)
 
 
 def knowledge_rate_document(doc_id, rating, note="", db_path=None) -> dict:
@@ -637,6 +670,38 @@ def knowledge_embedding_status_tool(args: dict, db_path=None) -> dict:
     return knowledge_embedding_status(db_path=db_path)
 
 
+def search_documents_tool(args: dict, db_path=None) -> dict:
+    """Tool-shaped wrapper: search_documents. args: {query, limit}."""
+    args = args or {}
+    try:
+        limit = int(args.get("limit", 10) or 10)
+    except (TypeError, ValueError):
+        limit = 10
+    return search_documents(str(args.get("query", "")),
+                            limit=limit, db_path=db_path)
+
+
+def list_documents_tool(args: dict, db_path=None) -> dict:
+    """Tool-shaped wrapper: list_documents. args: {limit, offset}."""
+    args = args or {}
+    try:
+        limit = int(args.get("limit", 10) or 10)
+    except (TypeError, ValueError):
+        limit = 10
+    try:
+        offset = int(args.get("offset", 0) or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    return list_documents(limit=limit, offset=offset, db_path=db_path)
+
+
+def forget_documents_tool(args: dict, db_path=None) -> dict:
+    """Tool-shaped wrapper: forget_documents. args: {source}."""
+    args = args or {}
+    return forget_documents(str(args.get("source", "")),
+                            db_path=db_path)
+
+
 def research_tool(args: dict, fetcher=None) -> dict:
     """Tool-shaped wrapper: research. args: {question, source, doi}."""
     args = args or {}
@@ -676,6 +741,10 @@ W6_TOOL_HANDLERS: dict[str, Callable[[dict], dict]] = {
     "semantic_search_knowledge": knowledge_semantic_search_tool,
     "embed_knowledge": knowledge_embed_missing_tool,
     "knowledge_embedding_status": knowledge_embedding_status_tool,
+    # Darwin D1: the document-memory tools ride the same wiring.
+    "search_documents": search_documents_tool,
+    "list_documents": list_documents_tool,
+    "forget_documents": forget_documents_tool,
     "research": research_tool,
     "remember_person": remember_person_tool,
     "remember_promise": remember_promise_tool,

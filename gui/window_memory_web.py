@@ -355,9 +355,14 @@ class MemoryWebMixin:
     # --------------------------------------- memory web (v3.1)
     def _set_memory_view(self, mode: str):
         """List | Web toggle for the Memory page. Web mode hides the
-        learned card, the list card and the add-fact row (Clear
-        history stays — it is about the conversation, not facts);
-        the choice persists in memory/view."""
+        learned card, the list card, the add-fact row and the
+        Documents section (Darwin D1: the document half lives in
+        the list view — hiding it keeps the graph's pre-D1
+        geometry; a visible Documents card above the web
+        container pushes the graph below the fold at 750 px and
+        the E-F202 label tests read no ink). Clear history stays
+        — it is about the conversation, not facts; the choice
+        persists in memory/view."""
         mode = "web" if mode == "web" else "list"
         self._mem_view = mode
         try:
@@ -374,6 +379,9 @@ class MemoryWebMixin:
         if learned_card is not None:
             learned_card.setVisible(not web)
         self.mem_list_card.setVisible(not web)
+        doc_section = getattr(self, "_doc_section", None)
+        if doc_section is not None:
+            doc_section.setVisible(not web)
         for widget in getattr(self, "_mem_add_row_widgets", []):
             widget.setVisible(not web)
         self.mem_web_container.setVisible(web)

@@ -143,6 +143,22 @@ def _save_roots(roots: list[str]) -> None:
     )
 
 
+def remove_root(root: str) -> bool:
+    """Drop one folder from the remembered index roots (the
+    Darwin D1 forget-a-root path: a forgotten folder is never
+    re-indexed by a later refresh). Roots contained under it go
+    too — their documents are forgotten with it. True when
+    anything was removed."""
+    root = str(root)
+    roots = _load_roots()
+    kept = [r for r in roots
+            if r != root and not r.startswith(root + os.sep)]
+    if len(kept) == len(roots):
+        return False
+    _save_roots(kept)
+    return True
+
+
 def _readable_text(path: Path) -> str | None:
     """File text, or None with the reason it was skipped (binary/large)."""
     try:
@@ -210,7 +226,22 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
     size changed since the last index run. Pass rebuild=true for a
     full re-index. The folders are remembered as the index roots, so
     a later run with no folders refreshes them.
+
+    Darwin D1: the same walk also feeds the document memory — every
+    text, Office and PDF file is written to the KnowledgeStore as
+    chunked passages (core/document_memory.py), so the folder is
+    searchable by meaning and listed on the Memory page. Images are
+    skipped with a named reason (OCR held). A bounded embed pass
+    (50 passages) runs at the end when the embedding model is
+    present; with no model the summary says so.
     """
+    # Darwin D1: the bridge lives in document_memory; imported here
+    # (not at module level) so neither module owns the other at
+    # import time.
+    from .document_memory import (DOCUMENT_EXTS, purge_file,
+                                  purge_vanished,
+                                  reset_document_store, sync_file)
+    from .memory.knowledge import KnowledgeStore
     if not fts5_available():
         return ("I can't build the search index on this machine — "
                 "this Python's SQLite has no FTS5, so there is no "
@@ -249,6 +280,8 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
             conn.execute("DELETE FROM files")
             conn.commit()
             before_total = 0
+            # Darwin D1: a rebuild re-syncs every document too.
+            reset_document_store()
         indexed_roots_before = 0
         for (old_path,) in conn.execute(
             "SELECT path FROM files"
@@ -259,7 +292,32 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
             ):
                 indexed_roots_before += 1
         new = updated = unchanged = removed = skipped = 0
+        # Darwin D1: the bridge counters ride alongside the FTS
+        # ones; doc_skip_reasons names WHY files were skipped
+        # (images held for OCR, oversize, …).
+        doc_new = doc_updated = doc_unchanged = 0
+        doc_removed = doc_skipped = 0
+        doc_skip_reasons: dict[str, int] = {}
         seen: set[str] = set()
+
+        def _tally_doc(outcome):
+            """Fold one bridge outcome into the D1 counters."""
+            nonlocal doc_new, doc_updated, doc_unchanged
+            nonlocal doc_removed, doc_skipped
+            status = outcome.get("status")
+            if status == "new":
+                doc_new += 1
+            elif status == "updated":
+                doc_updated += 1
+            elif status == "unchanged":
+                doc_unchanged += 1
+            elif status == "skipped":
+                doc_skipped += 1
+                reason = str(outcome.get("reason") or "skipped")
+                doc_skip_reasons[reason] = (
+                    doc_skip_reasons.get(reason, 0) + 1)
+                if outcome.get("removed"):
+                    doc_removed += 1
         now = time.time()
         for base in good:
             base_str = str(base)
@@ -275,7 +333,14 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
                     fkey = str(fpath)
                     if fkey == str(db_path) or fkey == str(_roots_path()):
                         continue
-                    if fpath.suffix.lower() not in _INDEX_EXTS:
+                    suffix = fpath.suffix.lower()
+                    is_text = suffix in _INDEX_EXTS
+                    # Darwin D1: Office / PDF / image files are not
+                    # FTS rows, but they ARE document-memory files —
+                    # the bridge extracts them (or skips them with a
+                    # named reason).
+                    is_doc = suffix in DOCUMENT_EXTS
+                    if not is_text and not is_doc:
                         continue
                     try:
                         stat = fpath.stat()
@@ -283,6 +348,9 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
                         skipped += 1
                         continue
                     seen.add(fkey)
+                    if not is_text:
+                        _tally_doc(sync_file(fpath, stat=stat))
+                        continue
                     row = conn.execute(
                         "SELECT id, mtime, size FROM files WHERE path = ?",
                         (fkey,),
@@ -293,6 +361,11 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
                         and row[2] == stat.st_size
                     ):
                         unchanged += 1
+                        # The FTS row is unchanged — but the bridge
+                        # state may predate D1, so it still syncs
+                        # (its own mtime/size check skips the work
+                        # when the file is already stored).
+                        _tally_doc(sync_file(fpath, stat=stat))
                         continue
                     text = _readable_text(fpath)
                     if text is None:
@@ -310,6 +383,8 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
                                 "DELETE FROM files WHERE id = ?", (row[0],)
                             )
                             removed += 1
+                        # The bridge drops the stale passages too.
+                        doc_removed += purge_file(fpath)["files"]
                         continue
                     if row is not None:
                         conn.execute(
@@ -343,6 +418,9 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
                             (cursor.lastrowid, fname, text),
                         )
                         new += 1
+                    # The FTS text is already read — hand it to the
+                    # bridge so it does not re-read the file.
+                    _tally_doc(sync_file(fpath, stat=stat, text=text))
         # Files that vanished since the last index leave the index.
         for (old_path,) in conn.execute("SELECT path FROM files").fetchall():
             if old_path not in seen and any(
@@ -358,7 +436,15 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
                     )
                 conn.execute("DELETE FROM files WHERE path = ?", (old_path,))
                 removed += 1
+                # Darwin D1: the vanished file's passages leave
+                # the document memory too.
+                doc_removed += purge_file(old_path)["files"]
         conn.commit()
+        # Darwin D1: bridge states the walk never saw (Office /
+        # PDF files have no FTS row to vanish from) are purged
+        # here, by the same seen set.
+        vanished = purge_vanished(seen, good)
+        doc_removed += vanished["files"]
         # A4-filestat: the count is re-read before the success line
         # names any number — a write that did not land is reported
         # as a failure, never claimed. Expected: files outside the
@@ -379,6 +465,21 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
     finally:
         conn.close()
     _save_roots([str(b) for b in good] + [r for r in remembered])
+    # Darwin D1: the bounded embed pass — new passages get vectors
+    # when the model is present (50/call). With no model the
+    # summary says so; nothing is fabricated, and embedding never
+    # breaks indexing.
+    embedded = 0
+    model_ready = False
+    try:
+        _kstore = KnowledgeStore()
+        model_ready = bool(
+            _kstore.vector_index_status().get("model_ready"))
+        if model_ready:
+            embedded = int(
+                _kstore.embed_missing(limit=50).get("embedded", 0))
+    except Exception:  # noqa: BLE001 — embedding never breaks indexing
+        pass
     parts = [f"Indexed {new + updated} file(s)"]
     if new:
         parts.append(f"{new} new")
@@ -391,8 +492,36 @@ def index_files(folders: str = "", rebuild: bool = False) -> str:
     if skipped:
         parts.append(f"{skipped} skipped (binary, too large, or unreadable)")
     summary = ", ".join(parts)
+    doc_parts = []
+    if doc_new:
+        doc_parts.append(f"{doc_new} new")
+    if doc_updated:
+        doc_parts.append(f"{doc_updated} updated")
+    if doc_unchanged:
+        doc_parts.append(f"{doc_unchanged} unchanged")
+    if doc_removed:
+        doc_parts.append(f"{doc_removed} removed (no longer on disk)")
+    if doc_skipped:
+        doc_parts.append(f"{doc_skipped} skipped")
+    doc_line = ""
+    if doc_parts:
+        doc_line = " Document memory: " + ", ".join(doc_parts) + "."
+        if doc_skip_reasons:
+            top = sorted(doc_skip_reasons.items(),
+                         key=lambda kv: -kv[1])[0][0]
+            if "images are not indexed yet" in top:
+                doc_line += " Images held — OCR unavailable."
+            else:
+                doc_line += f" Skipped because: {top}."
+        if embedded:
+            doc_line += (f" {embedded} passage(s) embedded for "
+                         "semantic search.")
+        elif not model_ready:
+            doc_line += (" Semantic search is off — the embedding "
+                         "model isn't installed yet "
+                         "(operator-supplied).")
     result = (f"{summary}. The index now holds {after_total} file(s) "
-              f"across {len(roots)} folder(s).")
+              f"across {len(roots)} folder(s).{doc_line}")
     if bad:
         result += (" Note: these folders don't exist right now and "
                    "were skipped: " + ", ".join(bad) + ".")

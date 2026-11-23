@@ -34,9 +34,9 @@ This suite pins the batch, so it can never regress silently:
   become JSON {"monthly": X, "renewal_day": D}, legacy plain
   numbers still read, 'list' shows the next renewal date, and
   _next_renewal clamps to the month's last day.
-- Census pins: 769 tools / 384 read / 385 effectful / 169
-  confirm-gated / params 2121 / grouped 766 / closed 768 /
-  already-verified 319 / §2c rows 385 / labels 694 /
+- Census pins: 772 tools / 386 read / 386 effectful / 170
+  confirm-gated / params 2126 / grouped 769 / closed 771 /
+  already-verified 320 / §2c rows 386 / labels 697 /
   productivity 152 / desktop offered 76 / assistant offered 73.
 
 Stdlib unittest only. All money-store writes go through a temp
@@ -552,7 +552,7 @@ class TestCensus(unittest.TestCase):
             (self.totals["total"], self.totals["read"],
              self.totals["effectful"], self.totals["confirm_gated"],
              self.totals["already_verified_in_handler"]),
-            (769, 384, 385, 169, 319))  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+            (772, 386, 386, 170, 320))  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_params_grouped_closed(self):
         total_params = sum(
@@ -563,14 +563,14 @@ class TestCensus(unittest.TestCase):
             1 for d in self.decls.values()
             if d.get("parameters", {}).get("additionalProperties")
             is False)
-        self.assertEqual(total_params, 2121)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
-        self.assertEqual(grouped, 766)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
-        self.assertEqual(closed, 768)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(total_params, 2126)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(grouped, 769)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(closed, 771)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_section_2c_rows_labels_productivity(self):
-        self.assertEqual(len(self.rows_2c), 385)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
-        self.assertEqual(len(set(self.rows_2c)), 385)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
-        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 694)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
+        self.assertEqual(len(self.rows_2c), 386)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(len(set(self.rows_2c)), 386)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(len(_labels.TOOL_FRIENDLY_NAMES), 697)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
         self.assertEqual(self.counts.get("productivity"), 152)  #Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169
 
     def test_profiles(self):

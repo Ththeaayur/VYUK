@@ -56,7 +56,7 @@ class TestNotifyUserGate(unittest.TestCase):
 
     def test_gate_set_has_169(self):
         _clean_session(self)
-        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 169)  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
+        self.assertEqual(len(_CONFIRM_GATE_TOOLS), 170)  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_snapshot_entry_is_confirm_gated(self):
         snap = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))
@@ -117,7 +117,7 @@ class TestNotifyUserGate(unittest.TestCase):
                  for d in registry_mod.tools.get_declarations()]
         confirmed = {n for n in names if classify(n) == "confirm"}
         self.assertEqual(confirmed, set(_CONFIRM_GATE_TOOLS))
-        self.assertEqual(len(confirmed), 169)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 167 -> 169 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added
+        self.assertEqual(len(confirmed), 170)  # INTENTIONAL; Stage 0 features batch 2 (Group E, 2026-11-22): 167 -> 169 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
 
 if __name__ == "__main__":

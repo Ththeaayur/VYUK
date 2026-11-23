@@ -103,6 +103,10 @@ _LOCAL_ONLY_READS = frozenset({
     # egress (any read-only tool outside this set reads as
     # egress), the deep_research precedent.
     "semantic_search_knowledge", "knowledge_embedding_status",
+    # Darwin D1: search_documents and list_documents read only
+    # the local KnowledgeStore (disk-bridged passages) — they
+    # MUST sit here for the same reason.
+    "search_documents", "list_documents",
     # Research wiring batch: deep_research is provably local
     # (local KnowledgeStore only, no fetcher on its path) — it
     # MUST sit here, or _is_egress_read would misclassify it as

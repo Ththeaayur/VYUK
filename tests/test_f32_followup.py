@@ -56,9 +56,9 @@ class TestAnticipationRoutineClassification(unittest.TestCase):
         self.assertNotIn("run_anticipation_routine", _FREE_BY_DESIGN)
         self.assertTrue(_needs_confirmation("run_anticipation_routine", {}))
 
-    def test_confirm_count_is_169(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
+    def test_confirm_count_is_170(self):  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
         self.assertEqual(
-            len(_CONFIRM_GATE_TOOLS), 169,  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169
+            len(_CONFIRM_GATE_TOOLS), 170,  #Stage 0 features batch 2 (2026-11-22): census 758/2079/383/375/167 -> 762/2095/384/378/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
             "fix #32 follow-up (2026-11-19): 165 -> 166 — "
             "run_anticipation_routine classified confirm-gated "
             "per parent ruling; round-3 section F fix F-F303 "

@@ -114,7 +114,7 @@ def register_all(registry) -> None:
     )
     registry.register(
         name="index_files",
-        description="Build or refresh a persistent, ranked search index over the text files in folders you choose (plain-text types: .txt .md .py .log .json .csv .ini). The index lives in VYUK's own data folder and is searched by search_indexed_files — it makes 'find the file that says X' fast instead of scanning every file each time. Indexing is incremental (only changed files are re-read); pass rebuild=true for a full re-index. Nothing is indexed until you name the folders, and nothing leaves the machine. Effectful (writes VYUK's own index).",
+        description="Build or refresh a persistent, ranked search index over the text files in folders you choose (plain-text types: .txt .md .py .log .json .csv .ini). The index lives in VYUK's own data folder and is searched by search_indexed_files — it makes 'find the file that says X' fast instead of scanning every file each time. Indexing is incremental (only changed files are re-read); pass rebuild=true for a full re-index. Nothing is indexed until you name the folders, and nothing leaves the machine. Indexing also feeds document memory — text, Office and PDF files are stored as passages in the knowledge store, searchable by meaning with search_documents and listed with list_documents; images are skipped (OCR unavailable). Say 'remember this folder' to index a folder. Effectful (writes VYUK's own index).",
         parameters={
             "type": "object",
             "properties": {

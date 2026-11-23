@@ -836,14 +836,14 @@ class CensusTests(unittest.TestCase):
         params = sum(
             len((d.get("parameters") or {}).get("properties") or {})
             for d in decls)
-        self.assertEqual(len(decls), 769)
-        self.assertEqual(params, 2121)
+        self.assertEqual(len(decls), 772)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(params, 2126)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
         self.assertEqual(len([d for d in decls
-                              if d["name"] in READ]), 384)
+                              if d["name"] in READ]), 386)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
         self.assertEqual(len([d for d in decls
-                              if d["name"] not in READ]), 385)
+                              if d["name"] not in READ]), 386)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
         self.assertEqual(len([d for d in decls
-                              if d["name"] in CONFIRM]), 169)
+                              if d["name"] in CONFIRM]), 170)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
 
 if __name__ == "__main__":

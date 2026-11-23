@@ -524,6 +524,44 @@ class ToolHandlersDataServicesMixin:
         result = _w6.W6_TOOL_HANDLERS["knowledge_embedding_status"]({})
         return json.dumps(result, ensure_ascii=False)
 
+    def _tool_search_documents(self, query: str = "",
+                               limit: int = 10) -> str:
+        """Funnel wrapper for w6_wiring search_documents_tool."""
+        from .. import w6_wiring as _w6
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = 10
+        limit = max(1, min(50, limit))
+        result = _w6.W6_TOOL_HANDLERS["search_documents"](
+            {"query": query, "limit": limit})
+        return json.dumps(result, ensure_ascii=False)
+
+    def _tool_list_documents(self, limit: int = 10,
+                             offset: int = 0) -> str:
+        """Funnel wrapper for w6_wiring list_documents_tool."""
+        from .. import w6_wiring as _w6
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = 10
+        limit = max(1, min(100, limit))
+        try:
+            offset = int(offset)
+        except (TypeError, ValueError):
+            offset = 0
+        offset = max(0, offset)
+        result = _w6.W6_TOOL_HANDLERS["list_documents"](
+            {"limit": limit, "offset": offset})
+        return json.dumps(result, ensure_ascii=False)
+
+    def _tool_forget_documents(self, source: str = "") -> str:
+        """Funnel wrapper for w6_wiring forget_documents_tool."""
+        from .. import w6_wiring as _w6
+        result = _w6.W6_TOOL_HANDLERS["forget_documents"](
+            {"source": source})
+        return json.dumps(result, ensure_ascii=False)
+
     def _tool_research(self, question: str = "", source: str = "arxiv",
                        doi: str = "") -> str:
         """Funnel wrapper for w6_wiring research_tool, with the

@@ -1174,6 +1174,11 @@
     "free": null,
     "read": false
   },
+  "forget_documents": {
+    "confirm": true,
+    "free": null,
+    "read": false
+  },
   "forget_wifi": {
     "confirm": true,
     "free": null,
@@ -1670,6 +1675,11 @@
     "read": true
   },
   "list_custom_wake_models": {
+    "confirm": false,
+    "free": null,
+    "read": true
+  },
+  "list_documents": {
     "confirm": false,
     "free": null,
     "read": true
@@ -2758,6 +2768,11 @@
     "confirm": false,
     "free": "hands",
     "read": false
+  },
+  "search_documents": {
+    "confirm": false,
+    "free": null,
+    "read": true
   },
   "search_email": {
     "confirm": false,

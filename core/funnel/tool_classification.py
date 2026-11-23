@@ -332,6 +332,8 @@ _CONFIRM_GATE_TOOLS = frozenset({
     "shred_file",           # overwrites then deletes — unrecoverable (v5.5)
     "forget_wifi",          # deletes a saved network AND its stored
                             # password — persistent (v5.9, sweep M2)
+    "forget_documents",     # deletes stored document passages (+ the
+                            # index root for a folder) — Darwin D1
     "paste_snippet",        # pastes saved text into the focused app,
                             # incl. terminals (v5.11; paste_text parity)
     "type_clipboard",       # types clipboard text into the focused
@@ -996,6 +998,10 @@ _READ_ONLY_TOOLS = frozenset({
     # SQLite only — no network, no writes — so they are read-class
     # AND local-only, like knowledge_search.
     "semantic_search_knowledge", "knowledge_embedding_status",
+    # Darwin D1: search_documents and list_documents read the
+    # same local store (disk-bridged passages only) — read-class
+    # AND local-only, like knowledge_search.
+    "search_documents", "list_documents",
     # Conversion pass, combined W4/W5 registration (v5.64):
     # curl_cffi_read is an egress read by the same precedent:
     # read-class here, deliberately NOT in _LOCAL_ONLY_READS,

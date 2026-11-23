@@ -368,6 +368,44 @@ class Wave10PacksMixin:
             handler=self._tool_knowledge_embedding_status,
         )
         self.register(
+            name="search_documents",
+            description="Search my documents for X: semantic-first search over the files VYUK indexed from the folders you chose (index_files) — plain text, Office documents and PDFs. When the embedding model is present, matches by meaning come first (synonyms, paraphrase); keyword matches fill after. When the model is absent, keyword search runs and the answer says semantic search is unavailable — never a fabricated ranking. Say 'search my documents for X' or 'what do my documents say about X'. Read-only, local store only.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Text to match against the indexed documents"},
+                    "limit": {"type": "integer", "description": "Maximum hits to return (default 10, clamped to 50)"},
+                },
+                "required": ["query"],
+            },
+            handler=self._tool_search_documents,
+        )
+        self.register(
+            name="list_documents",
+            description="What do you remember from my files: list the documents VYUK indexed from the folders you chose (index_files) — one row per file with its title, path and passage count. Say 'what do you remember from my files' or 'list my documents'. Read-only, local store only.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Maximum files to return (default 10, clamped to 100)"},
+                    "offset": {"type": "integer", "description": "Files to skip (default 0)"},
+                },
+                "required": [],
+            },
+            handler=self._tool_list_documents,
+        )
+        self.register(
+            name="forget_documents",
+            description="Forget a document or a whole folder of documents: removes its passages from VYUK's document memory. Forgetting a folder also drops it from the remembered index folders, so a later refresh cannot re-index it. Say 'forget that document' or 'forget my Documents folder'. Confirm-gated.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source": {"type": "string", "description": "Path of the file or folder to forget"},
+                },
+                "required": ["source"],
+            },
+            handler=self._tool_forget_documents,
+        )
+        self.register(
             name="research",
             description="Research metadata only, through a caller-supplied fetcher; the funnel supplies none, so a live funnel call reports honestly unavailable instead of sending a request. arXiv: metadata/digest only, PDF serve always refused. Crossref: lookup by DOI. OpenAlex: needs a caller-set key and daily cap. Every article carries its own licence gate; full text only when that article's licence permits. Peer-review requests are refused, and disclosure flags are surfaced, never auto-filled.",
             parameters={
