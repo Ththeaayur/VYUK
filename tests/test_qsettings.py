@@ -91,7 +91,7 @@ def _need_w9(test):
 
 
 class QSettingsTableTests(unittest.TestCase):
-    def test_table_has_99_entries(self):
+    def test_table_has_100_entries(self):
         # Chat UI build (2026-11-16): 90 + chat/composer_draft +
         # chat/last_seen_id. Field-check fix #7 (U4 #31):
         # + chat/last_seen_store_id. Field-check fix #12
@@ -103,13 +103,17 @@ class QSettingsTableTests(unittest.TestCase):
         # (firstrun/pieces_declined +
         # firstrun/setup_card_snoozed_until — the per-piece
         # setup card's declines and snooze).
-        self.assertEqual(len(cs.QSETTINGS_FIELDS), 99)
+        # Stage 0 features batch 6 (2026-11-23): +1
+        # (quiet/calendar_quiet_enabled — calendar-aware quiet).
+        self.assertEqual(len(cs.QSETTINGS_FIELDS), 100)
 
     def test_names_and_keys_unique(self):
         names = [n for n, _k, _t, _d in cs.QSETTINGS_FIELDS]
         keys = [k for _n, k, _t, _d in cs.QSETTINGS_FIELDS]
-        self.assertEqual(len(set(names)), 99)
-        self.assertEqual(len(set(keys)), 99)
+        # Stage 0 features batch 6 (2026-11-23): 99 -> 100
+        # (quiet/calendar_quiet_enabled).
+        self.assertEqual(len(set(names)), 100)
+        self.assertEqual(len(set(keys)), 100)
 
     def test_types_valid(self):
         for _n, _k, typ, _d in cs.QSETTINGS_FIELDS:
@@ -117,7 +121,9 @@ class QSettingsTableTests(unittest.TestCase):
 
     def test_defaults_cover_all_keys(self):
         defaults = cs.qsettings_defaults()
-        self.assertEqual(len(defaults), 99)
+        # Stage 0 features batch 6 (2026-11-23): 99 -> 100
+        # (quiet/calendar_quiet_enabled).
+        self.assertEqual(len(defaults), 100)
         table = {k: d for _n, k, _t, d in cs.QSETTINGS_FIELDS}
         self.assertEqual(defaults, table)
 

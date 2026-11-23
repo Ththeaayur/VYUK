@@ -304,6 +304,21 @@ class ConfigSpec:
     whisper_start: str = field(default="22:00", metadata={"env": "WHISPER_START"})
     whisper_end: str = field(default="07:00", metadata={"env": "WHISPER_END"})
     whisper_factor: float = field(default=0.5, metadata={"env": "WHISPER_FACTOR"})
+    # Calendar-aware quiet (Stage 0 features batch 6, item 14):
+    # when ON, an in-progress timed calendar event is quiet —
+    # the same as a fixed quiet window — for both gates
+    # (core/daily_quiet.py). Default ON: the feature's whole
+    # point is meetings going quiet on their own. All-day,
+    # declined and cancelled events never count (the fetch seam
+    # drops them); alarms stay exempt; no calendar means the
+    # feature is silently off and the fixed windows work as
+    # before. The Settings voice page writes it through the
+    # config + .env (the live_voice pattern) and the QSettings
+    # key below; voice flips it through the app_settings
+    # allowlist ("calendar quiet" — propose -> confirm, §5).
+    # Read live per gate check via
+    # core.daily_quiet.calendar_quiet_enabled().
+    calendar_quiet_enabled: bool = field(default=True, metadata={"env": "VYUK_CALENDAR_QUIET_ENABLED"})
     briefing_speed: float = field(default=1.0, metadata={"env": "BRIEFING_SPEED"})
     update_feed_url: str = field(default="", metadata={"env": "UPDATE_FEED_URL"})
     google_client_id: str = field(default="", metadata={"env": "GOOGLE_CLIENT_ID"})
@@ -816,6 +831,15 @@ QSETTINGS_FIELDS: tuple[tuple[str, str, type, Any], ...] = (
     ("watchers_ambient_light", "watchers/ambient_light", bool, False),
     ("watchers_foreground_app", "watchers/foreground_app", bool, True),
     ("watchers_calendar", "watchers/calendar", bool, True),
+    # Calendar-aware quiet (Stage 0 features batch 6, item 14):
+    # the Settings / voice toggle for going quiet during a
+    # meeting in progress. Default ON. This is the quiet-hours
+    # toggle, not a watcher enable — watchers/calendar above is
+    # the meeting heads-up watcher; this key is the gate's
+    # toggle, read live from the ConfigSpec field of the same
+    # name (core/daily_quiet.calendar_quiet_enabled).
+    ("calendar_quiet_enabled", "quiet/calendar_quiet_enabled",
+     bool, True),
     ("watchers_battery", "watchers/battery", bool, True),
     ("watchers_downloads", "watchers/downloads", bool, True),
     ("watchers_network", "watchers/network", bool, True),

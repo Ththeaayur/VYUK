@@ -257,7 +257,7 @@ def _validate_value(key: str, value: str):
 
     value = (value or "").strip()
     if key in ("earcons", "suggestions", "tts_loudness",
-               "voice_auto_switch"):
+               "voice_auto_switch", "calendar_quiet"):
         wanted = _as._parse_bool(value)
         if wanted is None:
             return None, (f"'{value}' isn't on or off — tell me "

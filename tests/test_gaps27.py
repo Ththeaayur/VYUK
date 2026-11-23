@@ -656,7 +656,9 @@ class TelemetryOptInTests(unittest.TestCase):
         # Rethink Build 5 (§9.1): +1 (browser/connect_offer_shown).
         # Round-3 wizard expansion (2026-11-21): +1
         # (firstrun/selftest_faults — the self-test fix-it pin).
-        self.assertEqual(len(cs.QSETTINGS_FIELDS), 99)  # Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
+        # Stage 0 features batch 6 (2026-11-23): +1
+        # (quiet/calendar_quiet_enabled — calendar-aware quiet).
+        self.assertEqual(len(cs.QSETTINGS_FIELDS), 100)  # Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169
 
     def test_apply_settings_off_on_and_no_args(self):
         class _Stub:

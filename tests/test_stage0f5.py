@@ -333,8 +333,11 @@ class TestVerbosity(unittest.TestCase):
     def test_config_spec_counts(self):
         fields = dataclasses.fields(ConfigSpec)
         env_backed = [f for f in fields if f.metadata.get("env")]
-        self.assertEqual(len(fields), 112)
-        self.assertEqual(len(env_backed), 107)
+        # Stage 0 features batch 6: 112 -> 113 fields, 107 -> 108
+        # env-backed (calendar_quiet_enabled,
+        # VYUK_CALENDAR_QUIET_ENABLED).
+        self.assertEqual(len(fields), 113)
+        self.assertEqual(len(env_backed), 108)
 
     def test_directives(self):
         self.assertNotEqual(

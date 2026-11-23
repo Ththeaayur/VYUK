@@ -425,6 +425,88 @@ def events_in_range(start_date, end_date, limit: int = 200) -> list[dict]:
     return events[:limit]
 
 
+def _is_self_declined(event: dict) -> bool:
+    """True when the user declined this event: an attendee entry
+    marked self whose responseStatus is "declined". Events the
+    user created carry no self attendee (or an accepted one), so
+    they never read as declined here."""
+    try:
+        for attendee in event.get("attendees") or []:
+            if not isinstance(attendee, dict):
+                continue
+            if attendee.get("self") and str(
+                    attendee.get("responseStatus") or "").strip(
+                    ).lower() == "declined":
+                return True
+    except Exception:  # noqa: BLE001 — a malformed attendee list
+        return False  # never reads as declined
+    return False
+
+
+def todays_timed_events() -> list[dict]:
+    """Today's TIMED events as structured data — NOT a tool.
+
+    Powers calendar-aware quiet (Stage 0 features batch 6,
+    item 14): the quiet gate needs start AND end to know when
+    a meeting is in progress, which ``next_events`` /
+    ``events_in_range`` do not carry (their dicts have start
+    only). Same never-raises contract: not connected, missing
+    libraries, or any Google-side failure all come back as an
+    empty list, which the gate reads as "no calendar".
+
+    The shape is the ``next_events`` dict PLUS "end": {"id",
+    "title", "start", "end", "location", "all_day": False}.
+    ``start`` / ``end`` are timezone-aware datetimes in local
+    time. Dropped, by the rulings: all-day events (an all-day
+    "holiday" must never silence the whole day), declined
+    events (the user's own "no"), cancelled events, and timed
+    events with no parseable end (in-progress cannot be
+    established without one). Window is today 00:00 → tomorrow
+    00:00 local; the API's overlap semantics also return an
+    event that started yesterday and runs past midnight.
+    """
+    svc = _calendar_service_or_none()
+    if svc is None:
+        return []
+    try:
+        now = datetime.datetime.now().astimezone()
+        start_dt = now.replace(hour=0, minute=0, second=0,
+                               microsecond=0)
+        end_dt = start_dt + datetime.timedelta(days=1)
+        items, _complete = _fetch_events(svc, start_dt, end_dt)
+    except Exception:  # noqa: BLE001 — a failed read degrades
+        return []  # to silence (no calendar), never a raise
+    events: list[dict] = []
+    for event in items or []:
+        if not isinstance(event, dict):
+            continue
+        if str(event.get("status") or "").strip().lower() \
+                == "cancelled":
+            continue
+        if _is_self_declined(event):
+            continue
+        parsed = _event_start(event)
+        if parsed is None:
+            continue
+        kind, begin, finish = parsed
+        if kind != "timed" or finish is None:
+            continue
+        events.append(
+            {
+                "id": str(event.get("id") or ""),
+                "title": (event.get("summary")
+                          or "(untitled event)").strip(),
+                "start": begin,
+                "end": finish,
+                "location": (event.get("location") or "").strip()
+                or None,
+                "all_day": False,
+            }
+        )
+    events.sort(key=lambda ev: ev["start"])
+    return events
+
+
 def create_event(title: str = "", start: str = "", end: str = "",
                  description: str = "", location: str = "",
                  calendar_id: str = "primary") -> str:

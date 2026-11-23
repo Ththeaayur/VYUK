@@ -84,6 +84,9 @@ __all__ = [
     # PF-20
     "QuietHours", "can_speak", "can_notify", "can_alarm",
     "gate_speak", "gate_notify",
+    # PF-20 calendar-aware quiet (Stage 0 features batch 6)
+    "CalendarQuietCache", "calendar_quiet_enabled",
+    "calendar_quiet_cache", "reset_calendar_quiet_cache",
     # PF-22
     "AlarmStore", "Alarm",
     # PF-26
@@ -107,7 +110,7 @@ __all__ = [
 
 # INTENTIONAL (skills split B21): the families below moved to impl modules; the facade re-exports every name so importers resolve them identically through this module object.
 from .daily_helpers import (_load_json, _save_json_atomic, _parse_time)  # noqa: F401
-from .daily_quiet import (QuietHours, can_speak, can_notify, can_alarm, gate_speak, gate_notify)  # noqa: F401
+from .daily_quiet import (QuietHours, can_speak, can_notify, can_alarm, gate_speak, gate_notify, CalendarQuietCache, calendar_quiet_enabled, calendar_quiet_cache, reset_calendar_quiet_cache)  # noqa: F401
 from .daily_alarms import (Alarm, AlarmStore)  # noqa: F401
 from .daily_sos import (SosVerdict, _normalise_sender_result, send_sos)  # noqa: F401
 from .daily_meeting import (MeetingCaptureRefused, _MEETING_DENY_PROCESSES, _MEETING_DENY_TITLES, _denylist_hit, MeetingGate, detect_meeting, _ACTION_VERBS, _extract_action_items, produce_meeting_notes)  # noqa: F401

@@ -125,6 +125,10 @@ _ALIASES = {
     "loudness": "tts_loudness",
     "voice switching": "voice_auto_switch",
     "auto voice switching": "voice_auto_switch",
+    "calendar quiet": "calendar_quiet",
+    "meeting quiet": "calendar_quiet",
+    "quiet in meetings": "calendar_quiet",
+    "quiet during meetings": "calendar_quiet",
 }
 
 #: The settable allowlist, in display order:
@@ -154,10 +158,13 @@ SETTINGS: dict[str, tuple[str, str]] = {
                      "it applies from the next thing she says"),
     "voice_auto_switch": ("Automatic voice switching",
                           "it applies from the next thing she says"),
+    "calendar_quiet": ("Calendar quiet (meetings)",
+                       "she goes quiet while a timed meeting runs "
+                       "— it applies from the next gate check"),
 }
 
 _TOGGLES = ("earcons", "suggestions", "tts_loudness",
-            "voice_auto_switch")
+            "voice_auto_switch", "calendar_quiet")
 
 #: Security-shaped names are refused as Settings-page-only,
 #: never silently treated as unknown.
@@ -303,6 +310,9 @@ def _current(key: str) -> str:
     if key == "voice_auto_switch":
         return "on" if bool(getattr(config, "voice_auto_switch",
                                     True)) else "off"
+    if key == "calendar_quiet":
+        return "on" if bool(
+            _qs_get("quiet/calendar_quiet_enabled")) else "off"
     return ""
 
 
@@ -465,6 +475,16 @@ def set_setting(setting: str, value: str) -> str:
         elif key == "voice_auto_switch":
             config.voice_auto_switch = bool(wanted)
             _save_env("VOICE_AUTO_SWITCH",
+                      "true" if wanted else "false")
+        elif key == "calendar_quiet":
+            # Stage 0 features batch 6, item 14: writes BOTH
+            # stores — the QSettings key (the Settings UI's
+            # read, and _current above) and the ConfigSpec
+            # field + .env (the gate's live read) — so the two
+            # can never drift through any supported path.
+            _qs_set("quiet/calendar_quiet_enabled", bool(wanted))
+            config.calendar_quiet_enabled = bool(wanted)
+            _save_env("VYUK_CALENDAR_QUIET_ENABLED",
                       "true" if wanted else "false")
         return _confirm_set(
             key, "on" if wanted else "off",

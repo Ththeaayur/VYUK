@@ -136,6 +136,33 @@ class SettingsVoiceMixin:
             whisper, "Night volume", 30, 80,
             int(round(float(getattr(config, "whisper_factor", 0.5) or 0.5) * 100)),
             lambda v: f"{v}%", self._on_whisper_factor_changed)
+        # Stage 0 features batch 6, item 14: calendar-aware
+        # quiet. The fixed quiet window has no Settings setter
+        # today (it is set by voice through the daily store) —
+        # this card owns only the calendar toggle, and its
+        # status line says what fixed window is set, so the two
+        # halves of quiet are visible in one place. The toggle
+        # writes the config field + .env AND the QSettings key,
+        # the same two stores the voice path writes, so the
+        # checkbox, the voice answer and the gate can never
+        # drift through any supported path.
+        quiet = self._settings_card(
+            _g_voice, "Quiet hours",
+            "While a timed meeting runs, she holds notifications "
+            "and stays silent — the same as a fixed quiet window. "
+            "All-day events never count, declined and cancelled "
+            "ones never count, and alarms still speak.")
+        self.chk_calendar_quiet = QCheckBox("Go quiet during meetings")
+        self.chk_calendar_quiet.setChecked(
+            bool(getattr(config, "calendar_quiet_enabled", True)))
+        self.chk_calendar_quiet.toggled.connect(
+            self._on_calendar_quiet_toggled)
+        quiet.addWidget(self.chk_calendar_quiet)
+        self._calendar_quiet_status = QLabel("")
+        self._calendar_quiet_status.setObjectName("cardHint")
+        self._calendar_quiet_status.setWordWrap(True)
+        quiet.addWidget(self._calendar_quiet_status)
+        self._refresh_calendar_quiet_status()
         briefing = self._settings_card(_g_voice, "Briefing voice", "While the preset is on, the morning briefing is spoken at the pace below; turn it off and the briefing uses her normal pace.")
         self.chk_briefing_preset = QCheckBox("Briefing voice preset")
         self.chk_briefing_preset.setChecked(
@@ -673,6 +700,72 @@ class SettingsVoiceMixin:
         label = getattr(self, "lbl_voice_bridge", None)
         if label is not None:
             label.setText(text)
+
+    def _on_calendar_quiet_toggled(self, on: bool):
+        """Stage 0 features batch 6, item 14: the calendar-quiet
+        toggle. Writes BOTH stores the voice path writes (the
+        config field + .env, and the QSettings key), so the
+        checkbox, the voice answer and the gate can never drift
+        through any supported path. Applies from the next gate
+        check — the gates read the live config value per check.
+        Lives HERE, beside the card that connects it (a handler
+        on another mixin leaves a bare SettingsVoiceMixin build
+        raising AttributeError — the loophole batch 5 lesson)."""
+        try:
+            config.calendar_quiet_enabled = bool(on)
+        except Exception:  # noqa: BLE001 — the toggle still shows
+            pass
+        try:
+            self._persist_config_setting(
+                "VYUK_CALENDAR_QUIET_ENABLED",
+                "true" if on else "false")
+        except Exception:  # noqa: BLE001 — in-session value
+            pass  # already carries the choice
+        try:
+            qsettings_set("quiet/calendar_quiet_enabled", bool(on),
+                          settings=self.settings)
+        except Exception:  # noqa: BLE001 — the config field
+            pass  # already carries the choice
+        self._refresh_calendar_quiet_status()
+        try:
+            self._note_settings_feedback(
+                "Calendar quiet on — she'll go quiet while a "
+                "meeting runs." if on else
+                "Calendar quiet off — meetings no longer silence "
+                "her; the fixed quiet window still applies.")
+        except Exception:  # noqa: BLE001 — feedback is cosmetic
+            pass
+
+    def _refresh_calendar_quiet_status(self):
+        """Stage 0 features batch 6, item 14: the Quiet hours
+        card's status line — the fixed window in plain words, so
+        the two halves of quiet are visible in one place. Never
+        raises (an unreadable store reads as no window)."""
+        label = getattr(self, "_calendar_quiet_status", None)
+        if label is None:
+            return
+        window = None
+        try:
+            try:
+                from voice_assistant.core.gui_facade import (
+                    w7_wiring_daily as _w7d)
+            except Exception:  # noqa: BLE001 — bare spelling
+                from core.gui_facade import (  # noqa: PLC0415
+                    w7_wiring_daily as _w7d)
+            window = _w7d.quiet_hours().window()
+        except Exception:  # noqa: BLE001 — an unreadable store
+            window = None  # reads as no window
+        if window:
+            text = (f"Fixed quiet window: {window['start']}–"
+                    f"{window['end']}. Calendar quiet adds "
+                    "meetings on top of it.")
+        else:
+            text = ("No fixed quiet window set — calendar quiet "
+                    "still silences her during meetings.")
+        try:
+            label.setText(text)
+        except Exception:  # noqa: BLE001 — a status line never
+            pass  # breaks Settings
 
     def _on_voice_bridge_toggled(self, checked: bool):
         """Wiring Build 1: the bridge toggle, wake pattern.

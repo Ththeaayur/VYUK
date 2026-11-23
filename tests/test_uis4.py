@@ -42,6 +42,9 @@ EXPECTED = {
     "How VYUK thinks": "_g_connect",
     "Voice": "_g_voice",
     "Whisper hours": "_g_voice",
+    # Stage 0 features batch 6 (2026-11-23): the calendar-aware
+    # quiet card, on the Voice page after Whisper hours.
+    "Quiet hours": "_g_voice",
     "Briefing voice": "_g_voice",
     "Microphone": "_g_voice",
     "Voice bridge": "_g_voice",

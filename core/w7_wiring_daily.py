@@ -34,8 +34,16 @@ def configure_daily_store(store_path) -> None:
 def quiet_hours(store_path=None) -> daily.QuietHours:
     """The PF-20 quiet-hours object over the daily store file
     (shared with alarms: QuietHours reads/writes only its own
-    "quiet_hours" key, AlarmStore only "alarms")."""
-    return daily.QuietHours(str(daily_store_path(store_path)))
+    "quiet_hours" key, AlarmStore only "alarms"). The shared
+    calendar-quiet cache is attached, so the live gates (the
+    watcher _emit path, desk_reminder) treat an in-progress
+    timed meeting as quiet — Stage 0 features batch 6, item 14.
+    The toggle itself is read live from the config (default ON);
+    with no calendar attached anywhere else, a directly built
+    QuietHours stays fixed-window-only."""
+    return daily.QuietHours(
+        str(daily_store_path(store_path)),
+        calendar_cache=daily.calendar_quiet_cache())
 
 def set_quiet_window(start: str, end: str, store_path=None) -> dict:
     """Persist a quiet window ("HH:MM" pair; end <= start wraps

@@ -272,7 +272,7 @@ class TestBuild3Window(WindowBase):
         self.assertLess(idx_header, idx_group,
                         "summary header must sit above the groups")
 
-    def test_card_count_35_explained_card_gone(self):
+    def test_card_count_36_explained_card_gone(self):
         # INTENTIONAL UPDATE (Stage 0 features batch 1, 2026-11-22):
         # 35, not 33. The count was already 35 before this batch —
         # the pin went stale because no neighbour run between
@@ -286,8 +286,13 @@ class TestBuild3Window(WindowBase):
         # through backup_loophole_batch7_pre, 35 on
         # backup_loophole_batch8_pre and the live tree; the live
         # window's sectionTitle labels list all 35.
+        # INTENTIONAL UPDATE (Stage 0 features batch 6, 2026-11-23):
+        # 36, not 35. +1 "Quiet hours" (Group C item 14,
+        # calendar-aware quiet, on the Voice page after Whisper
+        # hours). The live window's sectionTitle labels list
+        # all 36.
         self._show_settings()
-        self.assertEqual(len(self.window._settings_card_texts), 35)
+        self.assertEqual(len(self.window._settings_card_texts), 36)
         from PySide6.QtWidgets import QLabel
 
         titles = {lbl.text() for lbl in
@@ -296,6 +301,7 @@ class TestBuild3Window(WindowBase):
         self.assertNotIn("What each setting does", titles,
                          "the explained card survives Build 3")
         self.assertIn("Remembered approvals", titles)
+        self.assertIn("Quiet hours", titles)
 
     def test_approvals_card_names_always_allow(self):
         self._show_settings()

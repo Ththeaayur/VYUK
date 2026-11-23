@@ -57,6 +57,16 @@ CARD_SYNONYMS: dict[str, tuple[str, ...]] = {
         "quieter", "softer", "whisper", "quiet at night", "night volume",
         "make her quieter", "speak softer", "softer at night",
     ),
+    # Stage 0 features batch 6 (2026-11-23): calendar-aware
+    # quiet — the card answers meeting-quiet asks. Bare
+    # "quieter" is deliberately NOT here: that means softer
+    # speech (Whisper hours), not silence during meetings.
+    "Quiet hours": (
+        "quiet during meetings", "quiet in meetings",
+        "meeting quiet", "quiet in a meeting",
+        "silence during meetings", "do not disturb",
+        "stop talking during meetings",
+    ),
     "Briefing voice": (
         "briefing", "morning briefing", "briefing voice",
         "briefing pace", "briefing speed", "read the briefing",
@@ -176,6 +186,14 @@ CARD_VOICE: dict[str, tuple[str, str]] = {
     "Voice": (CLASS_B, "You can also say: “change her voice to Aoede”."),
     "Whisper hours": (
         CLASS_B, "You can also say: “speak softer at night”."),
+    # Stage 0 features batch 6 (2026-11-23): class B — voice
+    # CAN flip calendar quiet through the §5 propose →
+    # confirm protocol ("calendar quiet" / "meeting quiet").
+    # Without this entry the card would fall back to the
+    # class-D line ("Settings only — voice can't touch
+    # this"), which would be false.
+    "Quiet hours": (
+        CLASS_B, "You can also say: “turn calendar quiet off”."),
     "Briefing voice": (
         CLASS_B, "You can also say: “slow the briefing down”."),
     "Microphone": (
