@@ -388,12 +388,20 @@ class RoomWindowTests(WindowBase):
         # one-line summary keeps a readable width. At the 420 px
         # stage floor the card is 320 wide and the summary had
         # 107 px ("Calendar is…").
+        # Stage 0 features batch 5: the narrow width is 760 now,
+        # not 800 — at 800 the compact tier gives the stage 428 px
+        # (the chat sits at its 240 floor and the stage takes the
+        # slack), so the card is wide and the button rightly stays
+        # full; at 760 the stage is 380 and the card is 380, so it
+        # collapses — and the summary still has room for "packed"
+        # (at the 640 minimum the card is ~220 and the summary
+        # elides to "Calendar is…" alone).
         from PySide6.QtTest import QTest
         try:
             self.window._skip_boot_sequence()
         except Exception:  # noqa: BLE001 — the rule works either way
             pass
-        self.window.resize(800, 800)
+        self.window.resize(760, 600)
         self.window.show()
         QTest.qWait(300)
         self.app.processEvents()
@@ -409,12 +417,15 @@ class RoomWindowTests(WindowBase):
     def test_briefing_play_button_text_returns_when_wide(self):
         # The narrow rule restores the label once the card has
         # room again — the action is unchanged, only its width.
+        # Stage 0 features batch 5: the narrow width is 760,
+        # not 800 (at 800 the compact tier gives the card 428 px
+        # and the button rightly stays full) — see the test above.
         from PySide6.QtTest import QTest
         try:
             self.window._skip_boot_sequence()
         except Exception:  # noqa: BLE001 — the rule works either way
             pass
-        self.window.resize(800, 800)
+        self.window.resize(760, 600)
         self.window.show()
         QTest.qWait(300)
         self.app.processEvents()

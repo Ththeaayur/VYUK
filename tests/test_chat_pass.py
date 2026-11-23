@@ -143,16 +143,24 @@ class TestChatPassSidebarSource(unittest.TestCase):
 
 
 class TestChatPassChatGeometrySource(unittest.TestCase):
-    def test_breakpoints_are_v63_two_tiers(self):
+    def test_breakpoints_are_v63_three_tiers(self):
+        # Stage 0 features batch 5 supersedes the old two-tier
+        # pin: the compact tier below 908 exists now (sidebar
+        # rail 64, stage 240, hero 240, chat floor 240) — the
+        # Build 1 leftovers it used to assert gone are the
+        # compact tier's own names. Comfort/narrow behaviour
+        # is unchanged.
         self.assertEqual(BP.CHAT_FLOOR, 300)
+        self.assertEqual(BP.CHAT_FLOOR_COMPACT, 240)
+        self.assertEqual(BP.COMPACT_WIDTH, 908)
         self.assertEqual(BP.COMFORT_WIDTH, 1008)
-        for gone in ("CHAT_FLOOR_COMPACT", "COMPACT_WIDTH",
-                     "chat_floor_for"):
-            self.assertFalse(hasattr(BP, gone),
-                             f"Build 1 leftover {gone} survives")
+        self.assertTrue(callable(BP.chat_floor_for))
+        self.assertEqual(BP.tier_for(907), "compact")
+        self.assertEqual(BP.tier_for(908), "narrow")
         self.assertEqual(BP.tier_for(1007), "narrow")
         self.assertEqual(BP.tier_for(1008), "comfort")
         self.assertEqual(BP.chat_target(720, 400, 1008), 300)
+        self.assertEqual(BP.chat_target(508, 300, 640), 268)
 
     def test_chat_panel_floor_is_300_in_source(self):
         src = _gui_source("window_shell_assistant.py")

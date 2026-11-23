@@ -197,15 +197,15 @@ class GuiBoundaryTests(unittest.TestCase):
 
     def test_08_themes_come_from_core(self):
         """core/app_settings._themes() reads the DTCG source in core
-        (core.tokens.theme_names), not gui/style.py — same 11 names,
-        same order."""
+        (core.tokens.theme_names), not gui/style.py — same 12 names,
+        same order (Stage 0 features batch 5 adds Light, last)."""
         from core.app_settings import _themes
         from core.tokens import theme_names
         self.assertEqual(_themes(), list(theme_names()))
         self.assertEqual(_themes(), ["Cyan", "Sunset", "Violet",
                                      "Graphite", "Aurora", "Ember",
                                      "Mono", "Rose", "Contrast",
-                                     "Amber", "Crimson"])
+                                     "Amber", "Crimson", "Light"])
         text = (ROOT / "core" / "app_settings.py").read_text(
             encoding="utf-8")
         self.assertNotIn("from ..gui", text)

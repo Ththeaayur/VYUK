@@ -182,8 +182,13 @@ class TestSlice1StaticPins(unittest.TestCase):
         # appearance module. Concatenated source keeps every pin
         # assertion unchanged.
         settings = _settings_source()
-        for pin in ('(0.9, "90%")', '(1.0, "100%")', '(1.1, "110%")',
-                    '(1.2, "120%")', "_on_font_scale_selected",
+        # Stage 0 features batch 5, item 12: the offered choices
+        # run to 150% (100 / 115 / 130 / 150); older stored values
+        # (90 / 110 / 120%) stay valid in the apply path but are
+        # no longer offered as buttons.
+        for pin in ('(1.0, "100%")', '(1.15, "115%")',
+                    '(1.3, "130%")', '(1.5, "150%")',
+                    "_on_font_scale_selected",
                     "_apply_appearance"):
             self.assertIn(pin, settings)
         style = _read("style.py")
@@ -299,7 +304,17 @@ class TestSlice1StaticPins(unittest.TestCase):
         # (token-based, zero literals — the uipolish
         # numeric-literal count is untouched by this change).
         # One site, one widget. The cap still binds above 111.
-        self.assertLessEqual(_count_font_size_outside_style(), 111)
+        # INTENTIONAL UPDATE (Stage 0 features batch 5,
+        # 2026-11-22): 121, not 111. Proven with the test's own
+        # gui/*.py method: 111 on backup_stage0f5_pre, 121 on
+        # the live tree; the delta is the Light render fixes'
+        # scoped sheets — Pulse _MetricRow + PulsePage.set_palette
+        # (gui/pulse_page.py, +3) and Senses set_palette +
+        # _StateCard/_TrendChart set_text_colors
+        # (gui/senses_page.py, +7). Each carries a font-size the
+        # generated sheet cannot reach (scoped per-widget sheets).
+        # The cap still binds above 121.
+        self.assertLessEqual(_count_font_size_outside_style(), 121)
 
     def test_setstylesheet_total_does_not_grow(self):
         # INTENTIONAL: 110 setStyleSheet calls at v5.97
@@ -442,7 +457,17 @@ class TestSlice1StaticPins(unittest.TestCase):
         # inbox body, contacts body, calls table, calls status
         # line. Same count as the scifi_activity pin, same delta.
         # The cap still binds above 183.
-        self.assertLessEqual(_count_setstylesheet(), 183)
+        # INTENTIONAL UPDATE (Stage 0 features batch 5,
+        # 2026-11-22): 192, not 183. Proven with the test's own
+        # gui/*.py method: 183 on backup_stage0f5_pre, 192 on
+        # the live tree; the delta is the Light render fixes'
+        # scoped sheets — Pulse (gui/pulse_page.py, +3),
+        # Senses (gui/senses_page.py, +7), Views refresh
+        # (gui/window_pages_views.py, +1) — minus the banner's
+        # two scoped sheets, removed when the rules moved to the
+        # template (gui/window_shell_sidebar.py, -2). Net +9.
+        # The cap still binds above 192.
+        self.assertLessEqual(_count_setstylesheet(), 192)
 
     def test_200pct_fit_pinned_not_fitting(self):
         # INTENTIONAL UPDATE (UI breakpoints slice, 2026-10-30):

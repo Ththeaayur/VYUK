@@ -460,10 +460,19 @@ class TestActivityGuards(unittest.TestCase):
         # (calendar, inbox body, contacts body, calls table)
         # landed — the pre-launch mixin had only 3 sites. The
         # audit2s1 ceiling pin moves with it (<= 176 -> <= 183).
+        # Stage 0 features batch 5 (2026-11-22): 183 -> 192.
+        # Net +9, the Light render fixes' scoped sheets — Pulse
+        # (gui/pulse_page.py, +3), Senses (gui/senses_page.py,
+        # +7), Views refresh (gui/window_pages_views.py, +1) —
+        # minus the banner's two scoped sheets, removed when
+        # the rules moved to the template
+        # (gui/window_shell_sidebar.py, -2). Same count as the
+        # audit2s1 pin, same delta. The audit2s1 ceiling pin
+        # moves with it (<= 183 -> <= 192).
         count = 0
         for path in (ROOT / "gui").glob("*.py"):
             count += path.read_text().count("setStyleSheet")
-        self.assertEqual(count, 183)
+        self.assertEqual(count, 192)
 
     def test_error_paths_never_touch_the_orb(self):
         for path in ("gui/window_memory_activity.py",

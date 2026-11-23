@@ -176,6 +176,14 @@ class TestBuild3Window(WindowBase):
         # Contacts, Calls) join before Settings under a new
         # VIEWS section label; the v6.3 seven keep their order
         # and Settings stays last. Skills is still Ctrl+K-only.
+        # Stage 0 features batch 5: the labels are a comfort-width
+        # property — offscreen the window opens at 760 (compact),
+        # where the sidebar is the 64 px icon rail and the labels
+        # hide by design — so establish 1280 first.
+        self.window.resize(1280, 800)
+        self.app.processEvents()
+        self.window._fix_chat_width()
+        self.app.processEvents()
         labels = [b.text() for b in self.window.nav_buttons]
         self.assertEqual(labels, ["Home", "Activity", "Memory",
                                   "System Pulse", "Senses", "Doctor",
@@ -236,6 +244,13 @@ class TestBuild3Window(WindowBase):
             palette.close()
 
     def test_wake_toggle_still_at_the_bottom(self):
+        # Stage 0 features batch 5: the wake label is a
+        # comfort-width property too (hidden on the 64 px rail
+        # below 908) — establish 1280 first, as above.
+        self.window.resize(1280, 800)
+        self.app.processEvents()
+        self.window._fix_chat_width()
+        self.app.processEvents()
         self.assertIsNotNone(getattr(self.window, "btn_wake", None))
         self.assertEqual(self.window.btn_wake.text(),
                          "Off — click to enable")

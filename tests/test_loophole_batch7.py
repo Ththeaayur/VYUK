@@ -619,8 +619,10 @@ class CountsCensusTests(_Base):
     def test_configspec_counts(self):
         fields = dataclasses.fields(cs.ConfigSpec)
         env_backed = [f for f in fields if "env" in f.metadata]
-        self.assertEqual(len(fields), 111)
-        self.assertEqual(len(env_backed), 106)
+        # Stage 0 features batch 5: 111 -> 112 fields, 106 -> 107
+        # env-backed (reply_verbosity, VYUK_REPLY_VERBOSITY).
+        self.assertEqual(len(fields), 112)
+        self.assertEqual(len(env_backed), 107)
 
     def test_census_unmoved(self):
         ev = json.loads((ROOT / "tests/_classification_evidence.json")

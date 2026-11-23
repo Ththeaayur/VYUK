@@ -543,12 +543,13 @@ class NameThemeFirstTryTests(_DialogMixin, unittest.TestCase):
         self.assertEqual(config.user_name, "")
 
     @_needs_qt
-    def test_theme_picker_has_all_eleven(self):
+    def test_theme_picker_has_all_twelve(self):
         dlg = self._make_dialog()
         from gui.style import THEMES
 
         self.assertEqual(len(dlg.ob_theme_buttons), len(THEMES))
-        self.assertEqual(len(THEMES), 11)
+        # Stage 0 features batch 5: 11 -> 12 (Light added).
+        self.assertEqual(len(THEMES), 12)
         names = {str(b.property("theme_name"))
                  for b in dlg.ob_theme_buttons}
         self.assertEqual(names, set(THEMES))

@@ -145,8 +145,16 @@ class MissionLogTests(unittest.TestCase):
         # Render-found: a bare QTextEdit uses Qt's light palette
         # (unreadable pale trace on white) — the detail pane
         # must carry the dark scoped stylesheet.
-        self.assertIn("_mission_log_detail.setStyleSheet(", segment)
-        self.assertIn("QTextEdit", segment)
+        # Stage 0 features batch 5: the sheet moved out of the
+        # build site into _refresh_activity_theme, which
+        # re-applies it from the resolved theme (on Light the
+        # house tokens left a black pane with theme-dark text) —
+        # the sheet is still scoped to the detail pane, now
+        # theme-resolved instead of house-dark.
+        theme = _segment("window_pages_activity.py",
+                         "_refresh_activity_theme")
+        self.assertIn("detail.setStyleSheet(", theme)
+        self.assertIn("QTextEdit", theme)
         for handler in ("_set_mission_log_filter",
                         "_set_mission_log_time_filter",
                         "_on_mission_log_selected"):

@@ -7,14 +7,21 @@ the audit slice 1 measurements (not taste):
 - Narrow < 1008 px relaxes the stage floor 420 -> 320 (hero 400 ->
   320, the orb visualizer's own floor): 220 + 56 + 320 + 12 + 300
   = 908, fitting the 200%-on-1080p logical width (960).
-- Window minimum (908, 500) fits both measured compact work areas
-  (1366x768@125% ~1092x576, 200%@1080p ~960x516).
+- Window minimum (640, 500) fits both measured compact work areas
+  (1366x768@125% ~1092x576, 200%@1080p ~960x516) — Stage 0
+  features batch 5 moved it from (908, 500): the compact tier
+  below 908 collapses the sidebar to a 64 px icon rail, relaxes
+  the stage floor 320 -> 240, the hero 320 -> 240 and the chat
+  floor 300 -> 240, so 64 + 56 + 240 + 12 + 240 = 612 <= 640.
 - Default size clamps to the available geometry, so the owner's
   1920x1080@125% machine still opens at exactly 1108x750.
 - NO DRAWER: every measured failure is solved by the tiered
   floors + scroll-safe pages, so the drawer decision (delegated
   on measurements) is no drawer — the sidebar stays fixed at 220
-  at every tier.
+  at comfort and narrow widths; below 908 it is the 64 px icon
+  rail (labels hidden, tooltips carry the names), which IS the
+  navigation at compact widths, not an overlay drawer: every
+  page stays one click away.
 - Composer floors (UI rethink Build 1 + Chat UI Dictate): input
   min 120 px, Dictate collapses to icon-only below 420 px panel
   width, the dock waveform only shows when it fits, the screen
@@ -105,18 +112,30 @@ class TestTierArithmetic(unittest.TestCase):
         self.assertEqual(BP.tier_for(1008), "comfort")
         self.assertEqual(BP.tier_for(960), "narrow")
         self.assertEqual(BP.tier_for(1920), "comfort")
+        # Stage 0 features batch 5: the compact tier below 908.
+        self.assertEqual(BP.tier_for(907), "compact")
+        self.assertEqual(BP.tier_for(908), "narrow")
+        self.assertEqual(BP.tier_for(640), "compact")
 
     def test_floor_derivations(self):
         # S5 comfort derivation, unchanged; narrow derivation, new.
         self.assertEqual(220 + 56 + 420 + 12 + 300, 1008)
         self.assertEqual(220 + 56 + 320 + 12 + 300, 908)
-        self.assertEqual(BP.WINDOW_MINIMUM, (908, 500))
+        # Stage 0 features batch 5: compact derivation — the
+        # shell minimum 612 fits the 640 window with slack.
+        self.assertEqual(64 + 56 + 240 + 12 + 240, 612)
+        self.assertEqual(BP.WINDOW_MINIMUM, (640, 500))
         self.assertEqual(BP.COMFORT_WIDTH, 1008)
         self.assertEqual(BP.CHAT_FLOOR, 300)
+        self.assertEqual(BP.CHAT_FLOOR_COMPACT, 240)
         self.assertEqual(BP.stage_floor_for(1008), 420)
         self.assertEqual(BP.stage_floor_for(1007), 320)
+        self.assertEqual(BP.stage_floor_for(640), 240)
         self.assertEqual(BP.hero_min_width_for(1008), 400)
         self.assertEqual(BP.hero_min_width_for(1007), 320)
+        self.assertEqual(BP.hero_min_width_for(640), 240)
+        self.assertEqual(BP.chat_floor_for(640), 240)
+        self.assertEqual(BP.chat_floor_for(908), 300)
 
     def test_chat_target_preserves_s5_at_comfort(self):
         # At the old minimum the guard still yields chat 300.
@@ -156,7 +175,7 @@ class TestTierArithmetic(unittest.TestCase):
         self.assertEqual(BP.default_window_size(960, 516), (920, 476))
 
     def test_measured_cases_fit(self):
-        # Every measured failure is solved by (908, 500) + the
+        # Every measured failure is solved by (640, 500) + the
         # clamped defaults — this is the measurement that decides
         # NO DRAWER (see test_no_drawer below).
         min_w, min_h = BP.WINDOW_MINIMUM
@@ -225,11 +244,13 @@ class TestBreakpointsWiring(unittest.TestCase):
         self.assertIn("hero_min_width_for", tier)
         self.assertIn('"_stage_widget"', tier)
         self.assertIn("setMinimumWidth", tier)
-        # The tier switch never touches the sidebar: check the
-        # code body only (the docstring mentions the sidebar to
-        # record that it is untouched).
+        # Stage 0 features batch 5: the tier DOES touch the
+        # sidebar now — below 908 it collapses to the 64 px icon
+        # rail via _apply_sidebar_compact (the parent ruling
+        # supersedes the old "sidebar fixed 220 at every tier"
+        # note); there is still no overlay drawer.
         tier_body = tier.split('"""')[-1]
-        self.assertNotIn("sidebar", tier_body)
+        self.assertIn("_apply_sidebar_compact", tier_body)
         fix = _fn_src(shell, "_fix_chat_width")
         self.assertIn("_apply_breakpoint_tier()", fix)
         self.assertIn("chat_target(", fix)
@@ -253,7 +274,12 @@ class TestBreakpointsWiring(unittest.TestCase):
         # placeholder. The Dictate collapse (420) stays.
         self.assertIn("_DOCK_NARROW_WIDTH = 420", shell)
         self.assertIn("_DICTATE_TEXT_WIDTH = 420", shell)
-        self.assertNotIn("chat_floor_for", shell)
+        # Stage 0 features batch 5 (P21 root cause): the chat
+        # floor IS in the shell now — _apply_breakpoint_tier sets
+        # the panel minimum from chat_floor_for (240 compact,
+        # 300 elsewhere); the old assertNotIn pinned the unwired
+        # state that overflowed the 640 window by 32 px.
+        self.assertIn("chat_floor_for", shell)
         self.assertIn("input_cmd.setMinimumWidth(120)", shell)
         self.assertIn("_dock_waveform_allowed", shell)
         self.assertIn("setMinimumSize(400, 80)", shell)  # hero, build time
@@ -262,15 +288,23 @@ class TestBreakpointsWiring(unittest.TestCase):
     def test_no_drawer_mechanism(self):
         # The NO-DRAWER decision pinned as mechanism, not as a
         # word search (the decision itself is recorded in the
-        # tier module's docstring): the sidebar is fixed-width,
-        # the tier module defines no sidebar narrowing, and the
-        # tier switch never touches the sidebar.
+        # tier module's docstring): the sidebar is fixed-width at
+        # comfort/narrow (220), and below 908 it is the 64 px
+        # icon rail — the navigation itself, not an overlay
+        # drawer. Stage 0 features batch 5 supersedes the old
+        # "tier never touches the sidebar" pin: the tier now
+        # collapses the rail via _apply_sidebar_compact.
         shell = _shell_source()
         self.assertIn("setFixedWidth(220)", shell)
         self.assertFalse(hasattr(BP, "SIDEBAR_WIDTH_NARROW"))
+        self.assertTrue(hasattr(BP, "SIDEBAR_WIDTH_COMPACT"))
+        self.assertEqual(BP.SIDEBAR_WIDTH_COMPACT, 64)
         tier = _fn_src(shell, "_apply_breakpoint_tier")
         tier_body = tier.split('"""')[-1]
-        self.assertNotIn("sidebar", tier_body)
+        self.assertIn("_apply_sidebar_compact", tier_body)
+        # Still no overlay drawer mechanism anywhere in the shell.
+        self.assertNotIn("QDrawer", shell)
+        self.assertNotIn("overlay drawer", shell.lower())
 
     def test_pulse_scroll_wrapper(self):
         # GUI split #8 INTENTIONAL: pulse + doctor builders moved verbatim to

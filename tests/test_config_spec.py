@@ -57,9 +57,11 @@ class SpecShapeTests(unittest.TestCase):
         # Loophole batch 7: 110 -> 111 fields, 105 -> 106
         # env-backed — feedback_reporting_enabled
         # (FEEDBACK_REPORTING_ENABLED).
-        self.assertEqual(len(fields), 111)
+        # Stage 0 features batch 5: 111 -> 112 fields, 106 -> 107
+        # env-backed — reply_verbosity (VYUK_REPLY_VERBOSITY).
+        self.assertEqual(len(fields), 112)
         env_backed = [f for f in fields if "env" in f.metadata]
-        self.assertEqual(len(env_backed), 106)
+        self.assertEqual(len(env_backed), 107)
         names = {f.name for f in fields}
         self.assertIn("version", names)
         self.assertIn("browser_allow_history_read", names)

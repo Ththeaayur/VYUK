@@ -237,6 +237,14 @@ class TestViewsWiringAST(unittest.TestCase):
 @unittest.skipUnless(_QT, "Qt unavailable")
 class TestViewsWindow(WindowBase):
     def test_stack_has_twelve_pages_and_eleven_nav_buttons(self):
+        # Stage 0 features batch 5: the labels are a comfort-width
+        # property — offscreen the window opens at 760 (compact),
+        # where the sidebar is the 64 px icon rail and the labels
+        # hide by design — so establish 1280 first.
+        self.window.resize(1280, 800)
+        self.app.processEvents()
+        self.window._fix_chat_width()
+        self.app.processEvents()
         self.assertEqual(self.window.pages.count(), 12)
         labels = [btn.text() for btn in self.window.nav_buttons]
         self.assertEqual(labels, ["Home", "Activity", "Memory",
@@ -245,6 +253,13 @@ class TestViewsWindow(WindowBase):
                                   "Calls", "Settings"])
 
     def test_show_each_view_checks_its_button(self):
+        # Stage 0 features batch 5: the checked button's label
+        # reads only at comfort width (hidden on the compact
+        # rail) — establish 1280 first, as above.
+        self.window.resize(1280, 800)
+        self.app.processEvents()
+        self.window._fix_chat_width()
+        self.app.processEvents()
         for index in (8, 9, 10, 11):
             self.window._show_page(index)
             self.app.processEvents()
