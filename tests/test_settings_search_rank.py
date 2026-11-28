@@ -227,11 +227,18 @@ class RankWindowTests(WindowBase):
         self.assertEqual(self._visible_set(),
                          {"How VYUK thinks", "Keyboard shortcuts"})
         self._search("connect")
+        # UI Phase 4 (D-P4-31): the Voice card carries the effect
+        # line "Takes effect the next time you connect." — card
+        # text, so it matches "connect" like any other card text.
+        # UI Phase 5 (2026-11-27): the Home hub card's text
+        # ("Connect a Home Assistant instance…") matches
+        # "connect" the same way.
         self.assertEqual(self._visible_set(),
                          {"Sounds", "Permissions", "Screen watching",
                           "Browser control", "Notices",
                           "How VYUK thinks", "Your world", "Presence",
-                          "Local brain", "Help", "Power & network"})
+                          "Local brain", "Help", "Power & network",
+                          "Voice", "Home hub"})
 
     def test_search_hides_group_headers_while_ranked(self):
         self._show_settings()

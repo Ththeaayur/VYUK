@@ -52,6 +52,9 @@ EXPECTED = {
     "Appearance": "_g_appearance",
     "Theme packs": "_g_appearance",
     "Presence": "_g_connect",
+    # UI Phase 5 (2026-11-27): the Home hub connection card, in
+    # the Connect group beside How VYUK thinks and Presence.
+    "Home hub": "_g_connect",
     "Notices": "_g_notices",
     "Suggestions": "_g_notices",
     "Privacy & security": "_g_privacy",

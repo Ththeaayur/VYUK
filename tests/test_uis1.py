@@ -106,16 +106,27 @@ def _attr_calls(func_node, attr):
 EXPECTED_DEFS = [("Home", "spark", 0),
                  ("Activity", "clock", 1),
                  ("Memory", "database", 2),
+                 # UI Phase 2 (2026-11-25): Skills gains its own
+                 # sidebar button ("shapes", stack 3).
+                 ("Skills", "shapes", 3),
                  ("System Pulse", "pulse", 5),
                  ("Senses", "senses", 6),
-                 ("Doctor", "check", 7),
+                 # UI Phase 2 (2026-11-25): Doctor / Contacts /
+                 # Calls move to their Phosphor icons.
+                 ("Doctor", "heartbeat", 7),
                  # Stage 0 features batch 1 (Group D): the views —
                  # Calendar / Inbox / Contacts / Calls (stack 8–11),
                  # before the footer Settings.
                  ("Calendar", "grid", 8),
                  ("Inbox", "send", 9),
-                 ("Contacts", "square", 10),
-                 ("Calls", "mic", 11),
+                 ("Contacts", "address-book", 10),
+                 ("Calls", "phone-call", 11),
+                 # UI Phase 5 (2026-11-27): Notes / Finance /
+                 # Devices join as workspace buttons (stack 12–14),
+                 # before the footer Settings.
+                 ("Notes", "note", 12),
+                 ("Finance", "currency-dollar", 13),
+                 ("Devices", "house", 14),
                  ("Settings", "sliders", 4)]
 
 
@@ -134,14 +145,20 @@ class TestSidebarStructure(unittest.TestCase):
                    if isinstance(e, ast.Constant)]
         # Stage 0 features batch 1 (Group D): the four views take
         # stack 8–11; the frozen 0–7 map is unchanged.
-        self.assertEqual(indices, [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4])
+        # UI Phase 2 (2026-11-25): Skills takes stack 3.
+        # UI Phase 5 (2026-11-27): Notes / Finance / Devices take
+        # stack 12–14; Settings stays the footer (stack 4).
+        self.assertEqual(indices, [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11,
+                                   12, 13, 14, 4])
         icons = _assign_value(func, "_nav_icon_names")
         icon_vals = [e.value for e in icons.elts
                      if isinstance(e, ast.Constant)]
         self.assertEqual(icon_vals, ["spark", "clock", "database",
-                                     "pulse", "senses", "check",
-                                     "grid", "send", "square", "mic",
-                                     "sliders"])
+                                     "shapes", "pulse", "senses",
+                                     "heartbeat", "grid", "send",
+                                     "address-book", "phone-call",
+                                     "note", "currency-dollar",
+                                     "house", "sliders"])
         self.assertEqual(len(indices), len(icon_vals))
         self.assertEqual(len(indices), len(EXPECTED_DEFS))
         # Every def's page matches the indices list at its position.
@@ -166,42 +183,56 @@ class TestSidebarStructure(unittest.TestCase):
                  "layout.addWidget(self.nav_buttons[1])",
                  '_archive_label = QLabel("ARCHIVE")',
                  "layout.addWidget(self.nav_buttons[2])",
+                 # UI Phase 2 (2026-11-25): CAPABILITIES for Skills.
+                 '_capabilities_label = QLabel("CAPABILITIES")',
+                 "layout.addWidget(self.nav_buttons[3])",
                  '_system_label = QLabel("SYSTEM")',
-                 "for btn in self.nav_buttons[3:6]:",
+                 "for btn in self.nav_buttons[4:7]:",
                  # Stage 0 features batch 1 (Group D): the VIEWS
                  # section sits between SYSTEM and the stretch.
-                 '_views_label = QLabel("VIEWS")',
-                 "for btn in self.nav_buttons[6:10]:",
+                 # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+                 # section is WORKSPACES now.
+                 # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): the
+                 # section holds seven workspace buttons now
+                 # (Calendar / Inbox / Contacts / Calls / Notes /
+                 # Finance / Devices, nav_buttons[7:14]).
+                 '_views_label = QLabel("WORKSPACES")',
+                 "for btn in self.nav_buttons[7:14]:",
                  "layout.addStretch()",
-                 "layout.addWidget(self.nav_buttons[10])"]
+                 "layout.addWidget(self.nav_buttons[14])"]
         positions = [segment.index(marker) for marker in order]
         self.assertEqual(positions, sorted(positions),
                          "sidebar layout order is not CORE -> "
-                         "MISSION -> ARCHIVE -> SYSTEM -> VIEWS -> "
-                         "stretch -> footer Settings")
+                         "MISSION -> ARCHIVE -> CAPABILITIES -> SYSTEM -> "
+                         "VIEWS -> stretch -> footer Settings")
         self.assertNotIn('QLabel("Advanced / Explore")', segment,
                          "the old Advanced / Explore label survives")
         self.assertNotIn("_adv_label", segment,
                          "the old Advanced / Explore label variable "
                          "survives")
-        self.assertNotIn('QLabel("CAPABILITIES")', segment,
-                         "CAPABILITIES has no sidebar button to group "
-                         "(Skills is palette-only); a label would group "
-                         "nothing")
+        self.assertIn('QLabel("CAPABILITIES")', segment,
+                      "CAPABILITIES groups the Skills button since "
+                      "UI Phase 2")
 
-    def test_no_skills_button_no_renames(self):
+    def test_skills_button_present_no_renames(self):
+        # UI Phase 2 (2026-11-25): Skills HAS a sidebar button
+        # now (nav_buttons[3], CAPABILITIES) — the S1 palette-only
+        # shape is gone. The internal names stay unrenamed.
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
         func = _func(_tree("window_shell_sidebar.py"), "_build_sidebar")
         defs = _const_list(_assign_value(func, "_nav_defs"))
         labels = [label for label, _, _ in defs]
-        self.assertNotIn("Skills", labels,
-                         "Skills must not have a sidebar button in S1")
+        self.assertIn("Skills", labels,
+                      "Skills must have a sidebar button since UI Phase 2")
         for kept in ("System Pulse", "Senses", "Doctor"):
             self.assertIn(kept, labels,
                           f"internal name {kept!r} was renamed or lost")
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
         segment = ast.get_source_segment(_source("window_shell_sidebar.py"), func)
-        for held in ("Task history", "Automations", "Capabilities",
+        # UI Phase 2 (2026-11-25): "Capabilities" leaves the held
+        # list — it is now the adopted CAPABILITIES section name,
+        # not an untested CX-06 rename.
+        for held in ("Task history", "Automations",
                      "Device status", "Diagnostics"):
             self.assertNotIn(held, segment,
                              f"CX-06 rename {held!r} applied without "
@@ -225,6 +256,8 @@ class TestStackUnchanged(unittest.TestCase):
         # (calendar, inbox, contacts, calls) — indices 0-7 are
         # FROZEN (Home, Activity, Memory, Skills, Settings,
         # System Pulse, Senses, Doctor), in the same order.
+        # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): Notes /
+        # Finance / Devices join at indices 12-14, in that order.
         func = _func(_tree("window_shell_sidebar.py"), "_build_ui")
         builders = []
         for call in _calls(func):
@@ -247,7 +280,10 @@ class TestStackUnchanged(unittest.TestCase):
                           "_build_calendar_page",
                           "_build_inbox_page",
                           "_build_contacts_page",
-                          "_build_calls_page"])
+                          "_build_calls_page",
+                          "_build_notes_page",
+                          "_build_finance_page",
+                          "_build_devices_page"])
 
     def test_skills_page_not_deleted(self):
         # GUI split #8 INTENTIONAL: _build_skills_page moved verbatim to
@@ -351,14 +387,23 @@ class TestRoutesPreserved(unittest.TestCase):
                             for a in call.args):
                 rows.add((call.args[0].value, call.args[1].value))
         for expected in ((0, "Go to Home"), (0, "Go to Assistant"),
-                         (1, "Go to Activity"), (3, "Go to Skills"),
+                         (1, "Go to Activity"),
                          (4, "Go to Settings"), (5, "Go to Pulse"),
                          (6, "Go to Senses"), (7, "Go to Doctor"),
                          # Stage 0 features batch 1 (Group D).
                          (8, "Go to Calendar"), (9, "Go to Inbox"),
                          (10, "Go to Contacts"), (11, "Go to Calls")):
             self.assertIn(expected, rows, f"palette row {expected} missing")
+        # UI Phase 2 (2026-11-25): the Skills row is no longer a
+        # literal go(3, "Go to Skills") — its label carries the
+        # live capability count ("Go to Skills — 772 capabilities"),
+        # and a "Browse all capabilities" row (page_3_browse) opens
+        # the Centre directly.
         dump = ast.dump(func)
+        self.assertIn("Go to Skills — ", dump)
+        self.assertIn("capabilities", dump)
+        self.assertIn("Browse all capabilities", dump)
+        self.assertIn("page_3_browse", dump)
         self.assertIn("Go to Reminders", dump)
         self.assertIn("_go_reminders_scheduled", dump)
         self.assertIn("page_1_scheduled", dump)

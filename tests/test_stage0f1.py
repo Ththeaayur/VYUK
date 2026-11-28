@@ -203,7 +203,10 @@ class TestViewsWiringAST(unittest.TestCase):
             (8, 9, 10, 11))
         indices = [e.value for e in assigns["_nav_page_indices"].elts
                    if isinstance(e, ast.Constant)]
-        self.assertEqual(indices, [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4])
+        # UI Phase 5 (2026-11-27): Notes / Finance / Devices take
+        # stack 12–14, before the footer Settings (stack 4).
+        self.assertEqual(indices, [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11,
+                                   12, 13, 14, 4])
 
     def test_show_page_refreshes_each_view(self):
         src = _gui_source("window_chat_nav.py")
@@ -236,21 +239,26 @@ class TestViewsWiringAST(unittest.TestCase):
 
 @unittest.skipUnless(_QT, "Qt unavailable")
 class TestViewsWindow(WindowBase):
-    def test_stack_has_twelve_pages_and_eleven_nav_buttons(self):
+    def test_stack_has_fifteen_pages_and_fifteen_nav_buttons(self):
         # Stage 0 features batch 5: the labels are a comfort-width
         # property — offscreen the window opens at 760 (compact),
         # where the sidebar is the 64 px icon rail and the labels
         # hide by design — so establish 1280 first.
+        # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): fifteen
+        # pages and fifteen nav buttons — Notes, Finance and
+        # Devices join as first-class workspaces (stack 12/13/14)
+        # before Settings under the WORKSPACES section.
         self.window.resize(1280, 800)
         self.app.processEvents()
         self.window._fix_chat_width()
         self.app.processEvents()
-        self.assertEqual(self.window.pages.count(), 12)
+        self.assertEqual(self.window.pages.count(), 15)
         labels = [btn.text() for btn in self.window.nav_buttons]
         self.assertEqual(labels, ["Home", "Activity", "Memory",
-                                  "System Pulse", "Senses", "Doctor",
-                                  "Calendar", "Inbox", "Contacts",
-                                  "Calls", "Settings"])
+                                  "Skills", "System Pulse", "Senses",
+                                  "Doctor", "Calendar", "Inbox",
+                                  "Contacts", "Calls", "Notes",
+                                  "Finance", "Devices", "Settings"])
 
     def test_show_each_view_checks_its_button(self):
         # Stage 0 features batch 5: the checked button's label
@@ -272,38 +280,52 @@ class TestViewsWindow(WindowBase):
                 ["Calendar", "Inbox", "Contacts", "Calls"][index - 8])
 
     def test_calendar_weekday_header_is_dark(self):
-        # The weekday-name header is painted from the weekday text
-        # formats, not the palette or the stylesheet — a bare
-        # calendar renders Mon–Fri invisible (light text on a
-        # white header). Pin the explicit dark format.
-        from PySide6.QtCore import Qt
-        from voice_assistant.gui.style import SURFACE_2, TEXT
+        # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+        # QCalendarWidget is gone — the month view is a QTableWidget
+        # with Mon..Sun header labels and today's cell selected.
+        # The header must still be labelled and legible: the labels
+        # are pinned here, and the header's colours are covered by
+        # the renders (dark + Light at five sizes).
         self.window._show_page(8)
         self.app.processEvents()
-        fmt = self.window._views_calendar.weekdayTextFormat(Qt.Monday)
+        table = self.window._views_month_table
+        self.assertEqual(table.columnCount(), 7)
+        labels = [table.horizontalHeaderItem(col).text()
+                  for col in range(7)]
         self.assertEqual(
-            fmt.foreground().color().name(), TEXT.lower())
+            labels, ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
         self.assertEqual(
-            fmt.background().color().name(), SURFACE_2.lower())
+            self.window._views_calendar_selected_date,
+            datetime.date.today())
 
     def test_calendar_page_shows_connect_line_when_offline(self):
+        # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the upcoming
+        # list is gone — the sync row carries the connect line, and
+        # the month grid is a QTableWidget with today's cell
+        # selected.
         self.window._show_page(8)
         self.app.processEvents()
-        upcoming = self.window._views_calendar_upcoming
-        self.assertGreaterEqual(upcoming.count(), 1)
-        self.assertIn("Connect Google", upcoming.item(0).text())
-        # The month grid itself builds (QCalendarWidget, first use).
-        self.assertIsNotNone(self.window._views_calendar)
+        self.assertIn("Connect Google",
+                      self.window._views_calendar_sync.text())
+        table = self.window._views_month_table
+        self.assertIsNotNone(table)
+        self.assertEqual(table.rowCount(), 6)
+        self.assertEqual(table.columnCount(), 7)
         self.assertEqual(
-            self.window._views_calendar.selectedDate().toPython(),
+            self.window._views_calendar_selected_date,
             datetime.date.today())
 
     def test_inbox_page_shows_connect_line_when_offline(self):
         self.window._show_page(9)
         self.app.processEvents()
+        # Hunt fix (c) item 5: the connect line lives ONLY in the
+        # header sync slot now — the list pane shows its own empty
+        # state ("No mail to show."), not a copy of the connect
+        # line, so the list is empty while offline.
         listing = self.window._views_inbox_list
-        self.assertGreaterEqual(listing.count(), 1)
-        self.assertIn("Connect Google", listing.item(0).text())
+        self.assertEqual(listing.count(), 0)
+        self.assertIn("Connect Google",
+                      self.window._views_inbox_sync.text())
 
     def test_contacts_page_groups_and_shows_details(self):
         # WindowBase stubs core.memory.memory, so the helpers'
@@ -323,16 +345,29 @@ class TestViewsWindow(WindowBase):
                 "save", person, "email: win@example.test")
             self.window._show_page(10)
             self.app.processEvents()
-            listing = self.window._views_contacts_list
-            names = [listing.item(i).text()
-                     for i in range(listing.count())]
+            # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+            # names list is a card grid now — the person shows as a
+            # card, and the details live in the contact drawer.
+            from PySide6.QtWidgets import QLabel
+            grid = self.window._views_contacts_grid
+            cards = [grid.itemAt(i).widget()
+                     for i in range(grid.count())]
+            names = [c.findChildren(QLabel)[1].text()
+                     for c in cards if c is not None]
             self.assertIn(person, names)
-            item = next(listing.item(i) for i in range(listing.count())
-                        if listing.item(i).text() == person)
-            self.window._on_views_contact_picked(item)
-            body = self.window._views_contacts_body.toPlainText()
-            self.assertIn("phone: +44 7000 000003", body)
-            self.assertIn("email: win@example.test", body)
+            self.window._on_views_contact_picked(person)
+            self.app.processEvents()
+            drawer = self.window._views_contacts_drawer
+            texts = [lbl.text()
+                     for lbl in drawer.findChildren(QLabel)]
+            # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+            # pane stacks key over value now, so a detail is two
+            # labels — "phone" over "+44 7000 000003" — never one
+            # wrapping "phone: +44 7000 000003" line.
+            self.assertIn("phone", texts)
+            self.assertIn("+44 7000 000003", texts)
+            self.assertIn("email", texts)
+            self.assertIn("win@example.test", texts)
         finally:
             skills_admin_helpers._store = orig_store
 
@@ -352,14 +387,36 @@ class TestViewsWindow(WindowBase):
         try:
             self.window._show_page(11)
             self.app.processEvents()
-            table = self.window._views_calls_table
-            self.assertEqual(table.rowCount(), before + 1)
-            cells = [table.item(0, col).text() for col in range(6)]
-            self.assertEqual(cells[1], "Outgoing")
-            self.assertEqual(cells[2], "+44 7000 000004")
-            self.assertEqual(cells[3], "Stage0f1 Window Agent")
-            self.assertEqual(cells[4], "1m 05s")
-            self.assertEqual(cells[5], "answered")
+            # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+            # QTableWidget is a timeline of cards now. The newest
+            # call lands first; the card carries the number and
+            # agent in its title, the direction in its meta line,
+            # and the outcome as a StatusPill. The formatted
+            # duration ("1m 05s") is no longer displayed — the
+            # card and drawer show the started–ended timestamps
+            # instead.
+            from PySide6.QtWidgets import QLabel
+            from voice_assistant.gui.design_system.pills import (
+                StatusPill)
+            timeline = self.window._views_calls_timeline
+            # The timeline ends with a stretch, so count the card
+            # widgets, not the layout items.
+            cards = [timeline.itemAt(i).widget()
+                     for i in range(timeline.count())]
+            cards = [c for c in cards if c is not None]
+            self.assertEqual(len(cards), before + 1)
+            card = cards[0]
+            self.assertIsNotNone(card)
+            labels = [lbl.text()
+                      for lbl in card.findChildren(QLabel)]
+            self.assertIn("+44 7000 000004", labels[0])
+            self.assertIn("Stage0f1 Window Agent", labels[0])
+            self.assertTrue(
+                any(lbl.startswith("Outbound") for lbl in labels),
+                labels)
+            pill = card.findChild(StatusPill)
+            self.assertIsNotNone(pill)
+            self.assertEqual(pill.text, "answered")
         finally:
             store.conn.execute(
                 "DELETE FROM calls WHERE number = '+44 7000 000004'")

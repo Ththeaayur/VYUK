@@ -27,8 +27,8 @@ This suite pins the batch so it can never regress silently:
   session it fetches.
 - Toggle: ConfigSpec calendar_quiet_enabled (default ON, env
   VYUK_CALENDAR_QUIET_ENABLED) + QSettings key
-  quiet/calendar_quiet_enabled (default ON) — ConfigSpec 113
-  fields / 108 env-backed, QSettings 100 rows. Voice flips it
+  quiet/calendar_quiet_enabled (default ON) — ConfigSpec 115
+  fields / 110 env-backed, QSettings 108 rows. Voice flips it
   through the app_settings allowlist ("calendar quiet" —
   propose -> confirm, §5), writing both stores.
 - Settings: the Quiet hours card lives on the Voice page after
@@ -140,7 +140,16 @@ def _uninstall_voice_assistant_alias(keys):
         sys.modules.pop(key, None)
 
 
-def _at(hour, minute, day=23, month=11, year=2026):
+def _at(hour, minute, day=None, month=None, year=None):
+    # The meeting day defaults to TODAY, not a fixed date: the
+    # bare-time path (_meeting_moment) combines a bare time with
+    # today, so a fixed 2026-11-23 anchor only passes on that
+    # day — on 2026-11-24 the 10:30 bare time lands on the wrong
+    # day and test_bare_time_now_works fails (2026-11-24).
+    _today = datetime.datetime.now().astimezone()
+    day = day if day is not None else _today.day
+    month = month if month is not None else _today.month
+    year = year if year is not None else _today.year
     return datetime.datetime(year, month, day, hour, minute,
                              tzinfo=_TZ)
 
@@ -219,9 +228,14 @@ class GateTests(_TempStore):
         self.assertIs(dq.can_notify(q, _at(10, 30)), True)
 
     def test_naive_datetimes_read_as_local(self):
+        # The meeting day is today (see _at): a fixed 2026-11-23
+        # only matches _at(10, 30) on that day (2026-11-24).
+        _today = datetime.datetime.now().astimezone()
         ev = {"id": "n1", "title": "Naive meeting",
-              "start": datetime.datetime(2026, 11, 23, 10, 0),
-              "end": datetime.datetime(2026, 11, 23, 11, 0),
+              "start": datetime.datetime(_today.year, _today.month,
+                                         _today.day, 10, 0),
+              "end": datetime.datetime(_today.year, _today.month,
+                                       _today.day, 11, 0),
               "location": None, "all_day": False}
         self.cache.set_events([ev])
         q = self._quiet()
@@ -543,8 +557,11 @@ class ConfigTests(unittest.TestCase):
     def test_config_spec_counts(self):
         fields = dataclasses.fields(ConfigSpec)
         env_backed = [f for f in fields if f.metadata.get("env")]
-        self.assertEqual(len(fields), 113)
-        self.assertEqual(len(env_backed), 108)
+        # UI upgrade Phase 1 (2026-11-24): 113 -> 115 fields, 108 -> 110
+        # env-backed (home_city, VYUK_HOME_CITY; hud_profile,
+        # VYUK_HUD_PROFILE).
+        self.assertEqual(len(fields), 115)
+        self.assertEqual(len(env_backed), 110)
 
     def test_qsettings_row(self):
         row = next((e for e in cs.QSETTINGS_FIELDS
@@ -553,7 +570,13 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(row[1], "quiet/calendar_quiet_enabled")
         self.assertIs(row[2], bool)
         self.assertIs(row[3], True)
-        self.assertEqual(len(cs.QSETTINGS_FIELDS), 100)
+        # UI Phase 1 (2026-11-23): +3 (home/city, appearance/
+        # hud_profile, learning/reviewed_ids).
+        # UI Phase 2 (2026-11-25): +2 (skills/pinned, palette/recent).
+        # UI Phase 3 (2026-11-25): +1 (calendar/view).
+        # UI Phase 4 (2026-11-26): +2 (pulse/refresh_ms,
+        # doctor/run_selection).
+        self.assertEqual(len(cs.QSETTINGS_FIELDS), 108)
 
     def test_toggle_reader(self):
         self.assertIs(dq.calendar_quiet_enabled(), True)

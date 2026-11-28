@@ -262,7 +262,14 @@ class GuiBoundaryTests(unittest.TestCase):
         resolved = same_error = 0
         problems = []
         for name, (rel, attr) in sorted(fac._EXPORTS.items()):
-            modname = "core" + rel
+            # Most entries are relative (".module" -> "core.module").
+            # A few are absolute top-level imports ("core.module")
+            # — the money/review-inbox entries resolve through the
+            # top-level core package so they read the real memory
+            # store under the test harness (the aliased
+            # voice_assistant.core.memory.memory is stubbed).
+            # Those are already absolute; do not prefix them.
+            modname = rel if not rel.startswith(".") else "core" + rel
             try:
                 got = getattr(fac, name)
             except ModuleNotFoundError as e_fac:

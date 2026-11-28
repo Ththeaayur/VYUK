@@ -294,7 +294,8 @@ class TestDomainRouters(unittest.TestCase):
         try:
             self.assertFalse(confirm_gate.has_handler())
             out = routers_mod.dispatch_route(
-                tools, "route_hands_eyes", "run_command",
+            # UI Phase 2 (2026-11-25): router follows the group rename ("Hands & eyes" -> "Desktop control").
+                tools, "route_desktop_control", "run_command",
                 {"command": "echo hi"})
             # Audit A5 (P1-10): INTENTIONAL behavior change — the funnel vocabulary replaces legacy status "error" with "refused" for refusals; kind/message unchanged.
             self.assertEqual(out.get("status"), "refused", out)
@@ -308,13 +309,15 @@ class TestDomainRouters(unittest.TestCase):
 
     def test_dispatch_unknown_and_wrong_router_refuse(self):
         unknown = routers_mod.dispatch_route(
-            tools, "route_mind", "no_such_tool_xyz", {})
+        # UI Phase 2 (2026-11-25): router follows the group rename ("Mind" -> "Intelligence").
+            tools, "route_intelligence", "no_such_tool_xyz", {})
         # Audit A5 (P1-10): INTENTIONAL behavior change — the funnel vocabulary replaces legacy status "error" with "failure" for unknown/unroutable calls (a failure, not a refusal); kind/message unchanged.
         self.assertEqual(unknown.get("status"), "failure")
         self.assertEqual(unknown.get("kind"), "unavailable")
         self.assertIn("Unknown tool", unknown.get("message", ""))
         wrong = routers_mod.dispatch_route(
-            tools, "route_mind", "feel_orb_map", {"level": 0.5})
+        # UI Phase 2 (2026-11-25): router follows the group rename ("Mind" -> "Intelligence").
+            tools, "route_intelligence", "feel_orb_map", {"level": 0.5})
         # Audit A5 (P1-10): INTENTIONAL behavior change — the funnel vocabulary replaces legacy status "error" with "refused" for a wrong-router refusal (it names the correct router); kind/message unchanged.
         self.assertEqual(wrong.get("status"), "refused")
         self.assertEqual(wrong.get("kind"), "refused")

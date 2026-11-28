@@ -149,9 +149,15 @@ class PageMigrationTests(unittest.TestCase):
         # style.py must NOT contain them either.
         # GUI split #8 INTENTIONAL: tab rules live in _build_activity_page, moved
         # verbatim to window_pages_activity.py. Assertion unchanged.
+        # Phase 0: the tab rules moved from the Activity sheet to
+        # the HudTabs component itself (gui/design_system/tabs.py)
+        # — the pane rule stays on the Activity widget, the bar
+        # re-resolves from the theme. The intent is unchanged:
+        # scoped tab rules, none in the global stylesheet.
         pages = _src("gui/window_pages_activity.py")
         self.assertIn("QTabWidget::pane", pages)
-        self.assertIn("QTabBar::tab:selected", pages)
+        tabs = _src("gui/design_system/tabs.py")
+        self.assertIn("QTabBar::tab:selected", tabs)
         self.assertNotIn("QTabBar", _src("gui/style.py"))
 
     def test_nav_focus_differs_from_checked(self):

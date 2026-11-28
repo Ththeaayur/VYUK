@@ -323,12 +323,12 @@ class _RegistryCase(unittest.TestCase):
         self.assertEqual(_FREE_BY_DESIGN.get("embed_knowledge"),
                          "knowledge")
 
-    def test_grouped_in_mind(self):
+    def test_grouped_in_intelligence(self):
         # The generated snapshot (core/catalogue_snapshot) is the
         # grouped record — gui.skills_catalog_data needs PySide6,
         # which the system interpreter does not have.
         from core.catalogue_snapshot import GROUP_MEMBERS
-        mind = GROUP_MEMBERS.get("Mind", ())
+        mind = GROUP_MEMBERS.get("Intelligence", ())
         for name in ("semantic_search_knowledge", "embed_knowledge",
                      "knowledge_embedding_status"):
             self.assertIn(name, mind)

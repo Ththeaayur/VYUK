@@ -319,9 +319,26 @@ class TestBreakpointsWiring(unittest.TestCase):
         self.assertIn("page.setAutoFillBackground(False)", src)
         self.assertIn("return scroll", src)
         # Everything the page was before is unchanged.
-        self.assertIn("self.pulse_page = PulsePage()", src)
+        # UI Phase 4 (D-P4-08, 2026-11-26): the page is built
+        # with the window's settings store — it owns the cadence
+        # key (pulse/refresh_ms) and the Doctor/last_run read
+        # through it — so the construction is
+        # PulsePage(settings=self.settings), not bare PulsePage().
+        # The scroll wrapper itself is unchanged.
+        self.assertIn("self.pulse_page = PulsePage(settings=self.settings)",
+                      src)
+        # UI Phase 4 fix round (F-P4-01/F-01, 2026-11-26): the
+        # 960 cap and the centring are GONE — the rows filled
+        # only ~495 px at every size because the AlignHCenter
+        # laid the widget out at its content size instead of
+        # expanding it. The page fills the content width now:
+        # the addWidget call is the plain stretch form, with no
+        # setMaximumWidth and no AlignHCenter anywhere in the
+        # builder.
         self.assertIn("layout.addWidget(self.pulse_page, stretch=1)",
                       src)
+        self.assertNotIn("setMaximumWidth(960)", src)
+        self.assertNotIn("AlignHCenter", src)
 
     def test_doctor_wrapper_and_palette_untouched(self):
         # GUI split #8 INTENTIONAL: pulse + doctor builders moved verbatim to

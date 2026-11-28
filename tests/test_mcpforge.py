@@ -382,7 +382,7 @@ class McpForgeTest(unittest.TestCase):
         self.assertEqual(snap["mcp_registry"],
                          {"confirm": True, "free": None, "read": False})
         self.assertIn("mcp_registry", _CONFIRM_GATE_TOOLS)
-        self.assertIn("mcp_registry", GROUP_MEMBERS["Mind"])
+        self.assertIn("mcp_registry", GROUP_MEMBERS["Intelligence"])
         self.assertIn('"mcp_registry",',
                       (TREE / "core" / "catalogue_groups_data.py").read_text())
         text = (TREE / "TOOLS_LOOPHOLES_AUDIT.md").read_text()

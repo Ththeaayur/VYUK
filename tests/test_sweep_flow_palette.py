@@ -222,7 +222,7 @@ class LicenceAndWidgetSourceTests(unittest.TestCase):
         shell = _shell_source()
         self.assertIn('QKeySequence("Ctrl+K")', shell)
         self.assertIn("_show_command_palette", shell)
-        self.assertIn("_nav_page_indices = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4]",
+        self.assertIn("_nav_page_indices = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 4]",
                       shell)
         # GUI split #9 INTENTIONAL: CommandPalette lives in the nav module now.
         chat = (_ROOT / "gui" / "window_chat_nav.py").read_text()

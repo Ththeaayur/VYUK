@@ -494,6 +494,27 @@ class McsmanagerTest(unittest.TestCase):
     def test_gate_matrix(self):
         from core.funnel.tools_gate import _needs_confirmation
         from core.funnel.tools_gate_readclass import _is_read_action
+        # D-06 (Phase 6): the session provenance lock (default ON,
+        # core/config.py session_provenance_lock=True) gates every
+        # state-changing tool in a non-user-started session — add/remove
+        # are writes, so the lock gates them here and the matrix below
+        # would measure the lock, not the gate. This test pins the
+        # per-action gate matrix, so it runs as a user-started session
+        # (the tests/test_stage0f6.py precedent) and restores the
+        # provenance afterwards.
+        import core.funnel.tools_gate as _tg
+        _prev_prov = _tg.session_provenance()
+        _prev_proven = _tg.session_owner_proven()
+
+        def _restore():
+            _tg.set_session_provenance(_prev_prov)
+            if _prev_proven:
+                _tg.mark_session_owner_proven("user-started")
+            else:
+                _tg.mark_session_owner_unproven()
+
+        self.addCleanup(_restore)
+        _tg.set_session_provenance("user")
         for action in ("query", "status", "console", "list"):
             self.assertFalse(
                 _needs_confirmation("game_server", {"action": action}),

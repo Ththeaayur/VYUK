@@ -314,7 +314,84 @@ class TestSlice1StaticPins(unittest.TestCase):
         # (gui/senses_page.py, +7). Each carries a font-size the
         # generated sheet cannot reach (scoped per-widget sheets).
         # The cap still binds above 121.
-        self.assertLessEqual(_count_font_size_outside_style(), 121)
+        # UI upgrade Phase 0 (2026-11-23): 121 -> 122. Net +1,
+        # the Settings summary header "VYUK" (gui/window_settings.py)
+        # taking the kicker face — one inline sheet carrying
+        # font-size: {TYPE_CARD_TITLE}px (token-based, zero
+        # literals), matching the _page_shell kicker's own
+        # inline sheet. The cap still binds above 122.
+        # UI upgrade Phase 1 (2026-11-24): 122 -> 164. Net +42,
+        # the Home HUD's inline sheets (gui/window_home_hud.py)
+        # carrying the plan's frozen type scale (micro 10, caption
+        # 11, body 12, briefing/wordmark 13, weather 20) as
+        # literal px in the source. The count method counts the
+        # literal px in the source, not the rendered size.
+        # UI upgrade Phase 1 Light fixes (2026-11-24): 164 -> 181.
+        # Net +17, the Light-contrast retheme applications in
+        # gui/window_home_hud.py (_retheme_home_labels: banner,
+        # screen scope, vitals, accordion headers) re-applying
+        # the same frozen type scale per theme. The cap still
+        # binds above 181.
+        # Rail rebalance (2026-11-24): 181 -> 186. Net +5, the
+        # left-rail sections' inline sheets (title 10 px, chevron
+        # 12 px, preview 12 px) + the retheme loop's preview /
+        # title re-applications — the same frozen type scale, same
+        # shape as the accordion sections they replace. The cap
+        # still binds above 186.
+        # UI Phase 1 look-fix round 2 (2026-11-24): 186 -> 190.
+        # Net +4, one per new Light-contrast re-application, each
+        # carrying the same frozen type scale as the sheet it
+        # re-applies: the Settings group headers (TYPE_CARD_TITLE,
+        # gui/window_settings_appearance.py), the Calendar
+        # right-column headers (TYPE_BODY,
+        # gui/window_pages_views.py), the docked status strip's
+        # word (11 px mono, the strip's own idiom,
+        # gui/status_strip.py), and the Pulse "Live" word + footnote
+        # (11 px, the page's own caption idiom,
+        # gui/pulse_page.py). No widget is styled twice. The cap
+        # still binds above 190.
+        # UI Phase 1 look-fix round 2, Pulse state word
+        # (2026-11-24): 190 -> 191. Net +1 — the Pulse state
+        # word's re-application in set_palette carries the same
+        # 13 px / 600 sheet _apply_word sets (the OK level now
+        # follows the resolved muted). The cap still binds
+        # above 191.
+        # UI Phase 2 (2026-11-25): 191 -> 194. Net +3, proven
+        # with the test's own gui/*.py method: 191 on the
+        # lookfix-round-2 tree, 194 on the live tree; the delta
+        # is exactly three sites — gui/sidebar_badges.py +2
+        # (the Activity/Inbox badge sheet, 10 px micro-label in
+        # make_badge + the set_badge re-application, the same
+        # micro-label idiom as the Home 10 px labels) and
+        # gui/window_home_hud.py +1 net (the pinned-tile button
+        # sheet duplicates the existing default-tile 11 px sheet
+        # — hunt_tree count 64, live 65; the fill function carries
+        # two copies of the sheet, the original inline code one).
+        # Each site styles a distinct widget; no widget is styled
+        # twice. The cap still binds above 194.
+        # UI Phase 4 (2026-11-26): 193 -> 203. Net +10, proven
+        # with the test's own gui/*.py method: 193 on the
+        # prescratch (post-header-round) tree, 203 on the live
+        # tree; the delta is exactly three files —
+        # gui/pulse_page.py +3 (the D-P4-02 stamp label, the
+        # D-P4-06 "VYUK herself" kicker, and the service-row
+        # _vyuk set_palette re-application — all 11 px, the
+        # page's own caption idiom), gui/senses_page.py +5
+        # (matrix header, matrix kicker, quality-targets label,
+        # room-promise label, trends label — all 11 px, the
+        # page's caption idiom), gui/doctor_page.py +2 (the hero
+        # title 20 px and the finding category kicker
+        # TYPE_CARD_TITLE, token-based). Each site styles a
+        # distinct widget; no widget is styled twice. The cap
+        # still binds above 203.
+        # UI Phase 4 fix round (F-07, 2026-11-26): 203 -> 204.
+        # Net +1, proven with the test's own gui/*.py method:
+        # gui/senses_page.py +1 (the quality-thresholds label —
+        # 11 px, the page's caption idiom, the same sheet as the
+        # quality-targets label it sits under). One new site
+        # styles one new widget; no widget is styled twice. The
+        # cap still binds above 204.
+                                        self.assertLessEqual(_count_font_size_outside_style(), 204)
 
     def test_setstylesheet_total_does_not_grow(self):
         # INTENTIONAL: 110 setStyleSheet calls at v5.97
@@ -467,7 +544,70 @@ class TestSlice1StaticPins(unittest.TestCase):
         # two scoped sheets, removed when the rules moved to the
         # template (gui/window_shell_sidebar.py, -2). Net +9.
         # The cap still binds above 192.
-        self.assertLessEqual(_count_setstylesheet(), 192)
+        # UI upgrade Phase 0 (2026-11-23): 192 -> 193. Net +1,
+        # the Settings summary header "VYUK" (gui/window_settings.py)
+        # taking the kicker face — one inline sheet carrying
+        # font-size: {TYPE_CARD_TITLE}px (token-based, zero
+        # literals), matching the _page_shell kicker's own
+        # inline sheet. The cap still binds above 193.
+        # UI upgrade Phase 1 (2026-11-24): 193 -> 254. Net +61,
+        # the Home HUD (gui/window_home_hud.py, new file, +48
+        # sheets: rail, accordion, composer, weather, pills,
+        # banner) + the Memory/Activity Phase 1 sheets. Each site
+        # styles a distinct widget; no widget is styled twice.
+        # Light-contrast fixes (2026-11-24): 254 -> 274. Net +20,
+        # the _retheme_home_labels re-applications. The cap still
+        # binds above 274.
+        # Rail rebalance + narrow-chat composer fix (2026-11-24):
+        # 274 -> 281. Net +7 — the left-rail sections (comms +
+        # suggestions moved from the right accordion, +5) and the
+        # composer input's narrow padding override (+2). The cap
+        # still binds above 281.
+        # UI Phase 1 look-fix (2026-11-24): 281 -> 284. Net +3 —
+        # the composer input's borderless sheet (+2,
+        # gui/window_home_hud.py) and the Knowledge Graph
+        # dimension chip bar's theme re-application (+1,
+        # gui/memory_web_widget.py). The cap still binds above
+        # 284.
+        # UI Phase 1 look-fix round 2 (2026-11-24): 284 -> 289.
+        # Net +5 — one re-application per new Light-contrast
+        # surface, each driven by the appearance pass from the
+        # resolved theme: the Settings group headers + the two
+        # plain-text wells (+2, gui/window_settings_appearance.py),
+        # the Calendar right-column headers (+1,
+        # gui/window_pages_views.py), the docked status strip's
+        # word (+1, gui/status_strip.py), and the Pulse "Live" word
+        # + footnote (+1, gui/pulse_page.py). The cap still binds
+        # above 289.
+        # UI Phase 1 look-fix round 2, Pulse state word
+        # (2026-11-24): 289 -> 290. Net +1 — the Pulse state
+        # word's re-application in set_palette (the OK level now
+        # follows the resolved muted). The cap still binds
+        # above 290.
+        # UI Phase 2 (2026-11-25): 290 -> 294. Net +4 — the
+        # sidebar badges (x2), the Galaxy chip bar (x1), and
+        # the Skills detail drawer (x1). The cap still binds
+        # above 294.
+        # UI Phase 4 (2026-11-26): 294 -> 306. Net +12, proven
+        # with the test's own gui/*.py method: 294 on the
+        # prescratch (post-header-round) tree, 306 on the live
+        # tree; the delta is exactly three files —
+        # gui/pulse_page.py +3 (the D-P4-02 stamp label, the
+        # D-P4-06 "VYUK herself" kicker, and the service-row
+        # _vyuk set_palette re-application), gui/senses_page.py
+        # +5 (matrix header, matrix kicker, quality-targets
+        # label, room-promise label, trends label), and
+        # gui/doctor_page.py +4 (the hero title's set_palette
+        # re-application, the finding category kicker, the
+        # highlight_finding amber border, and its clear). Each
+        # site styles a distinct widget; no widget is styled
+        # twice. The cap still binds above 306.
+        # UI Phase 4 fix round (F-07, 2026-11-26): 306 -> 307.
+        # Net +1 — gui/senses_page.py +1 (the quality-thresholds
+        # label's own sheet). One new site styles one new widget;
+        # no widget is styled twice. The cap still binds
+        # above 307.
+        self.assertLessEqual(_count_setstylesheet(), 307)
 
     def test_200pct_fit_pinned_not_fitting(self):
         # INTENTIONAL UPDATE (UI breakpoints slice, 2026-10-30):

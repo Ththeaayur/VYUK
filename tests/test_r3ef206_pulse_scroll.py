@@ -106,13 +106,18 @@ class TestPulseNoHScroll(WindowBase):
 
     def test_no_hscroll_908_short_filed_condition(self):
         # The filed condition: 908 wide AND short enough that the
-        # vertical scrollbar shows (viewport 680). Pre-fix hmax=3.
+        # vertical scrollbar shows. The viewport was 680 when the
+        # finding was filed (sidebar 220); §5 (2026-11-24) tiers
+        # the sidebar to its 64 px rail at 908
+        # (hud_sidebar_for / _HUD_TIERS row 900), so the viewport
+        # is 908 - 64 - 8 (vertical bar) = 836. The property under
+        # test is unchanged: no horizontal scrollbar (hmax=0).
         self._show_pulse()
         self.window.resize(908, 600)
         _pump(self.app, 0.6)
         m = self._measure()
         self.assertTrue(m["vbar"], "vertical scrollbar must show here")
-        self.assertEqual(m["viewport"], 680)
+        self.assertEqual(m["viewport"], 836)
         self.assertEqual(m["hmax"], 0, m)
 
     def test_no_hscroll_all_widths_tall_and_short(self):

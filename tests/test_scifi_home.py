@@ -214,6 +214,14 @@ class BriefingSummaryTests(unittest.TestCase):
         self.assertEqual(briefing_summary_for(""),
                          ROOM_COPY["empty_schedule"])
 
+    def test_not_connected_copy_passes_through(self):
+        # Briefing fix (2026-11-26): the not-connected line is a
+        # failure line — it must reach the summary verbatim, never
+        # cut to "Calendar not…".
+        self.assertEqual(
+            briefing_summary_for("Connect your calendar to see your day"),
+            "Connect your calendar to see your day")
+
 
 class TypeScaleTests(unittest.TestCase):
     def test_tokens_match_the_scale(self):
@@ -315,24 +323,58 @@ class RoomWindowTests(WindowBase):
     def _audio_fake(self):
         """The audio stand-in the window actually reads.
 
-        The harness re-stubs voice.audio per test, but the GUI
-        mixin modules persist across tests in the session, so the
-        telemetry's module-level audio_manager binding is the
-        FIRST test's fake — mutating the current stub would move
-        nothing the window reads. This returns the bound object.
+        UI upgrade Phase 1 (2026-11-24): _sync_audio_telemetry
+        resolves audio_manager fresh via the facade on every tick
+        (the leg-35 staleness fix), so the window reads the
+        CURRENT stub — not the module-top binding this used to
+        return. The facade re-resolves per access, so this
+        returns the live object the telemetry reads.
         """
-        import voice_assistant.gui.window_services_speech as _speech
-        return _speech.audio_manager
+        import voice_assistant.core.gui_facade as _facade
+        return _facade.audio_manager
 
-    def _settle_light(self, ticks=10):
+    def _settle_light(self, target=None, timeout=10.0):
         # Freeze the ~1 Hz vitals block for the settle: it would
         # otherwise overwrite the forced test hour with the real
         # clock on its first tick.
         import time as _time
         self.window._vitals_last = _time.monotonic()
-        for _ in range(ticks):
+        # Look-fix 2 (2026-11-24): time-anchored, not count-anchored.
+        # The old fixed 10 processEvents() starved under VM load —
+        # one pump can take ~0.5 s of boot work, and a state flip
+        # mid-settle restarts the 220 ms ease, so 10 ticks never
+        # guaranteed convergence (the night leg read 0.0397 against
+        # 0.028 in the parent's slow run). With a target, pump
+        # until the MEASURED value is within tolerance or a
+        # wall-clock timeout expires; without one, pump for a
+        # measured 1.0 s. The count is never the anchor.
+        start = _time.monotonic()
+        while True:
+            # D-01 (UI Phase 6): re-freeze every iteration. The
+            # freeze above expires 1.0 s after it is set (the
+            # vitals guard in _sync_audio_telemetry), but a settle
+            # under VM load runs far longer — one pump can take
+            # ~0.5 s, and nine ease ticks need ~4.5 s. Without this
+            # the vitals block fires mid-settle and overwrites the
+            # forced _room_hour with the real clock, so the light
+            # eases back to the day wash: the pre-fix leg read 0.04
+            # against the 0.028 night target.
+            self.window._vitals_last = _time.monotonic()
             self.window._sync_audio_telemetry()
             self.app.processEvents()
+            elapsed = _time.monotonic() - start
+            if target is not None:
+                try:
+                    current = self.window._room_light.current
+                except Exception:  # noqa: BLE001 — no light, no settle
+                    current = None
+                if (current is not None
+                        and abs(current - target) <= 0.0005):
+                    return
+                if elapsed >= timeout:
+                    return
+            elif elapsed >= 1.0:
+                return
 
     def test_greeting_is_display_type(self):
         # UI rethink Build 1: the greeting steps 28 -> 20 Orbitron
@@ -346,7 +388,9 @@ class RoomWindowTests(WindowBase):
 
     def test_state_line_is_quiet_body_text(self):
         from PySide6.QtWidgets import QLabel
-        label = self.window.findChild(QLabel, "stateLabel")
+        # UI upgrade Phase 1: the state label lives in the HUD
+        # as homeStateLine (the old stateLabel is gone).
+        label = self.window.findChild(QLabel, "homeStateLine")
         self.assertIsNotNone(label)
         self.assertEqual(label.font().pixelSize(), 13)
         self.assertNotEqual(label.font().family(), "Orbitron")
@@ -385,23 +429,19 @@ class RoomWindowTests(WindowBase):
     def test_briefing_play_button_collapses_to_icon_when_narrow(self):
         # Field-check fix #8 (U5 #34): below the narrow width
         # the Play briefing button collapses to icon-only so the
-        # one-line summary keeps a readable width. At the 420 px
-        # stage floor the card is 320 wide and the summary had
-        # 107 px ("Calendar is…").
-        # Stage 0 features batch 5: the narrow width is 760 now,
-        # not 800 — at 800 the compact tier gives the stage 428 px
-        # (the chat sits at its 240 floor and the stage takes the
-        # slack), so the card is wide and the button rightly stays
-        # full; at 760 the stage is 380 and the card is 380, so it
-        # collapses — and the summary still has room for "packed"
-        # (at the 640 minimum the card is ~220 and the summary
-        # elides to "Calendar is…" alone).
+        # one-line summary keeps a readable width.
+        # UI upgrade Phase 1: the briefing card lives in the
+        # right accordion column (150 px at 1280), so the card
+        # is ALWAYS below the 420 threshold and the button is
+        # icon-only at 1280 — the narrow rule is verified at
+        # 1280 now, not 760 (where the right column is hidden
+        # and the card keeps a stale 612 px geometry).
         from PySide6.QtTest import QTest
         try:
             self.window._skip_boot_sequence()
         except Exception:  # noqa: BLE001 — the rule works either way
             pass
-        self.window.resize(760, 600)
+        self.window.resize(1280, 800)
         self.window.show()
         QTest.qWait(300)
         self.app.processEvents()
@@ -410,45 +450,282 @@ class RoomWindowTests(WindowBase):
         self.assertEqual(self.window.btn_briefing.text(), "")
         self.assertEqual(
             self.window.btn_briefing.accessibleName(), "Play briefing")
+        # UI upgrade Phase 1: the card is 150 px in the right
+        # column, so the one-line summary elides to what fits
+        # (~13 chars in the vertical header). It must stay a
+        # meaningful elision — starting with "Calendar", longer
+        # than the old 2-char "C…" squeeze — and the FULL text
+        # (which carries "packed") is preserved in
+        # _briefing_summary_full and the expanded details.
         summary = self.window.briefing_summary.text()
-        self.assertGreater(len(summary), len("Calendar is…"))
-        self.assertIn("packed", summary)
+        self.assertTrue(summary.startswith("Calendar"))
+        self.assertGreater(len(summary), 5)
+        self.assertIn("packed", self.window._briefing_summary_full)
 
     def test_briefing_play_button_text_returns_when_wide(self):
-        # The narrow rule restores the label once the card has
-        # room again — the action is unchanged, only its width.
-        # Stage 0 features batch 5: the narrow width is 760,
-        # not 800 (at 800 the compact tier gives the card 428 px
-        # and the button rightly stays full) — see the test above.
+        # UI upgrade Phase 1: the briefing card lives in the
+        # right accordion column (150 px at 1280, 225 px at
+        # 1920 — both below the 420 threshold), so the button
+        # stays icon-only at every tier; the label never returns
+        # because the card is never wide. The action is unchanged
+        # — the tooltip and accessible name still carry it.
         from PySide6.QtTest import QTest
         try:
             self.window._skip_boot_sequence()
         except Exception:  # noqa: BLE001 — the rule works either way
             pass
-        self.window.resize(760, 600)
+        self.window.resize(1280, 800)
         self.window.show()
         QTest.qWait(300)
         self.app.processEvents()
         self._set_long_briefing_summary()
         self.assertEqual(self.window.btn_briefing.text(), "")
-        self.window.resize(1280, 800)
+        self.window.resize(1920, 1080)
         QTest.qWait(300)
         self.app.processEvents()
         self._set_long_briefing_summary()
+        self.assertEqual(self.window.btn_briefing.text(), "")
         self.assertEqual(
-            self.window.btn_briefing.text(), "Play briefing")
+            self.window.btn_briefing.toolTip(), "Play briefing")
+        self.assertEqual(
+            self.window.btn_briefing.accessibleName(), "Play briefing")
+
+    # -- the Briefing fix (2026-11-26) -------------------
+    def test_briefing_summary_not_connected_shows_full_line(self):
+        """Finding 1: with the calendar not connected, the
+        collapsed summary shows the complete line — "Connect
+        your calendar to see your day" — wrapped, never elided
+        to "Calendar not…"."""
+        from PySide6.QtTest import QTest
+        import voice_assistant.core.google_services as _gs
+        _orig = _gs.is_connected
+        try:
+            self.window._skip_boot_sequence()
+        except Exception:  # noqa: BLE001 — the rule works either way
+            pass
+        _gs.is_connected = lambda: False
+        try:
+            self.window.resize(1280, 800)
+            self.window.show()
+            QTest.qWait(300)
+            self.app.processEvents()
+            self.window._refresh_briefing_card()
+            QTest.qWait(300)
+            self.app.processEvents()
+            summary = self.window.briefing_summary
+            self.assertEqual(
+                summary.text(), "Connect your calendar to see your day")
+            self.assertNotIn("…", summary.text())
+            self.assertTrue(summary.wordWrap())
+            self.assertGreater(summary.height(), 17)
+            self.assertEqual(
+                self.window.briefing_schedule.text(),
+                "Connect your calendar to see your day")
+        finally:
+            _gs.is_connected = _orig
+
+    def test_briefing_summary_empty_schedule_shows_full_copy(self):
+        """Finding 1: connected with nothing scheduled, the
+        summary shows the empty-schedule copy in full — never
+        elided."""
+        from PySide6.QtTest import QTest
+        import time as _time
+        import voice_assistant.core.google_services as _gs
+        _orig_conn = _gs.is_connected
+        _orig_next = _gs.next_events
+        try:
+            self.window._skip_boot_sequence()
+        except Exception:  # noqa: BLE001 — the rule works either way
+            pass
+        _gs.is_connected = lambda: True
+        _gs.next_events = lambda within_hours=24, limit=20: []
+        try:
+            self.window.resize(1280, 800)
+            self.window.show()
+            QTest.qWait(300)
+            self.app.processEvents()
+            self.window._refresh_briefing_card()
+            # The calendar worker answers off-thread: pump until
+            # the schedule line lands or a wall-clock timeout
+            # expires (time-anchored, never count-anchored).
+            _deadline = _time.monotonic() + 10.0
+            while (_time.monotonic() < _deadline
+                   and "Nothing scheduled today" not in
+                   self.window.briefing_schedule.text()):
+                self.app.processEvents()
+                _time.sleep(0.05)
+            self.app.processEvents()
+            summary = self.window.briefing_summary
+            self.assertEqual(
+                summary.text(),
+                "Nothing scheduled today — ask me to add something.")
+            self.assertNotIn("…", summary.text())
+            self.assertTrue(summary.wordWrap())
+        finally:
+            _gs.is_connected = _orig_conn
+            _gs.next_events = _orig_next
+
+    def test_briefing_summary_multi_clause_still_elides(self):
+        """Finding 1, the guard: a real multi-clause schedule
+        still elides to its first two clauses + "…" — the
+        no-elide rule is for failure/empty lines only."""
+        from PySide6.QtTest import QTest
+        try:
+            self.window._skip_boot_sequence()
+        except Exception:  # noqa: BLE001 — the rule works either way
+            pass
+        self.window.resize(1280, 800)
+        self.window.show()
+        QTest.qWait(300)
+        self.app.processEvents()
+        self.window._set_briefing_schedule_text(
+            "2 things coming up · Standup 09:00 · Q3 review 14:00")
+        QTest.qWait(150)
+        self.app.processEvents()
+        summary = self.window.briefing_summary
+        self.assertFalse(summary.wordWrap())
+        self.assertTrue(summary.text().endswith("…"))
+        self.assertIn("2 things", summary.text())
+
+    def test_briefing_news_rows_one_headline_plus_source(self):
+        """Finding 2: the top two headlines each get their own row
+        — one headline plus a small source tag — no " · "-joined
+        paragraph wall. Two rows, not three: the column budget at
+        1280 cannot hold three full rows under the card (the
+        layout clipped the third row), and the old block showed
+        two headlines too — the fake returns three to prove the
+        cap holds."""
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QLabel as _QLabel
+        import voice_assistant.core.home_feeds as _hf
+        _orig = _hf.fetch_news_headlines
+        try:
+            self.window._skip_boot_sequence()
+        except Exception:  # noqa: BLE001 — the rule works either way
+            pass
+        _hf.fetch_news_headlines = lambda limit=3: [
+            {"title": "IIT Bombay tops the national research rankings",
+             "source": "The Hindu"},
+            {"title": "Monsoon session of Parliament begins today",
+             "source": "Indian Express"},
+            {"title": "India launches its heaviest communication satellite",
+             "source": "BBC News"},
+        ][:limit]
+        try:
+            self.window.resize(1280, 800)
+            self.window.show()
+            QTest.qWait(300)
+            self.app.processEvents()
+            self.window._home_news_done = False
+            self.window._refresh_home_news()
+            QTest.qWait(300)
+            self.app.processEvents()
+            block = self.window._home_news_block
+            rows = [block.layout().itemAt(i).widget()
+                    for i in range(block.layout().count())]
+            self.assertEqual(len(rows), 2)
+            _want = [
+                ("IIT Bombay tops the national research rankings",
+                 "The Hindu"),
+                ("Monsoon session of Parliament begins today",
+                 "Indian Express"),
+            ]
+            for _row, (_title, _source) in zip(rows, _want):
+                _labels = _row.findChildren(_QLabel)
+                self.assertEqual(len(_labels), 2)
+                _heads = [l for l in _labels
+                          if l.objectName() != "smallMuted"]
+                _tags = [l for l in _labels
+                         if l.objectName() == "smallMuted"]
+                self.assertEqual(len(_heads), 1)
+                self.assertEqual(len(_tags), 1)
+                self.assertEqual(_heads[0].text(), _title)
+                self.assertEqual(_tags[0].text(), _source)
+                # The tag takes the app's own small-muted rule
+                # (11 px, the ladder rung below body 13); the
+                # headline is body size. font() reflects the
+                # stylesheet-resolved size (a QFont pixel size
+                # does not — the stylesheet overrides setFont()).
+                self.assertEqual(_tags[0].font().pixelSize(), 11)
+                self.assertEqual(_heads[0].font().pixelSize(), 13)
+                # The column budget must not squeeze the row
+                # below the height its wrapped headline needs
+                # (the offline render clipped the first line at
+                # 38 px against 51 px of text): the row's
+                # Minimum vertical policy floors it at its
+                # sizeHint, so the headline keeps its full
+                # heightForWidth (within rounding).
+                self.assertGreaterEqual(
+                    _heads[0].height(),
+                    _heads[0].heightForWidth(_heads[0].width()) - 2)
+            _all = " ".join(
+                lbl.text() for _row in rows
+                for lbl in _row.findChildren(_QLabel))
+            self.assertNotIn(" · ", _all)
+        finally:
+            _hf.fetch_news_headlines = _orig
+
+    def test_home_docs_card_lists_seeded_documents(self):
+        """Step 2 F1: _refresh_home_docs sliced list_documents()
+        like a list, but it returns a dict — the slice raised
+        TypeError, the except swallowed it, and the card always
+        read "Documents unavailable.". Seeded documents list by
+        title now (the file basename is the stored title)."""
+        import pathlib
+        import tempfile
+        import voice_assistant.core.document_memory as _dm
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="s2_docs_"))
+        (tmp / "Field notes.txt").write_text(
+            "Alpha content for the docs card.\n", encoding="utf-8")
+        (tmp / "Shopping list.txt").write_text(
+            "Beta content for the docs card.\n", encoding="utf-8")
+        for path in sorted(tmp.iterdir()):
+            res = _dm.sync_file(str(path))
+            self.assertTrue(res["ok"], f"seed failed: {res}")
+        self.window._refresh_home_docs()
+        text = self.window._home_docs_body.text()
+        self.assertIn("Field notes.txt", text)
+        self.assertIn("Shopping list.txt", text)
+        self.assertNotIn("unavailable", text)
+
+    def test_home_docs_card_empty_state(self):
+        """Step 2 F1: with no documents the card reads "No
+        documents in memory yet." — never "Documents
+        unavailable."."""
+        self.window._refresh_home_docs()
+        self.assertEqual(
+            self.window._home_docs_body.text(),
+            "No documents in memory yet.")
 
     def test_orb_is_first_in_the_room(self):
+        # UI upgrade Phase 1: the hero height is tier-driven
+        # (§5), so size the window to 1280 first — at the
+        # default 760 the hero is only ~128 px tall.
+        self.window.resize(1280, 800)
+        self.window.show()
+        self.app.processEvents()
         hero = self.window.hero
         card = self.window.briefing_card
         self.assertGreaterEqual(hero.height(), 300)
-        self.assertLess(hero.geometry().top(), card.geometry().top())
-        # The hero is the tallest child of the stage — nothing
-        # else in the room competes with the orb for the eye.
-        stage = self.window._stage_widget
-        children = [c for c in stage.children()
+        # UI upgrade Phase 1: the hero (centre column) and the
+        # briefing card (right column) are side by side, not
+        # stacked — their .top() values live in different parents
+        # and are not comparable. The intent survives within the
+        # centre column: the hero is the tallest child there, so
+        # nothing else in the room competes with the orb for the
+        # eye. (The stage's own children are the column hosts,
+        # as tall as the stage itself — they are not the
+        # comparison.)
+        centre = hero.parentWidget()
+        self.assertIsNotNone(centre)
+        # Exclude the column hairlines (homeColumnRule-*) — they
+        # are layout chrome as tall as the column, not content
+        # competing with the orb.
+        children = [c for c in centre.children()
                     if hasattr(c, "height") and c.isVisible()
-                    and c is not hero]
+                    and c is not hero
+                    and not (c.objectName() or "").startswith(
+                        "homeColumnRule")]
         heights = [c.height() for c in children if c.height() > 0]
         self.assertTrue(heights)
         self.assertGreater(hero.height(), max(heights))
@@ -475,7 +752,7 @@ class RoomWindowTests(WindowBase):
         self.window._room_hour = 23
         self.window._status_raw = ""
         self.window._connected = True
-        self._settle_light()
+        self._settle_light(target=0.04 * 0.7)
         self.assertAlmostEqual(self.window._room_light.current,
                                0.04 * 0.7, places=3)
         self.assertTrue(self.window._room_night)
@@ -485,7 +762,7 @@ class RoomWindowTests(WindowBase):
         # Day offline: 2% (and the night flag clears too).
         self.window._room_hour = 12
         self.window._connected = False
-        self._settle_light()
+        self._settle_light(target=0.02)
         self.assertAlmostEqual(self.window._room_light.current,
                                0.02, places=3)
         self.assertFalse(self.window._room_night)
@@ -499,19 +776,19 @@ class RoomWindowTests(WindowBase):
         # Listening: 8%.
         self.window._status_raw = "LISTENING"
         self.window._connected = True
-        self._settle_light()
+        self._settle_light(target=0.08)
         self.assertAlmostEqual(self.window._room_light.current,
                                0.08, places=3)
         # Speaking at 0.8 energy: 4% + 10% x 0.8 = 12%.
         fake.is_playing = True
         fake.speaker_level = 0.8
         self.window._status_raw = "SPEAKING"
-        self._settle_light()
+        self._settle_light(target=0.12)
         self.assertAlmostEqual(self.window._room_light.current,
                                0.12, places=3)
         # Muted outranks speaking: 2%.
         fake.is_muted = True
-        self._settle_light()
+        self._settle_light(target=0.02)
         self.assertAlmostEqual(self.window._room_light.current,
                                0.02, places=3)
         fake.is_muted = False
@@ -519,7 +796,7 @@ class RoomWindowTests(WindowBase):
         fake.is_playing = False
         self.window._status_raw = ""
         self.window._connected = False
-        self._settle_light()
+        self._settle_light(target=0.02)
         self.assertAlmostEqual(self.window._room_light.current,
                                0.02, places=3)
         # The shell glow tracks the wash. Force one glow update
@@ -534,6 +811,11 @@ class RoomWindowTests(WindowBase):
 
     def test_demotions_hold_on_the_live_window(self):
         from PySide6.QtWidgets import QFrame, QLabel
+        # UI upgrade Phase 1: size to 1280 first — the right
+        # column (briefing summary) is hidden below 770 px.
+        self.window.resize(1280, 800)
+        self.window.show()
+        self.app.processEvents()
         # The voice chip still exists and is still wired, but it
         # is hidden and out of the stage layout.
         chip = self.window.voice_chip
@@ -556,20 +838,28 @@ class RoomWindowTests(WindowBase):
         self.assertIsNone(
             self.window.findChild(QFrame, "homeCard"))
         self.assertIsNotNone(self.window.btn_briefing)
-        # The sidebar privacy card is v6.3 again (chat pass,
-        # 2026-11-17): a QFrame with the title and the body line;
-        # the Build 3 one-line privacy_lock is gone.
+        # UI upgrade Phase 1 §2: the sidebar privacy card
+        # is ONE muted line now ("Private by design"); the full
+        # promise lives on hover (tooltip), not in a body label.
         card = self.window.findChild(QFrame, "privacyCard")
         self.assertIsNotNone(card)
         texts = {lbl.text() for lbl in card.findChildren(QLabel)}
         self.assertIn("Private by design", texts)
-        # Loophole batch 8 (L-31): the body is the shared
-        # sentence from core/privacy_copy.py (PRIVACY_PROMISE).
+        # Loophole batch 8 (L-31): the full sentence from
+        # core/privacy_copy.py (PRIVACY_PROMISE) is the title's
+        # tooltip in Phase 1.
         import core.privacy_copy as _pc  # noqa: E402
-        self.assertIn(_pc.PRIVACY_PROMISE, texts)
+        title = self.window.findChild(QLabel, "privacyTitle")
+        self.assertIsNotNone(title)
+        self.assertEqual(title.toolTip(), _pc.PRIVACY_PROMISE)
         self.assertIsNone(getattr(self.window, "privacy_lock", None))
 
     def test_briefing_card_expands_and_collapses(self):
+        # UI upgrade Phase 1: size to 1280 first — the briefing
+        # card lives in the right column, hidden below 770 px.
+        self.window.resize(1280, 800)
+        self.window.show()
+        self.app.processEvents()
         self.window._set_briefing_schedule_text(
             "3 things coming up · Standup 09:00 · Reminders: Call bank")
         self.assertEqual(self.window._briefing_summary_full,
@@ -587,11 +877,11 @@ class RoomWindowTests(WindowBase):
 
     def test_transcript_did_not_regress(self):
         self.assertIsNotNone(self.window.chat_panel)
-        # E-F103 (2026-11-20): the copy shortened from "Type, or
-        # hold the mic to speak" — see test_chat_ui's placeholder
-        # test for the measurements.
+        # UI upgrade Phase 1, leg 57: the composer placeholder
+        # is state-aware — at idle it reads "Ask anything"
+        # (the old "Type, or hold mic" copy is gone).
         self.assertEqual(self.window.input_cmd.placeholderText(),
-                         "Type, or hold mic")
+                         "Ask anything")
 
     def test_render_grabs(self):
         """Save the grabs the build report judges from."""

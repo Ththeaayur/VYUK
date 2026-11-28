@@ -62,9 +62,12 @@ class SpecShapeTests(unittest.TestCase):
         # Stage 0 features batch 6: 112 -> 113 fields, 107 -> 108
         # env-backed — calendar_quiet_enabled
         # (VYUK_CALENDAR_QUIET_ENABLED).
-        self.assertEqual(len(fields), 113)
+        # UI Phase 1: 113 -> 115 fields, 108 -> 110 env-backed —
+        # home_city (VYUK_HOME_CITY) + hud_profile
+        # (VYUK_HUD_PROFILE).
+        self.assertEqual(len(fields), 115)
         env_backed = [f for f in fields if "env" in f.metadata]
-        self.assertEqual(len(env_backed), 108)
+        self.assertEqual(len(env_backed), 110)
         names = {f.name for f in fields}
         self.assertIn("version", names)
         self.assertIn("browser_allow_history_read", names)

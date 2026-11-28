@@ -405,16 +405,23 @@ class TestQtSurface(unittest.TestCase):
             self.assertNotIn("/home/", text)
 
     def test_refresh_empty(self):
+        # Activity empty-state fix (2026-11-26): the empty
+        # journal shows NO row at all now — the old EmptyState
+        # item ("Nothing needs attention right now.") was the
+        # fifth "nothing" on the Activity page, and the journal
+        # header + footer carry the state instead. The list
+        # simply stays empty (the Activity refresh hides it
+        # while it has no rows).
         from PySide6.QtWidgets import QListWidget, QLabel
 
         with tempfile.TemporaryDirectory() as tmp:
             lst = QListWidget()
             label = QLabel()
-            js.refresh_journal_list(
+            result = js.refresh_journal_list(
                 lst, label_widget=label,
                 store_path=pathlib.Path(tmp) / "nope.jsonl")
-            self.assertEqual(lst.count(), 1)
-            self.assertIn("No journal entries", lst.item(0).text())
+            self.assertTrue(result["ok"])
+            self.assertEqual(lst.count(), 0)
 
     def test_input_dialog_wiring(self):
         from PySide6.QtWidgets import QWidget

@@ -264,7 +264,11 @@ class TestScrollContainment(unittest.TestCase):
         evidence.append("Memory list")
         skl = fn_src("_build_skills_page")
         self.assertIn("self.plugin_list = QListWidget()", skl)
-        self.assertIn("layout.addWidget(card, stretch=1)", skl)
+        # UI Phase 2 (2026-11-25): the page is a left column (view row,
+        # catalogue/galaxy, plugins, rescan) beside the detail drawer,
+        # so the plugins card is added to `left`, not the page layout —
+        # still stretch=1, still inside the page's outer scroll area.
+        self.assertIn("left.addWidget(card, stretch=1)", skl)
         evidence.append("Skills list")
         # Settings / Senses / Doctor: outer scroll areas.
         for rel in ("window_settings.py", "senses_page.py",
@@ -425,7 +429,14 @@ class TestMotionGates(unittest.TestCase):
                         text, fn) if fn is not None else ""
                     sites.append((path.name, fn.name if fn else "?",
                                   seg))
-        self.assertEqual(len(sites), 15)
+        # UI upgrade Phase 1 (2026-11-24): 15 -> 16. The 16th
+        # site is the Home boot moment (gui/window_home_hud.py
+        # _home_boot, a 600 ms hero opacity fade). H-35 exempts
+        # the boot moment from the motion audit, and it is
+        # gated on reduced motion (_reduced: skipped under
+        # the Minimal profile), so the gating check below
+        # still holds for every site.
+        self.assertEqual(len(sites), 16)
         for fname, fnname, seg in sites:
             self.assertTrue(
                 "_animate_enabled" in seg

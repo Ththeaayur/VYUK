@@ -15,18 +15,26 @@ until the next page show.
 
 The fix (gui/window_memory_web.py _refresh_memories +
 gui/window_memory_learned.py _learned_fact_count +
-_forget_learned_fact/_forget_all_learned): the header adds the
-card's row count to the list's shown/total, in both the plain and
-the "X of Y facts shown" forms; the card's Forget paths re-read
-the list + header too.
+_forget_learned_fact/_forget_all_learned): the header counts the
+unique facts in the store, in both the plain and the "X of Y
+facts shown" forms; the card's Forget paths re-read the list +
+header too. (The E-F204 fix as filed added the card's row count
+to the list's shown/total — header == list rows + card rows.
+That rule is SUPERSEDED by the hunt fix (c) header round
+(2026-11-26, parent ruling): the item-6 widening made the card
+render every user fact — the same facts already in the list — so
+the old rule counted every fact twice ("10 facts remembered"
+for 5 facts, "2" for 1). The header now counts each fact ONCE.)
 
-Counting rule, pinned here: header == list rows + card rows, in
-every state (empty, the section-E 14/22 shape on both the real
-learning path and the section-E staging seam, the 100-fact
-stress, forget-while-open, filtered search/category, singular).
-The learned facts ARE rendered twice (card + list) — that double
-rendering is the page's structure, not this fix; the fix makes
-the header agree with it.
+Counting rule, pinned here: header == unique facts (shown of
+total), in every state (empty, the section-E 14/22 shape on both
+the real learning path and the section-E staging seam, the
+100-fact stress, forget-while-open, filtered search/category,
+singular). The learned facts ARE rendered twice (card + list) —
+that double rendering is the page's structure, not this fix;
+the header counts each fact once, so it agrees with the store
+("All (N)") and the stat strip ("N Facts"), not with the
+rendering count.
 
 E-F204 FOLLOW-UP (view-aware header): the List fix left the header
 stale in Web view — it kept the List rows count (30) over a web
@@ -140,39 +148,50 @@ class _FakeLearning:
 
 
 class HeaderTextTests(unittest.TestCase):
-    """memory_header_text: the counting rule, pinned without Qt."""
+    """memory_header_text: the counting rule, pinned without Qt.
 
-    def test_plain_counts_list_plus_card(self):
-        # Section E, real path: 22 list rows + 8 card rows.
-        self.assertEqual(memory_header_text(22, 22, 8),
-                         "30 facts remembered")
+    The header counts UNIQUE facts: shown of total, where shown
+    and total are the list's (store's) counts. The card renders
+    the same facts a second time, but its rows never add — there
+    is no third argument any more (the old `learned` parameter
+    is gone with the E-F204 adding rule)."""
 
-    def test_staging_shape(self):
-        # Section E as filed: 14 list rows + 8 card rows.
-        self.assertEqual(memory_header_text(14, 14, 8),
+    def test_plain_counts_unique_facts(self):
+        # Section E, real path: 22 unique facts in the store.
+        # The card renders the same 22 a second time; they do
+        # not add.
+        self.assertEqual(memory_header_text(22, 22),
                          "22 facts remembered")
 
+    def test_staging_shape_counts_store_only(self):
+        # Section E as filed: 14 stored facts. (The 8 staged
+        # card facts live outside the store — a test-only seam —
+        # so the pure helper, which counts stored facts, reads
+        # 14; the Qt staging-seam test covers the page.)
+        self.assertEqual(memory_header_text(14, 14),
+                         "14 facts remembered")
+
     def test_stress(self):
-        self.assertEqual(memory_header_text(114, 114, 100),
-                         "214 facts remembered")
+        self.assertEqual(memory_header_text(114, 114),
+                         "114 facts remembered")
 
     def test_singular(self):
-        self.assertEqual(memory_header_text(1, 1, 0),
+        self.assertEqual(memory_header_text(1, 1),
                          "1 fact remembered")
 
     def test_zero(self):
-        self.assertEqual(memory_header_text(0, 0, 0),
+        self.assertEqual(memory_header_text(0, 0),
                          "0 facts remembered")
 
-    def test_of_form_counts_card_in_both(self):
-        # Filtered: 1 list row shown + 1 card row, of 15 + 1.
-        self.assertEqual(memory_header_text(1, 15, 1),
-                         "2 of 16 facts shown")
+    def test_of_form_counts_unique_facts(self):
+        # Filtered: 1 list row shown of 15 stored facts.
+        self.assertEqual(memory_header_text(1, 15),
+                         "1 of 15 facts shown")
 
-    def test_no_learned_is_the_old_line(self):
-        self.assertEqual(memory_header_text(14, 14, 0),
+    def test_plain_and_of_forms(self):
+        self.assertEqual(memory_header_text(14, 14),
                          "14 facts remembered")
-        self.assertEqual(memory_header_text(1, 15, 0),
+        self.assertEqual(memory_header_text(1, 15),
                          "1 of 15 facts shown")
 
 
@@ -204,7 +223,8 @@ class WebHeaderTextTests(unittest.TestCase):
 
 @unittest.skipUnless(_QT, "Qt unavailable")
 class HeaderCountTests(WindowBase):
-    """The real Memory page: the header equals list + card rows."""
+    """The real Memory page: the header counts unique facts
+    (shown of total) — never the card's rows on top."""
 
     def setUp(self):
         super().setUp()
@@ -312,12 +332,19 @@ class HeaderCountTests(WindowBase):
             if self.window.memory_list.item(i).data(
                 Qt.ItemDataRole.UserRole) is not None)
 
-    def _assert_header_equals_rows(self):
+    def _assert_header_counts_unique_facts(self):
+        # Hunt fix (c) header round: the header names unique
+        # facts — shown == the list rows, total == the store
+        # total. The card renders the same facts a second time,
+        # so its rows never add (the old E-F204 rule asserted
+        # shown == list + card here).
         shown, total = self._header_numbers()
-        self.assertEqual(shown, self._list_rows() + self._card_rows(),
-                         f"header {self._header()!r} vs rows "
-                         f"list={self._list_rows()} "
-                         f"card={self._card_rows()}")
+        self.assertEqual(shown, self._list_rows(),
+                         f"header {self._header()!r} shown vs list "
+                         f"{self._list_rows()}")
+        self.assertEqual(total, len(self._store.get_all_facts()),
+                         f"header {self._header()!r} total vs store "
+                         f"{len(self._store.get_all_facts())}")
 
     def _seed_hand_saved(self, n=14):
         for cat, key, val in HAND_SAVED[:n]:
@@ -337,33 +364,45 @@ class HeaderCountTests(WindowBase):
         self.assertEqual(self._card_rows(), 0)
 
     def test_singular_hand_saved_only(self):
+        # Hunt fix (c) header round: the header counts unique
+        # facts — one stored fact reads 1, even though the
+        # widened card renders it a second time (list + card).
+        # The old E-F204 rule read 2 here.
         self._store.save_fact("general", "Favourite drink", "Masala tea")
         self._show_memory()
         self.assertEqual(self._header(), "1 fact remembered")
-        self._assert_header_equals_rows()
+        self._assert_header_counts_unique_facts()
 
     def test_section_e_shape_real_path(self):
         # 14 hand-saved + 8 learned through the real learner, one
-        # shared store: 22 list rows + 8 card rows = 30 on the page.
+        # shared store. Hunt fix (c) header round: the header
+        # counts unique facts — 22 in the store — even though the
+        # widened card renders all 22 a second time (22 list rows
+        # + 22 card rows). The old E-F204 rule read 44 here.
         self._seed_hand_saved(14)
         self.assertEqual(self._teach(LEARN_SENTENCES), 8)
         self._show_memory()
-        self.assertEqual(self._header(), "30 facts remembered")
+        self.assertEqual(self._header(), "22 facts remembered")
         self.assertEqual(self._list_rows(), 22)
-        self.assertEqual(self._card_rows(), 8)
-        self._assert_header_equals_rows()
+        self.assertEqual(self._card_rows(), 22)
+        self._assert_header_counts_unique_facts()
 
     def test_section_e_shape_staging_seam(self):
         # The filed shape exactly: 14 in the store, the 8 learned
-        # facts served outside it. Pre-fix the header said 14.
+        # facts served outside it. Hunt fix (c) header round: the
+        # header counts unique STORED facts, so it reads 14 — the
+        # 8 staged facts live outside the store (a test-only seam;
+        # in production the card's facts always come from the
+        # store, so this shape cannot occur there). The old E-F204
+        # rule read 22 here (14 list + 8 card rows).
         self._seed_hand_saved(14)
         self.window._learning_module = lambda: _FakeLearning(
             LEARNED_FIXTURES)
         self._show_memory()
-        self.assertEqual(self._header(), "22 facts remembered")
+        self.assertEqual(self._header(), "14 facts remembered")
         self.assertEqual(self._list_rows(), 14)
         self.assertEqual(self._card_rows(), 8)
-        self._assert_header_equals_rows()
+        self._assert_header_counts_unique_facts()
 
     def test_section_e_shape_at_every_width(self):
         self._seed_hand_saved(14)
@@ -373,9 +412,9 @@ class HeaderCountTests(WindowBase):
         for width in (908, 1024, 1280, 1920):
             self.window.resize(width, 750)
             self.app.processEvents()
-            self.assertEqual(self._header(), "22 facts remembered",
+            self.assertEqual(self._header(), "14 facts remembered",
                              f"at width {width}")
-            self._assert_header_equals_rows()
+            self._assert_header_counts_unique_facts()
 
     def test_stress_staging_seam(self):
         self._seed_hand_saved(14)
@@ -384,52 +423,66 @@ class HeaderCountTests(WindowBase):
                   for i in range(100)]
         self.window._learning_module = lambda: _FakeLearning(stress)
         self._show_memory()
-        self.assertEqual(self._header(), "114 facts remembered")
+        # The 100 staged facts live outside the store, so the
+        # header counts the 14 stored facts only (see the
+        # section-E staging-seam note above).
+        self.assertEqual(self._header(), "14 facts remembered")
         self.assertEqual(self._list_rows(), 14)
         self.assertEqual(self._card_rows(), 100)
-        self._assert_header_equals_rows()
+        self._assert_header_counts_unique_facts()
 
     def test_stress_real_path(self):
+        # Hunt fix (c) header round: 114 unique facts in the
+        # store (14 hand-saved + 100 learned); the widened card
+        # renders all 114 a second time, but they do not add. The
+        # old E-F204 rule read 228 here.
         self._seed_hand_saved(14)
         for i in range(100):
             self.assertTrue(self._store.save_fact(
                 "learned", f"fact {i + 1}", f"value {i + 1}"))
         self._show_memory()
-        self.assertEqual(self._header(), "214 facts remembered")
+        self.assertEqual(self._header(), "114 facts remembered")
         self.assertEqual(self._list_rows(), 114)
-        self.assertEqual(self._card_rows(), 100)
-        self._assert_header_equals_rows()
+        self.assertEqual(self._card_rows(), 114)
+        self._assert_header_counts_unique_facts()
 
     def test_forget_learned_updates_header_without_reshow(self):
         # The second E-F204 hole: forgetting from the card left the
         # header (and the list) stale until the next page show.
+        # Hunt fix (c) header round: 1 general + 2 learned = 3
+        # unique facts; after forgetting one learned fact, 2.
+        # (The widened card shows 3 rows, then 2 — its rows do
+        # not add to the header.)
         self._store.save_fact("general", "Favourite drink", "Masala tea")
         self.assertEqual(self._teach(LEARN_SENTENCES[:2]), 2)
         self._show_memory()
-        self.assertEqual(self._header(), "5 facts remembered")
+        self.assertEqual(self._header(), "3 facts remembered")
         facts = self._learn.get_learned_facts()
         self.assertEqual(len(facts), 2)
         self.window._forget_learned_fact(facts[0]["id"],
                                          facts[0]["display"])
         self.app.processEvents()
-        self.assertEqual(self._header(), "3 facts remembered")
+        self.assertEqual(self._header(), "2 facts remembered")
         self.assertEqual(self._list_rows(), 2)
-        self.assertEqual(self._card_rows(), 1)
-        self._assert_header_equals_rows()
+        self.assertEqual(self._card_rows(), 2)
+        self._assert_header_counts_unique_facts()
 
     def test_forget_all_learned_updates_header(self):
+        # Hunt fix (c) header round: 1 general + 2 learned = 3
+        # unique facts; after the bulk forget (learned-only) the
+        # 1 general fact remains, so the header reads 1.
         self._store.save_fact("general", "Favourite drink", "Masala tea")
         self.assertEqual(self._teach(LEARN_SENTENCES[:2]), 2)
         self._show_memory()
-        self.assertEqual(self._header(), "5 facts remembered")
+        self.assertEqual(self._header(), "3 facts remembered")
         # Two-tap bulk forget: first tap arms, second erases.
         self.window._forget_all_learned()
         self.window._forget_all_learned()
         self.app.processEvents()
         self.assertEqual(self._header(), "1 fact remembered")
         self.assertEqual(self._list_rows(), 1)
-        self.assertEqual(self._card_rows(), 0)
-        self._assert_header_equals_rows()
+        self.assertEqual(self._card_rows(), 1)
+        self._assert_header_counts_unique_facts()
 
     def test_search_names_shown_rows(self):
         self._seed_hand_saved(14)
@@ -438,9 +491,11 @@ class HeaderCountTests(WindowBase):
         self.window.mem_search.setText("dentist")
         self.app.processEvents()
         # The list narrows to the Dentist row; the card still shows
-        # the (unmatching) learned row — 2 rows shown of 16.
-        self.assertEqual(self._header(), "2 of 16 facts shown")
-        self._assert_header_equals_rows()
+        # all 15 user facts (unfiltered) — but the header counts
+        # unique facts, so 1 shown of 15. The old E-F204 rule
+        # read "16 of 30" here.
+        self.assertEqual(self._header(), "1 of 15 facts shown")
+        self._assert_header_counts_unique_facts()
 
     def test_category_learned_names_shown_rows(self):
         self._seed_hand_saved(14)
@@ -451,8 +506,11 @@ class HeaderCountTests(WindowBase):
         self.assertGreaterEqual(idx, 0, "no 'learned' category")
         combo.setCurrentIndex(idx)
         self.app.processEvents()
-        self.assertEqual(self._header(), "2 of 16 facts shown")
-        self._assert_header_equals_rows()
+        # The list narrows to the 1 learned row; the card still
+        # shows all 15 user facts — but the header counts unique
+        # facts, so 1 shown of 15.
+        self.assertEqual(self._header(), "1 of 15 facts shown")
+        self._assert_header_counts_unique_facts()
 
     def test_no_learning_module_counts_store_only(self):
         # _learned_fact_count is guarded: no module means zero
@@ -468,11 +526,13 @@ class HeaderCountTests(WindowBase):
     def test_web_view_names_fact_nodes_real_path(self):
         # The filed hole: List said 30 (correct), Web kept 30 over
         # a web showing 22 fact nodes. In Web view the header names
-        # the web's fact nodes.
+        # the web's fact nodes. Hunt fix (c) header round: the
+        # List header is 22 unique facts; the Web header is still
+        # 22 fact nodes.
         self._seed_hand_saved(14)
         self.assertEqual(self._teach(LEARN_SENTENCES), 8)
         self._show_memory()
-        self.assertEqual(self._header(), "30 facts remembered")
+        self.assertEqual(self._header(), "22 facts remembered")
         self._show_web()
         self.assertEqual(self._header(), "22 facts remembered")
         self.assertEqual(self._web_nodes(), 22)
@@ -482,7 +542,9 @@ class HeaderCountTests(WindowBase):
         self.window._learning_module = lambda: _FakeLearning(
             LEARNED_FIXTURES)
         self._show_memory()
-        self.assertEqual(self._header(), "22 facts remembered")
+        # The List header counts stored facts only (14 — see the
+        # section-E staging-seam note above).
+        self.assertEqual(self._header(), "14 facts remembered")
         self._show_web()
         # The web reads the store, so the 8 learned facts outside
         # it are not nodes: 14 nodes, header 14.
@@ -490,15 +552,17 @@ class HeaderCountTests(WindowBase):
         self.assertEqual(self._web_nodes(), 14)
 
     def test_web_view_header_follows_switches(self):
+        # Hunt fix (c) header round: the List header is 22 unique
+        # facts; the Web header is still 22 fact nodes.
         self._seed_hand_saved(14)
         self.assertEqual(self._teach(LEARN_SENTENCES), 8)
         self._show_memory()
-        self.assertEqual(self._header(), "30 facts remembered")
+        self.assertEqual(self._header(), "22 facts remembered")
         self._show_web()
         self.assertEqual(self._header(), "22 facts remembered")
         self.window._set_memory_view("list")
         self._pump(0.3)
-        self.assertEqual(self._header(), "30 facts remembered")
+        self.assertEqual(self._header(), "22 facts remembered")
         self._show_web()
         self.assertEqual(self._header(), "22 facts remembered")
 
@@ -520,13 +584,15 @@ class HeaderCountTests(WindowBase):
         # 100 learned + 14 hand-saved in the store: the web caps
         # each category at 40 nodes, so it shows 54 fact nodes
         # (40 learned + 14 hand-saved) — the header names the nodes
-        # on the page, not the 114 store total.
+        # on the page, not the 114 store total. Hunt fix (c)
+        # header round: the List header is 114 unique facts; the
+        # Web header is still 54 nodes.
         self._seed_hand_saved(14)
         for i in range(100):
             self.assertTrue(self._store.save_fact(
                 "learned", f"fact {i + 1}", f"value {i + 1}"))
         self._show_memory()
-        self.assertEqual(self._header(), "214 facts remembered")
+        self.assertEqual(self._header(), "114 facts remembered")
         self._show_web()
         self.assertEqual(self._header(), "54 facts remembered")
         self.assertEqual(self._web_nodes(), 54)
@@ -538,7 +604,9 @@ class HeaderCountTests(WindowBase):
                   for i in range(100)]
         self.window._learning_module = lambda: _FakeLearning(stress)
         self._show_memory()
-        self.assertEqual(self._header(), "114 facts remembered")
+        # The List header counts stored facts only (14 — see the
+        # section-E staging-seam note above).
+        self.assertEqual(self._header(), "14 facts remembered")
         self._show_web()
         self.assertEqual(self._header(), "14 facts remembered")
         self.assertEqual(self._web_nodes(), 14)

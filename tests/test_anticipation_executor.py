@@ -166,11 +166,11 @@ class AnticipationExecutorTests(unittest.TestCase):
         self.assertIn("run_anticipation_routine", DESKTOP_TOOL_PRIORITY)
         self.assertIn("run_anticipation_routine", CORE_TOOL_PRIORITY)
 
-    def test_tool_in_mind_group_snapshot_without_drift(self):
+    def test_tool_in_intelligence_group_snapshot_without_drift(self):
         from core import catalogue_groups_data
         from core import catalogue_snapshot
         self.assertIn("run_anticipation_routine",
-                      catalogue_groups_data.GROUP_MEMBERS["Mind"])
+                      catalogue_groups_data.GROUP_MEMBERS["Intelligence"])
         self.assertEqual(catalogue_snapshot.GROUP_MEMBERS,
                          catalogue_groups_data.GROUP_MEMBERS)
 

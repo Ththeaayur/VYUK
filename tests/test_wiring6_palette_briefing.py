@@ -176,9 +176,14 @@ class LoopRowTests(unittest.TestCase):
         # gui/window_shell_sidebar.py:295; stack still
         # unrenumbered.) Stage 0 features batch 1 (Group D)
         # adds the four views at stack 8–11.
+        # UI Phase 2 (2026-11-25): Skills takes index 3 again
+        # under CAPABILITIES — the map is the fifteen-button
+        # value asserted below.
+        # UI Phase 5 (2026-11-27): Notes / Finance / Devices take
+        # stack 12–14, before the footer Settings (stack 4).
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
         shell = (_ROOT / "gui" / "window_shell_sidebar.py").read_text()
-        self.assertIn("_nav_page_indices = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4]",
+        self.assertIn("_nav_page_indices = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 4]",
                       shell)
 
 

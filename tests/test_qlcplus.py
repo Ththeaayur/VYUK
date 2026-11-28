@@ -573,7 +573,7 @@ class StageLightingTest(unittest.TestCase):
                 (action, args))
 
     def test_catalogue_membership(self):
-        self.assertIn("stage_lighting", GROUP_MEMBERS["Hands & eyes"])
+        self.assertIn("stage_lighting", GROUP_MEMBERS["Desktop control"])
         text = (TREE / "core" / "catalogue_groups_data.py").read_text()
         self.assertIn('"game_server", "stage_lighting", "drag_mouse"', text)
 

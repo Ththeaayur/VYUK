@@ -383,7 +383,7 @@ class BrowserHistoryWiringTests(unittest.TestCase):
 
         root = Path(__file__).resolve().parent.parent
         for name in ("browser_history", "browser_bookmarks"):
-            self.assertIn(name, snap_groups.get("Web", ()))
+            self.assertIn(name, snap_groups.get("Browser & web", ()))  # UI Phase 2 (2026-11-25): group renamed "Web" -> "Browser & web"
         source = (root / "core" / "catalogue_groups_data.py").read_text(
             encoding="utf-8"
         )
@@ -398,7 +398,7 @@ class BrowserHistoryWiringTests(unittest.TestCase):
                     gui_groups = ast.literal_eval(node.value)
         self.assertIsNotNone(gui_groups)
         for name in ("browser_history", "browser_bookmarks"):
-            self.assertIn(name, gui_groups.get("Web", ()))
+            self.assertIn(name, gui_groups.get("Browser & web", ()))  # UI Phase 2 (2026-11-25): group renamed "Web" -> "Browser & web"
         snap = json.load(open("tests/_classification_snapshot.json"))
         self.assertEqual(
             snap["browser_history"], {"confirm": False, "free": None, "read": True}

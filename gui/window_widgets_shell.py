@@ -270,6 +270,11 @@ class AppShell(QWidget):
         self._glow_color = QColor(ACCENT)
         self._glow_strength = 0.15
         self._glow_center = None
+        # UI Phase 1 (plan §5): OFF is Minimal profile only —
+        # the room's ambient glow is off under Minimal. The
+        # flag is driven by _apply_hud_profile; default on so
+        # an undriven shell paints exactly as before.
+        self._glow_enabled = True
         self._noise = self._make_noise()
         # Stage 0 features batch 5 (light theme): the shell fill,
         # edge line and bracket ticks follow the theme chrome.
@@ -284,6 +289,15 @@ class AppShell(QWidget):
         # (the window is already translucent-frameless, so the
         # desktop ghosts through) and the edge pen firms up.
         self._glass = False
+        # UI Phase 1 — Home ambient background (ruling 2026-11-24,
+        # supersedes "Home gets NO HudBackdrop"). When the Home
+        # page is active, the shell fill shifts to the reference's
+        # teal-black far bg and a subtle vignette darkens the
+        # edges; the orb's own teal glow (set_glow, centred on the
+        # orb) is the radial gradient. Off on every other page.
+        self._home_bg = False
+        self._home_fill = QColor("#0D161B")
+        self._home_vignette = QColor("#0F2027")
 
     @staticmethod
     def _make_noise() -> QPixmap:
@@ -305,6 +319,15 @@ class AppShell(QWidget):
         self._glow_strength = max(0.0, min(strength, 1.0))
         if center is not None:
             self._glow_center = center
+        self.update()
+
+    def set_glow_enabled(self, enabled: bool) -> None:
+        """UI Phase 1 (plan §5): the ambient glow's OFF switch.
+        Minimal turns the room glow off; every other profile
+        leaves it on. The orb's own local atmosphere (painted
+        by the visualizer, radius R x 1.6) is untouched — only
+        the room-wide wash goes away."""
+        self._glow_enabled = bool(enabled)
         self.update()
 
     def set_chrome(self, bg_hex: str, accent_hex: str) -> None:
@@ -332,6 +355,42 @@ class AppShell(QWidget):
         fill alpha and the border pen change; everything else in
         the paint pass is shared with the opaque path."""
         self._glass = bool(enabled)
+        self.update()
+
+    def set_home_background(self, enabled: bool,
+                            base_hex: str | None = None) -> None:
+        """UI Phase 1 (ruling 2026-11-24): Home's ambient
+        background. Enabled: the shell fill becomes the
+        reference's ambient background and the paint pass adds
+        the subtle vignette; the orb's teal glow is the radial
+        gradient (set_glow, centred on the orb). The fill is
+        theme-aware — teal-black (#0D161B) on a dark theme, a
+        light teal tint (#E9F3F3) on a light theme (base_hex
+        luminance decides). Disabled: the fill returns to the
+        theme base (base_hex, or the house BG) and the vignette
+        goes away. No grid, no scanlines on Home."""
+        self._home_bg = bool(enabled)
+        if enabled:
+            base = base_hex or "#04090E"
+            try:
+                c = QColor(base)
+                lum = (0.299 * c.red() + 0.587 * c.green()
+                       + 0.114 * c.blue()) / 255.0
+            except Exception:  # noqa: BLE001
+                lum = 0.0
+            if lum > 0.5:
+                self._fill = QColor("#E9F3F3")
+                self._home_vignette = QColor("#C9DCDC")
+            else:
+                self._fill = QColor("#0D161B")
+                self._home_vignette = QColor("#0F2027")
+        elif base_hex:
+            try:
+                self._fill = QColor(base_hex)
+            except Exception:  # noqa: BLE001
+                self._fill = QColor(BG)
+        else:
+            self._fill = QColor(BG)
         self.update()
 
     def paintEvent(self, event):
@@ -364,12 +423,44 @@ class AppShell(QWidget):
         painter.save()
         painter.setClipPath(path)
         gx = self._glow_center.x() if self._glow_center else rect.width() * 0.62
-        gy = self._glow_center.y() if self._glow_center else 300
-        glow = QRadialGradient(gx, gy, 560)
+        gy = self._glow_center.y() if self._glow_center else rect.height() * 0.38
+        # UI Phase 1 (R2, leg 64): the room light's radius follows
+        # the window — a fixed 560 px glow is too small on a big
+        # window and too big on a small one. The glow is the orb
+        # lighting the room, centred on the orb's live position.
+        glow_r = max(w, h) * 0.45
+        glow = QRadialGradient(gx, gy, glow_r)
         c = self._glow_color
-        glow.setColorAt(0.0, QColor(c.red(), c.green(), c.blue(), int(16 + self._glow_strength * 34)))
+        # The ambient glow must be VISIBLE by eye at 1280 (parent
+        # by-eye fix, 2026-11-24): the old centre alpha was
+        # 16 + strength*34 — at idle (strength ~0.24) that is 24
+        # (9%), invisible against the teal-black fill. The new
+        # range is 48 + strength*80: idle ~67 (26%, a soft teal
+        # halo around the orb), full speaking ~128 (50%). The
+        # glow is the orb's light (one lamp); the vignette below
+        # is only the edge falloff.
+        glow.setColorAt(0.0, QColor(c.red(), c.green(), c.blue(), int(110 + self._glow_strength * 110)))
+        glow.setColorAt(0.5, QColor(c.red(), c.green(), c.blue(), int((110 + self._glow_strength * 110) * 0.45)))
         glow.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(rect, glow)
+        # Plan §5: OFF is Minimal only — the room glow does not
+        # paint under Minimal (driven by _apply_hud_profile via
+        # set_glow_enabled). The vignette below is separately
+        # gated on _home_bg, which _show_page also gates.
+        if self._glow_enabled:
+            painter.fillRect(rect, glow)
+        if getattr(self, "_home_bg", False):
+            # UI Phase 1 (ruling 2026-11-24): Home's subtle
+            # vignette — transparent over the orb's glow, darkening
+            # to the reference's edge teal-black toward the
+            # corners. The glow above is the orb's light; this is
+            # only the edge falloff, not a second light.
+            vig = QRadialGradient(gx, gy, max(w, h) * 0.75)
+            vig.setColorAt(0.0, QColor(0, 0, 0, 0))
+            vig.setColorAt(0.55, QColor(0, 0, 0, 0))
+            vcol = self._home_vignette
+            vig.setColorAt(1.0, QColor(vcol.red(), vcol.green(),
+                                       vcol.blue(), 110))
+            painter.fillRect(rect, vig)
         for x in range(0, rect.width(), 128):
             for y in range(0, rect.height(), 128):
                 painter.drawPixmap(x, y, self._noise)

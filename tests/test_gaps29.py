@@ -74,8 +74,11 @@ except Exception:  # noqa: BLE001 — Qt optional, skip Qt-only tests
 
 
 _PLUGIN_TOOLS = ("get_crypto_price", "get_stock_quote")
-_FALLBACK_TOOLS = ("click_anywhere", "get_crypto_price",
-                   "get_stock_quote")
+# UI Phase 2 (2026-11-25): the three tools that were ungrouped
+# before the Phase 2 catalogue fix — click_anywhere now lives in
+# "Desktop control", the two plugin tools in "More skills".
+_PRE_P2_UNGROUPED = ("click_anywhere", "get_crypto_price",
+                     "get_stock_quote")
 
 
 # ------------------------------------------------------------------ E-V1
@@ -96,10 +99,10 @@ class TestPluginCatalogue(unittest.TestCase):
         widget = build_skills_catalog(self._decls(),
                                       _TOOL_FRIENDLY_NAMES)
         names = widget.tool_names()
-        for name in _FALLBACK_TOOLS:
+        for name in _PRE_P2_UNGROUPED:
             self.assertIn(name, names)
         counts = widget.group_counts()
-        self.assertEqual(counts.get("More skills"), 3)
+        self.assertEqual(counts.get("More skills"), 2)
         self.assertEqual(widget.total_count, 772)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_galaxy_includes_plugin_tools(self):
@@ -107,19 +110,20 @@ class TestPluginCatalogue(unittest.TestCase):
         from gui.window_widgets_toolnames import _TOOL_FRIENDLY_NAMES
         data = build_galaxy(self._decls(), _TOOL_FRIENDLY_NAMES)
         stars = {s.name: s.group for s in data.stars}
-        for name in _FALLBACK_TOOLS:
+        for name in _PLUGIN_TOOLS:
             self.assertEqual(stars.get(name), "More skills")
+        self.assertEqual(stars.get("click_anywhere"), "Desktop control")
         hubs = {h.group: h.count for h in data.hubs}
-        self.assertEqual(hubs.get("More skills"), 3)
+        self.assertEqual(hubs.get("More skills"), 2)
 
 
 class TestRouterFallback(unittest.TestCase):
-    def test_more_skills_router_holds_fallback_tools(self):
+    def test_more_skills_router_holds_plugin_tools(self):
         from core.brain.domain_routers import domain_router_membership
         from core.funnel.tools_registry import tools
         membership = domain_router_membership(tools)
         self.assertEqual(set(membership.get("route_more_skills", ())),
-                         set(_FALLBACK_TOOLS))
+                         set(_PLUGIN_TOOLS))
 
 
 # ------------------------------------------------------------------ E-V2
@@ -330,9 +334,8 @@ class TestToolPlacement(unittest.TestCase):
         result = check_tool_placement(tools, plugin_names)
         self.assertTrue(result["ok"], result["problems"])
         self.assertEqual(result["checked"]["registered"], 772)  # INTENTIONAL — field-check fix #32 (2026-11-18): 755 -> 756 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 756 -> 757 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 757 -> 758 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 758 -> 762 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
-        self.assertEqual(result["checked"]["grouped"], 769)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 755 -> 759 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
-        self.assertEqual(result["checked"]["ungrouped"],
-                         list(_FALLBACK_TOOLS))
+        self.assertEqual(result["checked"]["grouped"], 772)  # INTENTIONAL — field-check fix #32 (2026-11-18): 752 -> 753 — one new tool run_anticipation_routine; round-3 fix #4 (2026-11-19): 753 -> 754 — one new tool run_plan; round-3 fix Q6 (2026-11-19): 754 -> 755 — one new tool get_morning_briefing; Stage 0 features batch 2 (Group E, 2026-11-22): 755 -> 759 — find_free_slots, snooze_email, cancel_calendar_event, reschedule_calendar_event added; Stage 0 features batch 3 (2026-11-22): census 762/2095/384/378/169 -> 764/2102/384/380/169; Stage 0 features batch 4 (2026-11-22): census 764/2102/384/380/169 -> 769/2121/384/385/169; Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170; UI Phase 2 (2026-11-25): grouped 769 -> 772 — click_anywhere + 2 plugin tools join the catalogue
+        self.assertEqual(result["checked"]["ungrouped"], [])
         self.assertTrue(result["checked"]["snapshot_in_sync"])
 
     def test_placement_flags_unclassified_and_ungrouped(self):
@@ -353,21 +356,18 @@ class TestToolPlacement(unittest.TestCase):
         self.assertIn("zz_no_such_tool", joined)
         self.assertNotIn("get_current_time_date", joined)
 
-    def test_placement_uses_plugin_names(self):
-        # A plugin tool is ungrouped by nature (dynamic, not in
-        # the static table): the live registry passes exactly
-        # when the caller passes the plugin names, and fails
-        # naming them when the caller does not.
+    def test_placement_passes_with_or_without_plugin_names(self):
+        # UI Phase 2 (2026-11-25): the two plugin tools are now
+        # grouped explicitly in "More skills" (and click_anywhere
+        # in "Desktop control"), so the live registry passes with
+        # or without the plugin names — nothing is ungrouped.
         from core.funnel.tools_registry import tools
         from core.tool_placement import check_tool_placement
-        allowed = check_tool_placement(
-            tools, {"get_crypto_price", "get_stock_quote"})
-        self.assertTrue(allowed["ok"], allowed["problems"])
-        flagged = check_tool_placement(tools, set())
-        self.assertFalse(flagged["ok"])
-        joined = " ".join(flagged["problems"])
-        self.assertIn("get_crypto_price", joined)
-        self.assertIn("get_stock_quote", joined)
+        for names in ({"get_crypto_price", "get_stock_quote"}, set()):
+            result = check_tool_placement(tools, names)
+            self.assertTrue(result["ok"], result["problems"])
+            self.assertEqual(result["checked"]["grouped"], 772)
+            self.assertEqual(result["checked"]["ungrouped"], [])
 
     def test_placement_catches_snapshot_drift(self):
         from core import catalogue_snapshot

@@ -159,7 +159,7 @@ class TestConsumers2Registration(unittest.TestCase):
         for name in ("drag_drop_action", "monitor_action",
                      "journal_action"):
             self.assertIn(name, groups, name)
-            self.assertEqual(groups[name], "Hands & eyes", name)
+            self.assertEqual(groups[name], "Desktop control", name)
 
     def test_confirm_classification(self):
         self.assertIn("drag_drop_action", _CONFIRM_GATE_TOOLS)

@@ -8,6 +8,10 @@ Chat pass (2026-11-17): the sidebar is v6.3 again — section
 labels back, the Build 3 Skills button gone (Skills is Ctrl+K-only
 as in v6.3); the rest of Build 3 stands.
 
+UI Phase 2 (2026-11-25): Skills gains its own sidebar button
+again (CAPABILITIES section, stack 3, "shapes" icon) — the
+palette-only shape is gone; the rest stands.
+
 Window tests need Qt (the real MainWindow offscreen, via the
 chat-ui WindowBase harness); the strip derivation is pure but
 lives in a Qt module, so it is gated the same way.
@@ -167,7 +171,7 @@ class TestBuild3Window(WindowBase):
         self.app.processEvents()
 
     # ------------------------------------------------------------ sidebar
-    def test_eleven_nav_buttons_in_v63_order_with_labels(self):
+    def test_fifteen_nav_buttons_in_v63_order_with_labels(self):
         # Chat pass (2026-11-17): the sidebar is v6.3 again — seven
         # buttons in v6.3 order, section labels back, the Build 3
         # Skills button gone (Skills is Ctrl+K-only, as in v6.3).
@@ -176,6 +180,12 @@ class TestBuild3Window(WindowBase):
         # Contacts, Calls) join before Settings under a new
         # VIEWS section label; the v6.3 seven keep their order
         # and Settings stays last. Skills is still Ctrl+K-only.
+        # INTENTIONAL UPDATE (UI Phase 2, 2026-11-25): twelve
+        # buttons — Skills gains its own button under a new
+        # CAPABILITIES section label after Memory.
+        # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): fifteen
+        # buttons — Notes, Finance and Devices join as first-class
+        # workspaces before Settings under the WORKSPACES section.
         # Stage 0 features batch 5: the labels are a comfort-width
         # property — offscreen the window opens at 760 (compact),
         # where the sidebar is the 64 px icon rail and the labels
@@ -186,9 +196,10 @@ class TestBuild3Window(WindowBase):
         self.app.processEvents()
         labels = [b.text() for b in self.window.nav_buttons]
         self.assertEqual(labels, ["Home", "Activity", "Memory",
-                                  "System Pulse", "Senses", "Doctor",
-                                  "Calendar", "Inbox", "Contacts",
-                                  "Calls", "Settings"])
+                                  "Skills", "System Pulse", "Senses",
+                                  "Doctor", "Calendar", "Inbox",
+                                  "Contacts", "Calls", "Notes",
+                                  "Finance", "Devices", "Settings"])
         self.assertEqual(self.window.nav_buttons[-1].text(), "Settings")
         from PySide6.QtWidgets import QLabel
 
@@ -197,15 +208,22 @@ class TestBuild3Window(WindowBase):
         # the privacy card title.
         inner = self.window.nav_buttons[0].parentWidget()
         seen = {lbl.text() for lbl in inner.findChildren(QLabel)}
-        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM", "VIEWS"):
+        # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+        # section is WORKSPACES now.
+        for label in ("CORE", "MISSION", "ARCHIVE", "CAPABILITIES",
+                      "SYSTEM", "WORKSPACES"):
             self.assertIn(label, seen,
                           "a v6.3 section label is missing")
-        self.assertNotIn("Skills", labels)
+        self.assertIn("Skills", labels)
 
     def test_nav_accessible_descriptions_v63(self):
+        # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): fifteen
+        # buttons — Notes, Finance and Devices join before
+        # Settings under the WORKSPACES section.
         expected = ["Show the Home page",
                     "Show the Activity page",
                     "Show the Memory page",
+                    "Show the Skills page",
                     "Show the System Pulse page",
                     "Show the Senses page",
                     "Show the Doctor page",
@@ -213,30 +231,42 @@ class TestBuild3Window(WindowBase):
                     "Show the Inbox page",
                     "Show the Contacts page",
                     "Show the Calls page",
+                    "Show the Notes page — your notes, on this machine",
+                    "Show the Finance page — money you record yourself",
+                    "Show the Devices page — your home hub, on your network",
                     "Show the Settings page"]
         got = [b.accessibleDescription()
                for b in self.window.nav_buttons]
         self.assertEqual(got, expected)
 
-    def test_skills_reachable_via_palette_not_sidebar(self):
-        # Chat pass (2026-11-17): Skills has no sidebar button
-        # (v6.3 shape) but stays one Ctrl+K palette row away.
+    def test_skills_reachable_via_palette_and_sidebar(self):
+        # UI Phase 2 (2026-11-25): Skills has its own sidebar
+        # button (nav_buttons[3], CAPABILITIES) AND stays one
+        # Ctrl+K palette row away — the palette row label now
+        # carries the live capability count.
+        # Button labels are a comfort-width property: establish
+        # 1280 first (offscreen the window opens at 760, where
+        # the sidebar is the 64 px icon rail and labels hide).
+        self.window.resize(1280, 800)
+        self.app.processEvents()
+        self.window._fix_chat_width()
+        self.app.processEvents()
         labels = [b.text() for b in self.window.nav_buttons]
-        self.assertNotIn("Skills", labels)
+        self.assertIn("Skills", labels)
         from gui.window_widgets_palette import CommandPalette
 
         palette = CommandPalette(self.window)
         try:
             commands = palette._build_commands()
             skills = [c for c in commands
-                      if c["label"] == "Go to Skills"]
+                      if c["label"].startswith("Go to Skills")]
             self.assertEqual(len(skills), 1,
                              "the palette lost its Go to Skills row")
             skills[0]["action"]()
             self.app.processEvents()
             self.assertEqual(self.window.pages.currentIndex(), 3)
-            self.assertFalse(
-                any(b.isChecked() for b in self.window.nav_buttons))
+            # The Skills button highlights on its own page.
+            self.assertTrue(self.window.nav_buttons[3].isChecked())
             self.window.nav_buttons[0].click()
             self.app.processEvents()
             self.assertEqual(self.window.pages.currentIndex(), 0)
@@ -291,8 +321,29 @@ class TestBuild3Window(WindowBase):
         # calendar-aware quiet, on the Voice page after Whisper
         # hours). The live window's sectionTitle labels list
         # all 36.
+        # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27):
+        # 37, not 36. +1 "Home hub" (D-P5-15, the Home Assistant
+        # connection card in Connections). The live window's
+        # sectionTitle labels list all 37.
+        # INTENTIONAL UPDATE (UI Phase 6, 2026-11-27):
+        # 40, not 37. +3 — not new cards, but cards the harness
+        # now BUILDS: "Theme packs" and "Settings store"
+        # (window_settings_advcards.py, both inside try blocks
+        # that import w9_wiring from the facade) and "Your stored
+        # facts" (pf_privacy.py). Their construction imports
+        # core names (w9_wiring -> core/memory -> MemoryStore)
+        # that the OLD harness shim stubbed out (see D-03), so
+        # the try blocks silently skipped them and the window
+        # showed 37. The D-03 enriched shim copies the real
+        # core.memory.memory / core.scheduler names onto the
+        # stub, so the imports succeed and the three cards
+        # build. Proven: prescratch with the live
+        # test_chat_ui.py (enriched shim) also reads 40, while
+        # prescratch with its own test_chat_ui.py reads 37 —
+        # the product code is identical; the shim is the cause.
+        # The live window's sectionTitle labels list all 40.
         self._show_settings()
-        self.assertEqual(len(self.window._settings_card_texts), 36)
+        self.assertEqual(len(self.window._settings_card_texts), 40)
         from PySide6.QtWidgets import QLabel
 
         titles = {lbl.text() for lbl in
@@ -302,6 +353,7 @@ class TestBuild3Window(WindowBase):
                          "the explained card survives Build 3")
         self.assertIn("Remembered approvals", titles)
         self.assertIn("Quiet hours", titles)
+        self.assertIn("Home hub", titles)
 
     def test_approvals_card_names_always_allow(self):
         self._show_settings()

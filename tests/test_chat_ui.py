@@ -632,6 +632,33 @@ class WindowBase(unittest.TestCase):
         _stub("voice_assistant.core.plugin_loader",
               discover_plugins=lambda *a, **k: [])
         _stub("voice_assistant.core.scheduler", scheduler=_Fake())
+        # D-03 (UI Phase 6): enrich the two stubs with the real
+        # modules' public names (bare core.* path) — the P2WindowBase
+        # pattern (tests/test_ui_p2.py), moved to the base so every
+        # WindowBase suite stops printing the three boot import
+        # warnings. The base stubs exposed only memory_store /
+        # scheduler, so the tools handlers could not import
+        # as_user_note (Skills catalogue unavailable), the facade
+        # could not resolve migrate_legacy_briefing_records
+        # (briefing migration skipped), and the memory package
+        # __init__ could not re-export MemoryStore (retention tick
+        # failed) — all three are the stub, not the product. The
+        # fakes stay for the isolated names (memory_store, scheduler);
+        # the plugin_loader stub is popped so the real loader runs
+        # (the 2 plugin tools are part of the 772 census).
+        from core.memory import memory as _real_mem
+        _mem_stub = sys.modules["voice_assistant.core.memory.memory"]
+        for _name in dir(_real_mem):
+            if _name.startswith("_") or _name == "memory_store":
+                continue
+            setattr(_mem_stub, _name, getattr(_real_mem, _name))
+        from core import scheduler as _real_sched
+        _sched_stub = sys.modules["voice_assistant.core.scheduler"]
+        for _name in dir(_real_sched):
+            if _name == "scheduler":
+                continue
+            setattr(_sched_stub, _name, getattr(_real_sched, _name))
+        sys.modules.pop("voice_assistant.core.plugin_loader", None)
         _stub("voice_assistant.core.memory.session_summary",
               generate_session_summary=lambda *a, **k: None,
               save_session_summary=lambda *a, **k: None)
@@ -714,6 +741,18 @@ class WindowBase(unittest.TestCase):
                 pass
         self._disconnect_fake_live()
         self._teardown_shim()
+        # D-01 (Phase 6): the state bus is a process-wide singleton
+        # and the window's strips/rails subscribe to it — reset it
+        # here so a dead window's subscriptions cannot leak into
+        # the next test's window (the contract
+        # core/state_bus.reset_state_bus documents). The window is
+        # already closed and pumped above, so no in-flight drain
+        # can be using the old bus.
+        try:
+            from voice_assistant.core.state_bus import reset_state_bus
+            reset_state_bus()
+        except Exception:  # noqa: BLE001 — isolation is best-effort
+            pass
         if self._orig_xdg is None:
             os.environ.pop("XDG_CONFIG_HOME", None)
         else:
@@ -1363,15 +1402,20 @@ class WindowComposerTests(WindowBase):
         self.assertEqual(len(self.window._chat_queue), 2)
 
     def test_composer_placeholder_invites_typing_or_the_mic(self):
-        # E-F103 (2026-11-20): the copy shortened from "Type, or
-        # hold the mic to speak" (195 px in Sora 13 px — it
-        # wrapped to a hidden second line and read "Type, or" at
-        # every width) to "Type, or hold mic" (112 px), which reads
-        # whole at every width once the narrow rule gives the input
-        # room. Both actions and the mic instruction survive.
+        # Step 2 F3 (parent-ruled 2026-11-28): the steady state
+        # is "Ask anything", pinned by Phase 1 leg-57
+        # (tests/test_scifi_home.py::test_transcript_did_not_regress
+        # — "the old 'Type, or hold mic' copy is gone"); the
+        # R6 sync (_sync_composer_placeholder) deliberately
+        # overwrites it on build/resize/telemetry. The E-F103
+        # copy ("Type, or hold mic", shortened 2026-11-20 from
+        # "Type, or hold the mic to speak" so it read whole at
+        # every width) survives only as a transient build value
+        # in window_shell_assistant.py — the chat_ui test pinned
+        # that transient, not the steady state. Product unchanged.
         self.assertEqual(
             self.window.input_cmd.placeholderText(),
-            "Type, or hold mic")
+            "Ask anything")
 
 
 # ------------------------------------------------------------------ Qt: find/history

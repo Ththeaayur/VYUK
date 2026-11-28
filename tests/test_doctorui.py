@@ -133,7 +133,10 @@ class _FakeGate:
             "Fence: no auto-resume without explicit human re-arm",
             "Fence: durability outside the executor",
             "Pilot-only (owed licence reads): APSW, Litestream",
-            "NOT claimed: a kill drill on the owner's machine",
+            # Fix round (F-04, 2026-11-26): the field-proof line
+            # reads in the parent's plain wording now.
+            "Still owed on your machine: a kill drill — your run, "
+            "your verdict",
             "Last trip: none recorded in this session",
         ]
 
@@ -359,6 +362,22 @@ class TestDoctorWorkerStop(unittest.TestCase):
         self._saved_doctor = sys.modules.get("voice_assistant.doctor",
                                              None)
         self._had_doctor = "voice_assistant.doctor" in sys.modules
+        # Fix round (F-P4-03, 2026-11-26): the Doctor page now
+        # imports the real doctor module at construction (tile
+        # counts), which ALSO binds it as the `doctor` attribute
+        # on the voice_assistant package — and `from
+        # voice_assistant import doctor` answers from that
+        # attribute first, never consulting sys.modules. A fake
+        # installed only in sys.modules is therefore invisible
+        # to the worker whenever a real page was built earlier in
+        # the process (the full suite failed exactly this way
+        # while the single test passed). Save the attribute too,
+        # and install the fake on both.
+        _pkg = sys.modules.get("voice_assistant")
+        self._had_pkg_doctor = (
+            _pkg is not None and hasattr(_pkg, "doctor"))
+        self._saved_pkg_doctor = (
+            getattr(_pkg, "doctor", None) if _pkg is not None else None)
         self._tmp = None
 
     def tearDown(self):
@@ -366,11 +385,20 @@ class TestDoctorWorkerStop(unittest.TestCase):
             sys.modules["voice_assistant.doctor"] = self._saved_doctor
         else:
             sys.modules.pop("voice_assistant.doctor", None)
+        _pkg = sys.modules.get("voice_assistant")
+        if _pkg is not None:
+            if self._had_pkg_doctor:
+                _pkg.doctor = self._saved_pkg_doctor
+            elif hasattr(_pkg, "doctor"):
+                delattr(_pkg, "doctor")
         if self._tmp is not None:
             self._tmp.cleanup()
 
     def _install_doctor(self, module):
         sys.modules["voice_assistant.doctor"] = module
+        _pkg = sys.modules.get("voice_assistant")
+        if _pkg is not None:
+            _pkg.doctor = module
 
     def test_stop_kills_the_child_process_and_ends_the_thread(self):
         import tempfile

@@ -261,13 +261,21 @@ class TestCompactTier(unittest.TestCase):
         self.assertIn("allow_row = FlowLayout(spacing=6)", groups)
 
     def test_contacts_empty_state_wraps(self):
-        # Re-render find: the Contacts empty-state item is a
+        # Re-render find: the Contacts empty-state item was a
         # 70-char single line and the list clipped it
         # mid-sentence; the Inbox list already wraps, Contacts
         # must too.
+        # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+        # names-list is a card grid now — there is no list to
+        # wrap. The empty state is a dedicated EmptyState
+        # (sentence + suggested task + Add contact action), and
+        # the wrap lives in that component: its sentence label
+        # word-wraps by construction.
         views = _read("window_pages_views.py")
         self.assertIn(
-            "self._views_contacts_list.setWordWrap(True)", views)
+            "self._views_contacts_empty = EmptyState(", views)
+        empty = _read("design_system/empty.py")
+        self.assertIn("self._sentence.setWordWrap(True)", empty)
 
 
 class TestCompactSplitterMechanism(unittest.TestCase):
@@ -336,8 +344,11 @@ class TestVerbosity(unittest.TestCase):
         # Stage 0 features batch 6: 112 -> 113 fields, 107 -> 108
         # env-backed (calendar_quiet_enabled,
         # VYUK_CALENDAR_QUIET_ENABLED).
-        self.assertEqual(len(fields), 113)
-        self.assertEqual(len(env_backed), 108)
+        # UI upgrade Phase 1 (2026-11-24): 113 -> 115 fields, 108 -> 110
+        # env-backed (home_city, VYUK_HOME_CITY; hud_profile,
+        # VYUK_HUD_PROFILE).
+        self.assertEqual(len(fields), 115)
+        self.assertEqual(len(env_backed), 110)
 
     def test_directives(self):
         self.assertNotEqual(
@@ -418,7 +429,7 @@ class TestCensusUnmoved(unittest.TestCase):
             if d.get("parameters", {}).get("additionalProperties")
             is False)
         self.assertEqual(total_params, 2126)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
-        self.assertEqual(grouped, 769)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
+        self.assertEqual(grouped, 772)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170; UI Phase 2 (2026-11-25): grouped 769 -> 772 — click_anywhere + 2 plugin tools join the catalogue
         self.assertEqual(closed, 771)  #Darwin D1 (2026-11-23): census 769/2121/384/385/169 -> 772/2126/386/386/170
 
     def test_section_2c_rows_labels(self):

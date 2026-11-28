@@ -569,13 +569,13 @@ class RegistryTests(unittest.TestCase):
         for name in self.NAMES:
             self.assertIn(name, names)
 
-    def test_tools_grouped_in_web(self):
+    def test_tools_grouped_in_browser_and_web(self):
         # core snapshot (importable anywhere) + the GUI catalogue
         # (read via AST — gui needs PySide6, absent on system
         # python3; the test_domain_routers.py pattern).
         import ast
         from core.catalogue_snapshot import GROUP_MEMBERS as snap_groups
-        snap_web = snap_groups.get("Web", ())
+        snap_web = snap_groups.get("Browser & web", ())  # UI Phase 2 (2026-11-25): group renamed "Web" -> "Browser & web"
         for name in self.NAMES:
             self.assertIn(name, snap_web)
         source = (ROOT / "core" / "catalogue_groups_data.py").read_text(
@@ -590,7 +590,7 @@ class RegistryTests(unittest.TestCase):
                         targets[0], "id", "") == "GROUP_MEMBERS":
                     gui_groups = ast.literal_eval(node.value)
         self.assertIsNotNone(gui_groups)
-        web = gui_groups.get("Web", ())
+        web = gui_groups.get("Browser & web", ())  # UI Phase 2 (2026-11-25): group renamed "Web" -> "Browser & web"
         for name in self.NAMES:
             self.assertIn(name, web)
 

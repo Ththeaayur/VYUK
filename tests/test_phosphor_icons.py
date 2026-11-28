@@ -5,23 +5,23 @@ The gap: today's icon language is single-stroke line icons —
 colour) plus a 15-SVG Lucide bundle consulted first, with 5
 names falling back to templates. No duotone anywhere. This
 batch replaces the Lucide bundle with the Phosphor Duotone
-bundle (19 SVGs, MIT) as THE primary icon system and proves:
+bundle (35 SVGs, MIT) as THE primary icon system and proves:
 
 - every icon the set claims to cover exists as a real
-  Phosphor Duotone SVG (never a placeholder): 19 files,
+  Phosphor Duotone SVG (never a placeholder): 35 files,
   viewBox 0 0 256 256, root fill currentColor, exactly 2
   paths, opacities 0.2 + 1;
 - every icon renders cleanly at 16 px (the smallest size the
   UI shows) and at 24 px: non-blank, primary + secondary
   tones both present, the secondary path contributing pixels
-  the primary-only render lacks, all 19 renders distinct;
+  the primary-only render lacks, all 35 renders distinct;
 - every icon is the theme's accent (Aura blue #35D6FF in the
   default theme) in BOTH tones — every painted pixel with
   alpha >= 32 is the accent within +-6 per channel
   (rasterizer rounding on overlapping semi-transparent paths;
   measured worst 5);
-- every surface the set claims to cover has an icon: all 20
-  call-site names resolve — 19 bundled, ``senses`` honestly
+- every surface the set claims to cover has an icon: all 24
+  call-site names resolve — 35 bundled, ``senses`` honestly
   missing from the bundle and falling back to its inline
   template (no Phosphor stem exists for the radar/sonar
   glyph — a lookalike substitution is forbidden);
@@ -38,7 +38,10 @@ secondary-path extra 4-300 (min: sliders 4); colour
 deviation +-5 max at alpha >= 32 (measured; +-7 at alpha
 >= 16 — fringe pixels carry rasterizer noise and are
 excluded). Thresholds below sit under the measured minima
-with margin.
+with margin. The four UI Phase 2 icons (shapes, heartbeat,
+address-book, phone-call) were measured 2026-11-25 and fall
+inside these ranges (16 px painted 118-160, primary 62-90,
+secondary 40-73; 24 px extra 44-130).
 
 Lab note: the offscreen QPixmap has NO alpha channel
 (hasAlphaChannel() False), so the loader's QPixmap path
@@ -60,25 +63,50 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 BUNDLE_DIR = ROOT / "gui" / "assets" / "icons" / "phosphor"
-BUNDLED = ["bell", "check", "clock", "database", "globe", "grid",
-           "mic", "minus", "monitor", "play", "pulse", "search",
-           "send", "sliders", "spark", "square", "volume",
-           "volume-off", "x"]
-STEM = {"bell": "bell", "check": "check", "clock": "clock",
-        "database": "database", "globe": "globe",
-        "grid": "grid-four", "mic": "microphone",
-        "minus": "minus", "monitor": "monitor", "play": "play",
+BUNDLED = ["address-book", "bell", "calendar", "check", "clock",
+           "cloud", "cloud-fog", "cloud-lightning", "cloud-rain",
+           "cloud-snow", "cloud-sun", "currency-dollar",
+           "database", "envelope", "globe", "grid", "heartbeat",
+           "house", "mic", "minus", "monitor", "note", "phone-call",
+           "play", "pulse", "search", "send", "shapes", "sliders",
+           "spark", "square", "sun", "volume", "volume-off", "x"]
+STEM = {"address-book": "address-book", "bell": "bell",
+        "calendar": "calendar",
+        "check": "check", "clock": "clock", "cloud": "cloud",
+        "cloud-fog": "cloud-fog",
+        "cloud-lightning": "cloud-lightning",
+        "cloud-rain": "cloud-rain", "cloud-snow": "cloud-snow",
+        "cloud-sun": "cloud-sun",
+        "currency-dollar": "currency-circle-dollar",
+        "database": "database", "envelope": "envelope",
+        "globe": "globe",
+        "grid": "grid-four", "heartbeat": "heartbeat",
+        "house": "house",
+        "mic": "microphone",
+        "minus": "minus", "monitor": "monitor", "note": "note",
+        "phone-call": "phone-call",
+        "play": "play",
         "pulse": "pulse", "search": "magnifying-glass",
-        "send": "paper-plane-tilt",
+        "send": "paper-plane-tilt", "shapes": "shapes",
         "sliders": "sliders-horizontal", "spark": "sparkle",
-        "square": "square", "volume": "speaker-high",
+        "square": "square", "sun": "sun",
+        "volume": "speaker-high",
         "volume-off": "speaker-x", "x": "x"}
 # Every name any call site asks for (nav + suggestions +
-# literals + tool-icon mapping, audited 2026-11-09).
+# literals + tool-icon mapping, audited 2026-11-27, extended
+# 2026-11-25 for the UI Phase 2 nav icons).
 CALL_SITE_NAMES = ["spark", "clock", "database", "pulse", "senses",
                    "check", "sliders", "monitor", "x", "volume_off",
                    "volume", "square", "send", "search", "play",
-                   "minus", "mic", "grid", "bell", "globe"]
+                   "minus", "mic", "grid", "bell", "globe",
+                   "shapes", "heartbeat", "address-book",
+                   # UI Phase 5 (2026-11-27): the three new
+                   # workspace nav buttons. "currency-dollar" was
+                   # already a call site (the Home Money tile) —
+                   # the list was stale for it; "note" and "house"
+                   # are new sidebar call sites ("house" was
+                   # already used by the appearance mapping).
+                   "phone-call", "note", "currency-dollar", "house"]
 UNBUNDLED = ["senses"]
 ACCENT = "#35D6FF"
 ACCENT_RGB = (53, 214, 255)
@@ -315,7 +343,7 @@ class TestRender(unittest.TestCase):
                                               c.green(), c.blue(),
                                               c.alpha()))
 
-    def test_all_19_renders_are_distinct(self):
+    def test_all_35_renders_are_distinct(self):
         maps = set()
         for name in BUNDLED:
             svg = (BUNDLE_DIR / (STEM[name] + "-duotone.svg")

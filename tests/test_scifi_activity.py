@@ -340,7 +340,7 @@ class TestActivityGuards(unittest.TestCase):
         self.assertNotIn("activityHeadlineLabel", src)
         self.assertNotIn("activityHeadlineCompare", src)
 
-    def test_setstylesheet_count_still_183(self):
+    def test_setstylesheet_count_still_307(self):
         # UI rethink Build 3 (2026-11-16): 144 -> 150. The docked
         # status strip adds 4 call sites (row sheet, dot, word,
         # popover + its line labels) and the Settings search
@@ -469,10 +469,83 @@ class TestActivityGuards(unittest.TestCase):
         # (gui/window_shell_sidebar.py, -2). Same count as the
         # audit2s1 pin, same delta. The audit2s1 ceiling pin
         # moves with it (<= 183 -> <= 192).
+        # UI upgrade Phase 0 (2026-11-23): 192 -> 193. Net +1,
+        # the Settings summary header "VYUK" (gui/window_settings.py)
+        # taking the kicker face — one inline sheet carrying
+        # font-size: {TYPE_CARD_TITLE}px (token-based, zero
+        # literals), matching the _page_shell kicker's own
+        # inline sheet. The audit2s1 ceiling pin moves with it
+        # (<= 192 -> <= 193).
+        # UI upgrade Phase 1 (2026-11-24): 193 -> 254. Net +61,
+        # the Home HUD (gui/window_home_hud.py, new file, +48
+        # sheets) + the Memory/Activity Phase 1 sheets. The
+        # audit2s1 ceiling pin moves with it (<= 193 -> <= 254).
+        # Light-contrast fixes (2026-11-24): 254 -> 274. Net +20,
+        # the _retheme_home_labels re-applications (banner, screen
+        # scope, greeting, rails, hairlines) that re-colour every
+        # HUD label on a theme change. Same count as the audit2s1
+        # pin, same delta. The audit2s1 ceiling pin moves with it
+        # (<= 254 -> <= 274).
+        # Rail rebalance + narrow-chat composer fix (2026-11-24):
+        # 274 -> 281. Net +7 — the left-rail sections (comms +
+        # suggestions moved from the right accordion, +5: the
+        # section builder's title / chevron / preview sheets +
+        # the retheme loop's preview / title re-applications)
+        # and the composer input's narrow padding override
+        # (+2: set + restore in _apply_dock_narrow_rule). Same
+        # count as the audit2s1 pin, same delta. The audit2s1
+        # ceiling pin moves with it (<= 274 -> <= 281).
+        # UI Phase 1 look-fix (2026-11-24): 281 -> 284. Net +3 —
+        # the composer input's borderless sheet (+2: the set in
+        # _build_home_composer + the narrow rule's re-application
+        # in _apply_dock_narrow_rule, gui/window_home_hud.py)
+        # and the Knowledge Graph dimension chip bar's theme
+        # re-application (+1: MemoryWebWidget.set_theme,
+        # gui/memory_web_widget.py). Same count as the audit2s1
+        # pin, same delta. The audit2s1 ceiling pin moves with
+        # it (<= 281 -> <= 284).
+        # UI Phase 1 look-fix round 2 (2026-11-24): 284 -> 289.
+        # Net +5 — one re-application per new Light-contrast
+        # surface, each driven by the appearance pass from the
+        # resolved theme: the Settings group headers + the two
+        # plain-text wells (+2, gui/window_settings_appearance.py),
+        # the Calendar right-column headers (+1,
+        # gui/window_pages_views.py), the docked status strip's
+        # word (+1, gui/status_strip.py), and the Pulse "Live" word
+        # + footnote (+1, gui/pulse_page.py). Same count as the
+        # audit2s1 pin, same delta. The audit2s1 ceiling pin
+        # moves with it (<= 284 -> <= 289).
+        # UI Phase 1 look-fix round 2, Pulse state word
+        # (2026-11-24): 289 -> 290. Net +1 — the Pulse state
+        # word's re-application in set_palette (the OK level now
+        # follows the resolved muted). Same count as the audit2s1
+        # pin, same delta. The audit2s1 ceiling pin moves with
+        # it (<= 289 -> <= 290).
+        # UI Phase 2 (2026-11-25): 290 -> 294. Net +4 — the
+        # sidebar badges (x2, gui/sidebar_badges.py), the Galaxy
+        # chip bar (x1), and the Skills detail drawer (x1,
+        # window_pages_memory.py). Same count as the audit2s1
+        # pin, same delta. The audit2s1 ceiling pin moves with
+        # it (<= 290 -> <= 294).
+        # UI Phase 4 (2026-11-26): 294 -> 306. Net +12 — the
+        # Pulse page +3 (stamp label, "VYUK herself" kicker,
+        # service-row set_palette re-application), the Senses
+        # page +5 (matrix header, matrix kicker, quality-targets
+        # label, room-promise label, trends label), and the
+        # Doctor page +4 (hero title set_palette re-application,
+        # finding category kicker, highlight border + clear).
+        # Same count as the audit2s1 pin, same delta. The
+        # audit2s1 ceiling pin moves with it (<= 294 -> <= 306).
+        # UI Phase 4 fix round (F-07, 2026-11-26): 306 -> 307.
+        # Net +1 — gui/senses_page.py +1 (the quality-thresholds
+        # label's own sheet, 11 px, the page's caption idiom).
+        # One new site styles one new widget; no widget is styled
+        # twice. Same count as the audit2s1 pin, same delta. The
+        # audit2s1 ceiling pin moves with it (<= 306 -> <= 307).
         count = 0
         for path in (ROOT / "gui").glob("*.py"):
             count += path.read_text().count("setStyleSheet")
-        self.assertEqual(count, 192)
+        self.assertEqual(count, 307)
 
     def test_error_paths_never_touch_the_orb(self):
         for path in ("gui/window_memory_activity.py",
@@ -700,9 +773,23 @@ class ActivityWindowTests(WindowBase):
         from gui.task_state import render_task
         from PySide6.QtWidgets import QLabel, QPushButton
         rows = self.window._activity_in_progress_list
-        self.assertEqual(rows.count(), 4)
-        for i in range(rows.count()):
-            widget = rows.itemWidget(rows.item(i))
+        # UI upgrade Phase 1: the list carries 4 task rows PLUS
+        # the inline approval card below the paused row (t3) —
+        # 5 items. The task rows are the activityRow widgets.
+        self.assertEqual(rows.count(), 5)
+        task_widgets = [
+            rows.itemWidget(rows.item(i)) for i in range(rows.count())]
+        task_widgets = [w for w in task_widgets
+                        if w is not None
+                        and w.objectName() == "activityRow"]
+        self.assertEqual(len(task_widgets), 4)
+        approval = [
+            rows.itemWidget(rows.item(i)) for i in range(rows.count())]
+        approval = [w for w in approval
+                    if w is not None
+                    and w.objectName() == "activityApprovalCard"]
+        self.assertEqual(len(approval), 1)
+        for i, widget in enumerate(task_widgets):
             self.assertEqual(widget.objectName(), "activityRow")
             labels = widget.findChildren(QLabel)
             texts = [lbl.text() for lbl in labels]
@@ -732,8 +819,9 @@ class ActivityWindowTests(WindowBase):
         # a row whose item ignores the padding renders with
         # 5px-tall labels. The labels must stand at full height.
         self._show_activity()
-        for i in range(rows.count()):
-            widget = rows.itemWidget(rows.item(i))
+        # The squeeze check runs over the task rows only (the
+        # approval card is a different surface).
+        for widget in task_widgets:
             self.assertGreaterEqual(widget.height(), 18,
                                     "row widget squeezed")
             for lbl in widget.findChildren(QLabel):
@@ -785,23 +873,29 @@ class ActivityWindowTests(WindowBase):
 
     def test_reminder_rows(self):
         self._seed_dense()
-        from PySide6.QtWidgets import QLabel
-        lst = self.window.reminders_list
-        self.assertEqual(lst.count(), 4)
+        from PySide6.QtWidgets import QLabel, QWidget
+        # UI upgrade Phase 1: the visible surface is the
+        # Scheduled timeline (scheduledTimeline), not the hidden
+        # reminders_list backing store (which carries plain items
+        # with no widgets now). The timeline rows keep the same
+        # label objectNames (activityRowLabel/Value/Number).
+        timeline = self.window._scheduled_timeline
+        rows = timeline.findChildren(QWidget, "scheduledTimelineRow")
+        reminder_rows = [
+            r for r in rows
+            if any(lbl.objectName() == "activityRowLabel"
+                   and lbl.text() == "REMINDER"
+                   for lbl in r.findChildren(QLabel))]
+        self.assertEqual(len(reminder_rows), 4)
         seen = {}
-        for i in range(lst.count()):
-            widget = lst.itemWidget(lst.item(i))
-            self.assertEqual(widget.objectName(), "activityRow")
+        for widget in reminder_rows:
+            self.assertEqual(widget.objectName(), "scheduledTimelineRow")
             labels = {lbl.objectName(): lbl.text()
                       for lbl in widget.findChildren(QLabel)}
             seen[labels["activityRowValue"]] = labels
-            # No item text: QListWidget paints an item's text
-            # behind its widget, so text here would double-paint
-            # over the row.
-            self.assertEqual(lst.item(i).text(), "")
             if labels["activityRowValue"] == "Morning alarm":
-                # The fired row dims through the fired property.
-                self.assertEqual(widget.property("fired"), "true")
+                # The fired row dims: is_past is True on the row.
+                self.assertTrue(widget.is_past)
         self.assertEqual(seen["Standup in ten minutes"]
                          ["activityRowNumber"],
                          f"{self._seed_today.isoformat()} 09:00")
@@ -1075,23 +1169,39 @@ class ActivityWindowTests(WindowBase):
     def test_remove_selected_appears_only_on_selection(self):
         """Build 2: Remove selected is not in the add row and
         does not exist while nothing is selected."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QLabel, QWidget
         self._seed_dense()
         btn = self.window._reminders_remove_btn
-        lst = self.window.reminders_list
         self.assertTrue(btn.isHidden())
         self.assertEqual(btn.objectName(), "activityTextAction")
+        # UI upgrade Phase 1: the selection lives on the
+        # Scheduled timeline now (a click on a reminder row
+        # sets _timeline_selected_label and shows the button);
+        # the hidden reminders_list no longer drives it.
         # Pump once BEFORE selecting, to flush the window's 1.5 s
         # startup singleShot (_run_startup_recovery_check): it
-        # refreshes Activity, which clears this list and drops
-        # any selection. The selection signal updates the button
-        # synchronously, so no pump is needed after selecting —
-        # and pumping there is what let the timer steal the
-        # selection (same race as
-        # test_unavailable_rows_are_error_lines).
+        # refreshes Activity, which rebuilds the timeline and
+        # drops any selection.
         self.app.processEvents()
-        lst.setCurrentRow(0)
+        timeline = self.window._scheduled_timeline
+        rows = timeline.findChildren(QWidget, "scheduledTimelineRow")
+        reminder_rows = [
+            r for r in rows
+            if any(lbl.objectName() == "activityRowLabel"
+                   and lbl.text() == "REMINDER"
+                   for lbl in r.findChildren(QLabel))]
+        self.assertTrue(reminder_rows)
+        QTest.mouseClick(reminder_rows[0],
+                         Qt.MouseButton.LeftButton)
+        self.app.processEvents()
         self.assertFalse(btn.isHidden())
-        lst.clearSelection()
+        # Deselect: clearing the timeline selection hides
+        # the button again.
+        self.window._timeline_selected_label = None
+        self.window._update_reminder_remove_btn()
+        self.app.processEvents()
         self.assertTrue(btn.isHidden())
 
     def test_reminders_section_head(self):
@@ -1121,7 +1231,10 @@ class ActivityWindowTests(WindowBase):
         self._show_activity()
         self.assertEqual(self.window.input_reminder_m.text(), "00")
         self.assertEqual(len(self.window.input_reminder_h.text()), 2)
-        self.assertGreater(self.window.chk_reminder_at.y(),
+        # Phase 0: the toggle is a HudSwitch inside its row widget
+        # now, so the row's own y is the assertion — the switch's
+        # y is its position inside the row, not under the add row.
+        self.assertGreater(self.window._reminder_at_row.y(),
                            self.window.input_reminder_msg.y())
 
     def test_scheduled_help_button(self):
@@ -1166,6 +1279,136 @@ class ActivityWindowTests(WindowBase):
                         "History pane still runs to the window bottom")
         self.assertLess(in_progress_h, self.window.height(),
                         "In progress pane fills the window")
+
+    def _seed_idle(self):
+        """An empty morning: no ledger records, no journal rows —
+        the tab is idle, so the empty state is what the user sees.
+        Written explicitly (not left absent) so the seed holds
+        whatever an earlier test in the process left behind."""
+        data_dir = ROOT / "data"
+        (data_dir / "task_ledger.json").write_text(
+            json.dumps({"tasks": []}), encoding="utf-8")
+        (data_dir / "tool_receipts.jsonl").write_text("",
+                                                      encoding="utf-8")
+        self.window._show_page(1)
+        self.app.processEvents()
+
+    # -- the Activity empty-state fix (2026-11-26) -------------------
+    def test_activity_idle_empty_state_is_one_line(self):
+        """Fix 3: idle, the tab says "nothing" exactly once —
+        the rail's empty label ("Nothing in progress right
+        now. / Ask VYUK to start something."). The headline
+        ("Nothing in progress"), the journal EmptyState item
+        ("Nothing needs attention right now."), and the "(0)"
+        on the journal header are all gone."""
+        self._seed_idle()
+        self._show_activity()
+        tabs = self.window._activity_tabs
+        tabs.setCurrentIndex(0)
+        self.app.processEvents()
+        rail = self.window._mission_rail
+        self.assertTrue(rail._empty.isVisible(),
+                        "the rail's empty label is not visible")
+        self.assertIn("Nothing in progress right now.",
+                      rail._empty.text())
+        self.assertIn("Ask VYUK to start something.",
+                      rail._empty.text())
+        from PySide6.QtWidgets import QLabel
+        nothing = [w for w in tabs.widget(0).findChildren(QLabel)
+                   if w.isVisible()
+                   and "nothing" in w.text().lower()]
+        self.assertEqual(len(nothing), 1,
+                         "more than one visible 'nothing' line: %s"
+                         % [w.text() for w in nothing])
+        self.assertIs(nothing[0], rail._empty)
+        headline = self.window._activity_headlines["in_progress"]
+        self.assertFalse(headline["line"].isVisible(),
+                         "the 'Nothing in progress' headline is "
+                         "still showing")
+        self.assertEqual(
+            self.window._activity_journal_label.text(),
+            "Journal — needs attention")
+        self.assertFalse(
+            self.window._activity_in_progress_list.isVisible(),
+            "the empty in-progress list is still taking space")
+        self.assertFalse(
+            self.window._activity_journal_list.isVisible(),
+            "the empty journal list is still taking space")
+
+    def test_activity_idle_hides_bar_and_ring(self):
+        """Fix 4: idle, the rail is ONLY the empty label — no
+        SegmentBar ("Step 0 of 0" + empty track), no hollow ring,
+        no "No active mission" goal line, no detail labels."""
+        self._seed_idle()
+        self._show_activity()
+        tabs = self.window._activity_tabs
+        tabs.setCurrentIndex(0)
+        self.app.processEvents()
+        rail = self.window._mission_rail
+        self.assertFalse(rail._bar.isVisible(),
+                         "the empty bar is still showing")
+        self.assertFalse(rail._rings.isVisible(),
+                         "the hollow ring is still showing")
+        self.assertFalse(rail._goal.isVisible(),
+                         "the 'No active mission' line is still "
+                         "showing")
+        for name in ("_phase", "_target", "_permission", "_step"):
+            self.assertFalse(
+                getattr(rail, name).isVisible(),
+                f"the idle detail label {name} is still showing")
+
+    def test_activity_live_shows_bar_and_ring(self):
+        """Fix 4, the other side: with a mission running, the bar
+        and ring are back, and the bar reads the newest live
+        record — t1, 2 steps, 1 success: "Step 1 of 2". The
+        layout is the hug, not the fill."""
+        self._seed_dense()
+        self._show_activity()
+        tabs = self.window._activity_tabs
+        tabs.setCurrentIndex(0)
+        self.app.processEvents()
+        rail = self.window._mission_rail
+        self.assertTrue(rail._bar.isVisible(),
+                        "the bar is hidden while a mission runs")
+        self.assertTrue(rail._rings.isVisible(),
+                        "the ring is hidden while a mission runs")
+        self.assertEqual(rail._bar.label_text, "Step 1 of 2")
+        self.assertTrue(rail._goal.isVisible())
+        self.assertIn("Sync the project folder", rail._goal.text())
+        headline = self.window._activity_headlines["in_progress"]
+        self.assertTrue(headline["line"].isVisible(),
+                        "the live headline is hidden")
+        self.assertLess(tabs.height(), self.window.height(),
+                        "the live pane fills the window")
+
+    def test_activity_idle_footer_fits_and_pane_fills(self):
+        """Fixes 1+2: idle, the footer ("0 reconciled — see
+        History") sits inside the scroll viewport — no scrolling,
+        nothing clipped — and the pane fills the window instead
+        of hugging its short content."""
+        self._seed_idle()
+        self._show_activity()
+        tabs = self.window._activity_tabs
+        tabs.setCurrentIndex(0)
+        self.app.processEvents()
+        scroll = tabs.widget(0)
+        viewport = scroll.viewport()
+        footer = self.window._activity_journal_footer
+        self.assertTrue(footer.isVisible(),
+                        "the footer is not visible")
+        bottom = footer.mapTo(
+            viewport, footer.rect().bottomRight()).y()
+        self.assertLessEqual(
+            bottom, viewport.height(),
+            "the footer is clipped by %d px"
+            % (bottom - viewport.height()))
+        self.assertEqual(scroll.verticalScrollBar().maximum(), 0,
+                         "the idle tab still scrolls")
+        self.assertGreaterEqual(
+            tabs.maximumHeight(), tabs.sizeHint().height(),
+            "the idle cap was not lifted")
+        self.assertGreater(tabs.height(), self.window.height() * 0.6,
+                           "the idle pane does not fill the window")
 
     def test_render_activity_dense(self):
         """The grabs the five density verdicts are judged from."""

@@ -105,6 +105,10 @@ class CommandPalette(QDialog):
         self._visible_actions: list = []
         self._visible_labels: list[str] = []
         self._visible_consequential: list[bool] = []
+        # UI Phase 2, D-P2-08: the action_id beside each visible
+        # row, so _run_row can record the completed action as a
+        # recent (action_id + label only).
+        self._visible_action_ids: list[str] = []
         # UI interaction slice: the last palette action's outcome.
         # None when the last run succeeded (or nothing ran yet);
         # "label: error" when it threw. The palette never reports
@@ -125,6 +129,14 @@ class CommandPalette(QDialog):
         self.input.returnPressed.connect(self._activate_current)
         self.input.installEventFilter(self)
         layout.addWidget(self.input)
+        # UI Phase 2, D-P2-08: the recents section header — a
+        # label above the list (not a list row, so the list rows
+        # stay 1:1 with _visible_actions and navigation is
+        # untouched). Shown only when recents render.
+        self._recents_header = QLabel("Recent")
+        self._recents_header.setObjectName("paletteHint")
+        self._recents_header.setVisible(False)
+        layout.addWidget(self._recents_header)
         self.list = QListWidget()
         self.list.setObjectName("paletteList")
         self.list.setAccessibleName("Matching commands")
@@ -193,7 +205,25 @@ class CommandPalette(QDialog):
                          "action_id": "page_1_scheduled",
                          "consequential": False})
         commands.append(go(2, "Go to Memory"))
-        commands.append(go(3, "Go to Skills"))
+        # UI Phase 2, D-P2-08: the Skills row carries the live
+        # count, and a "Browse all capabilities" row (go(3),
+        # action_id page_3_browse) sits beside it. The count is
+        # read live from the registry; a failed read falls back
+        # to the bare label rather than a wrong number.
+        try:
+            from voice_assistant.core.gui_facade import (
+                tools as _count_tools)
+            _n_skills = len(_count_tools.get_declarations())
+        except Exception:  # noqa: BLE001
+            _n_skills = None
+        _skills_label = (f"Go to Skills — {_n_skills} capabilities"
+                         if _n_skills else "Go to Skills")
+        commands.append(go(3, _skills_label))
+        commands.append({"label": "Browse all capabilities",
+                         "action": (lambda: win._show_page(3)),
+                         "kind": "PAGE", "description": "",
+                         "action_id": "page_3_browse",
+                         "consequential": False})
         commands.append(go(4, "Go to Settings"))
         commands.append(go(5, "Go to Pulse"))
         commands.append(go(6, "Go to Senses"))
@@ -204,6 +234,11 @@ class CommandPalette(QDialog):
         commands.append(go(9, "Go to Inbox"))
         commands.append(go(10, "Go to Contacts"))
         commands.append(go(11, "Go to Calls"))
+        # UI Phase 5 (2026-11-27): the three new workspaces —
+        # stack 12–14, same "Go to" shape.
+        commands.append(go(12, "Go to Notes"))
+        commands.append(go(13, "Go to Finance"))
+        commands.append(go(14, "Go to Devices"))
         # Settings cards, in page order (derived, not hardcoded,
         # so a rename can never strand a palette row).
         try:
@@ -301,6 +336,10 @@ class CommandPalette(QDialog):
                      "action": (lambda n=name, f=friendly: win._on_galaxy_ask(n, f)),
                      "kind": "TOOL", "description": summary,
                      "action_id": "tool_" + name,
+                     # UI Phase 2, D-P2-04: the tool name rides
+                     # along so rank_entries can apply the shared
+                     # token index's goal rank to this row.
+                     "tool_name": name,
                      "consequential": False})
         except Exception:  # noqa: BLE001 — tools rows are optional
             pass
@@ -326,12 +365,69 @@ class CommandPalette(QDialog):
         self._visible_actions = []
         self._visible_labels = []
         self._visible_consequential = []
+        self._visible_action_ids = []
         shown: list[dict] = []
         hidden = 0
+        needle = (text or "").strip()
+        # UI Phase 2, D-P2-04: the goal lane — the shared token
+        # index's answer for this query, as {tool_name: score}
+        # in the 55–65 band (top goal hit 65, decaying toward
+        # 55). rank_entries takes the best of the text lanes and
+        # the goal rank, so a goal phrase surfaces its tool.
+        # A failed index read degrades to no goal lane, never a
+        # broken palette.
+        goal_ranks = None
+        if needle:
+            try:
+                from voice_assistant.core.gui_facade import (
+                    skill_search as _skill_search)
+                _names = _skill_search.search(
+                    _skill_search.get_index(), needle, limit=20)
+                goal_ranks = {n: max(55.0, 65.0 - r)
+                              for r, n in enumerate(_names)}
+            except Exception:  # noqa: BLE001
+                goal_ranks = None
+        # UI Phase 2, D-P2-08: the recents section — the rows the
+        # user actually chose, above the ranked rows, on an empty
+        # query only, never in private mode. Resolved by
+        # (action_id, label) against the built commands, so a
+        # stale entry (a removed row) is skipped, never shown.
+        recent_entries: list[dict] = []
+        if not needle and not self._palette_private_on():
+            try:
+                from .palette_recents import load_recents
+                _by_key = {(e.get("action_id"), e.get("label")): e
+                           for e in self._commands}
+                for _recent in load_recents(
+                        settings=self._palette_settings()):
+                    _entry = _by_key.get((_recent.get("action_id"),
+                                          _recent.get("label")))
+                    if _entry is not None:
+                        recent_entries.append(_entry)
+            except Exception:  # noqa: BLE001
+                recent_entries = []
+        self._recents_header.setVisible(bool(recent_entries))
         try:
             from voice_assistant.core.gui_facade import (
                 filter_entries as _filter_entries)
-            shown, hidden = _filter_entries(self._commands, text or "")
+            shown, hidden = _filter_entries(
+                self._commands, text or "", goal_ranks=goal_ranks)
+            if recent_entries:
+                # A recent is not shown twice: the ranked rows
+                # drop the recents (by original position — the
+                # ranked copies carry their "index") and the
+                # hidden count counts only what is left hidden.
+                # The ranked order itself never changes.
+                from voice_assistant.core.gui_facade import (
+                    rank_entries as _rank_entries)
+                _ranked = _rank_entries(
+                    self._commands, text or "", goal_ranks=goal_ranks)
+                _recent_idx = {self._commands.index(e)
+                               for e in recent_entries}
+                _kept = [e for e in _ranked
+                         if e.get("index") not in _recent_idx]
+                shown = _kept[:self._PALETTE_ROW_CAP]
+                hidden = max(0, len(_kept) - self._PALETTE_ROW_CAP)
         except Exception:  # noqa: BLE001 — fallback below
             needle = (text or "").strip().lower()
             hits: list[dict] = []
@@ -346,7 +442,7 @@ class CommandPalette(QDialog):
             ranked = hits + fuzzy
             shown, hidden = ranked[:self._PALETTE_ROW_CAP], max(
                 0, len(ranked) - self._PALETTE_ROW_CAP)
-        for entry in shown:
+        for entry in recent_entries + shown:
             label = entry.get("label") or ""
             item = QListWidgetItem()
             item.setSizeHint(QSize(0, 36))
@@ -359,6 +455,8 @@ class CommandPalette(QDialog):
             self._visible_labels.append(label)
             self._visible_consequential.append(
                 bool(entry.get("consequential")))
+            self._visible_action_ids.append(
+                entry.get("action_id") or "")
         if hidden:
             item = QListWidgetItem()
             item.setSizeHint(QSize(0, 36))
@@ -445,6 +543,25 @@ class CommandPalette(QDialog):
             self._last_action_error = None
             try:
                 action()  # type: ignore[operator]
+                # UI Phase 2, D-P2-08: record the completed action
+                # as a recent (action_id + label only), never in
+                # private mode. A failed action is not recorded —
+                # the exception path below runs instead. A failed
+                # record degrades to no recents, never a failure
+                # dialog for an action that already ran.
+                try:
+                    if not self._palette_private_on():
+                        from .palette_recents import record_recent
+                        _aid = (self._visible_action_ids[row]
+                                if row < len(self._visible_action_ids)
+                                else "")
+                        _label = (self._visible_labels[row]
+                                  if row < len(self._visible_labels)
+                                  else "")
+                        record_recent(_aid, _label,
+                                      settings=self._palette_settings())
+                except Exception:  # noqa: BLE001
+                    pass
             except Exception as exc:  # noqa: BLE001
                 # UI interaction slice (UI-05): a palette action
                 # that throws must NOT vanish. Record it and show
@@ -466,6 +583,29 @@ class CommandPalette(QDialog):
                         "Try again, or pick a different command.")
                 except Exception:  # noqa: BLE001 — the record above
                     pass  # survives even if the dialog cannot show
+
+    def _palette_private_on(self) -> bool:
+        """Private mode, live from the parent window. Fail-closed:
+        a parent that cannot answer reads as private, so recents
+        (which reveal what the user did) never render or record
+        on an unknown parent."""
+        try:
+            win = self.parent()
+            fn = getattr(win, "_mem_private_on", None)
+            if callable(fn):
+                return bool(fn())
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+
+    def _palette_settings(self):
+        """The window's QSettings store (None falls back to the
+        default store, as the recents module does)."""
+        try:
+            win = self.parent()
+            return getattr(win, "settings", None)
+        except Exception:  # noqa: BLE001
+            return None
 
     def eventFilter(self, obj, event):  # noqa: N802 (Qt naming)
         if obj is self.input and event.type() == event.Type.KeyPress:

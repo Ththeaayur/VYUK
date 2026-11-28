@@ -624,8 +624,11 @@ class CountsCensusTests(_Base):
         # Stage 0 features batch 6: 112 -> 113 fields, 107 -> 108
         # env-backed (calendar_quiet_enabled,
         # VYUK_CALENDAR_QUIET_ENABLED).
-        self.assertEqual(len(fields), 113)
-        self.assertEqual(len(env_backed), 108)
+        # UI upgrade Phase 1 (2026-11-24): 113 -> 115 fields, 108 -> 110
+        # env-backed (home_city, VYUK_HOME_CITY; hud_profile,
+        # VYUK_HUD_PROFILE).
+        self.assertEqual(len(fields), 115)
+        self.assertEqual(len(env_backed), 110)
 
     def test_census_unmoved(self):
         ev = json.loads((ROOT / "tests/_classification_evidence.json")
@@ -664,6 +667,13 @@ class HomeCardTests(unittest.TestCase):
             qsettings_set("firstrun/pieces_declined", "")
             qsettings_set("firstrun/setup_card_snoozed_until", "")
             try:
+                # UI upgrade Phase 1: the setup card is a
+                # stage-level banner above the columns, hidden
+                # at narrow widths (<=770) — size to 1280 first
+                # so it can show.
+                case.window.resize(1280, 800)
+                case.window.show()
+                case.app.processEvents()
                 case.window._refresh_setup_cards()
                 case.app.processEvents()
                 card = getattr(case.window, "setup_card", None)

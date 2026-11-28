@@ -105,10 +105,16 @@ class ShellSidebarMixin:
         # Stage 0 features batch 1 (Group D): the views — Calendar,
         # Inbox, Contacts, Calls. Stack indices 0–7 are FROZEN;
         # these take 8–11, in that order.
+        # UI Phase 5 (2026-11-27): Notes / Finance / Devices take
+        # stack 12–14, in that order (stack 4 is Settings, built
+        # above at index 4).
         self.pages.addWidget(self._build_calendar_page())
         self.pages.addWidget(self._build_inbox_page())
         self.pages.addWidget(self._build_contacts_page())
         self.pages.addWidget(self._build_calls_page())
+        self.pages.addWidget(self._build_notes_page())
+        self.pages.addWidget(self._build_finance_page())
+        self.pages.addWidget(self._build_devices_page())
         # v5.57 (redo): the home voice chip can read the Settings
         # combos now that every page is built.
         try:
@@ -261,6 +267,11 @@ class ShellSidebarMixin:
         sidebar_scroll = QScrollArea()
         sidebar_scroll.setWidgetResizable(True)
         sidebar_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # UI Phase 5: fifteen buttons overflow the sidebar at
+        # short heights — _show_page scrolls the checked button
+        # into view through this area, so the selected workspace
+        # is never half-cut below the fold.
+        self._sidebar_scroll = sidebar_scroll
         sidebar_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         inner = QWidget()
@@ -301,49 +312,69 @@ class ShellSidebarMixin:
         # §9.2 CORE / MISSION / ARCHIVE / SYSTEM labels, inside
         # this same 220 px sidebar — see below). Stack indices
         # NEVER change (0 Home, 1 Activity, 2 Memory, 3 Skills,
-        # 4 Settings, 5 System Pulse, 6 Senses, 7 Doctor) —
+        # 4 Settings, 5 System Pulse, 6 Senses, 7 Doctor,
+        # 8 Calendar, 9 Inbox, 10 Contacts, 11 Calls, 12 Notes,
+        # 13 Finance, 14 Devices) —
         # _show_page keeps stack-index semantics and
         # the checked state is computed through
         # _nav_page_indices (see window_chat._show_page).
-        # 11 nav buttons, 12 pages: Skills (stack 3) has no sidebar
-        # button — it is reached from the command palette
-        # (Ctrl+K, "Go to Skills"), which already listed it
-        # before S1. Internal names are NOT renamed (CX-06
+        # 15 nav buttons, 15 pages: Skills (stack 3) has its
+        # own button under CAPABILITIES since UI Phase 2
+        # (before that it was palette-only, S1 pin).
+        # UI Phase 5 (2026-11-27): Notes / Finance / Devices join
+        # as workspace buttons under WORKSPACES (stack 12–14);
+        # Settings stays the footer button, last in the list.
+        # Internal names are NOT renamed (CX-06
         # renames are held for user testing); they only move
         # under Advanced. Doctor's button is new in S1 (it was
         # buttonless since the v5.57 owner override); its
         # Settings-card, tray, and palette routes are unchanged.
-        # No doctor glyph exists in gui/icons.py, so Doctor uses
-        # "check" — the closest existing glyph (Doctor runs
-        # health checks). The four views (Stage 0 features batch
+        # The four views (Stage 0 features batch
         # 1) use the closest existing glyphs the same way: a grid
-        # for the Calendar month, "send" for Inbox mail, a square
-        # card for Contacts, "mic" for Calls (voice calls).
-        # INTENTIONAL (world-view removal, 2026-11-05): the Globe
-        # button is gone, so its "globe" icon leaves this list with
-        # it; the icon template itself stays in gui/icons.py as part
-        # of the inline template set (the honest fallback for names
-        # the Phosphor bundle does not cover — B-R1-6).
+        # for the Calendar month, "send" for Inbox mail, an
+        # address book for Contacts, a phone handset for Calls
+        # (voice calls). INTENTIONAL (world-view removal,
+        # 2026-11-05): the Globe button is gone, so its "globe"
+        # icon leaves this list with it; the icon template
+        # itself stays in gui/icons.py as part of the inline
+        # template set (the honest fallback for names the
+        # Phosphor bundle does not cover — B-R1-6).
+        # UI Phase 2 (2026-11-24): Doctor takes
+        # the Phosphor "heartbeat" (a pulse line in a heart —
+        # the old "check" inline template read as a tick, not a
+        # clinic), Contacts takes "address-book" (the old
+        # "square" read as a blank card), Calls takes
+        # "phone-call" (the old "mic" duplicated the wake
+        # button's mic), and Skills takes "shapes" (the
+        # catalogue mark). All four are Phosphor Duotone SVGs
+        # in the bundle (same pinned commit, same MIT —
+        # see gui/assets/icons/phosphor/BUNDLE_RECORD.md).
         self._nav_icon_names = ["spark", "clock", "database",
-                                "pulse", "senses", "check",
-                                "grid", "send", "square", "mic",
+                                "shapes", "pulse", "senses",
+                                "heartbeat", "grid", "send",
+                                "address-book", "phone-call",
+                                "note", "currency-dollar", "house",
                                 "sliders"]
-        self._nav_page_indices = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4]
+        self._nav_page_indices = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 4]
         self.nav_buttons: list[QPushButton] = []
         # (label, icon, stack page) in VISUAL order: the primary
-        # three, the Advanced four, the Views four, then the
-        # footer Settings.
+        # three, the Capabilities one, the Advanced four, the
+        # Views four, then the footer Settings.
         # _nav_page_indices above is aligned to this same order.
         _nav_defs = [("Home", "spark", 0),
                      ("Activity", "clock", 1),
                      ("Memory", "database", 2),
+                     ("Skills", "shapes", 3),
                      ("System Pulse", "pulse", 5),
                      ("Senses", "senses", 6),
-                     ("Doctor", "check", 7),
+                     ("Doctor", "heartbeat", 7),
                      ("Calendar", "grid", 8),
                      ("Inbox", "send", 9),
-                     ("Contacts", "square", 10),
-                     ("Calls", "mic", 11),
+                     ("Contacts", "address-book", 10),
+                     ("Calls", "phone-call", 11),
+                     ("Notes", "note", 12),
+                     ("Finance", "currency-dollar", 13),
+                     ("Devices", "house", 14),
                      ("Settings", "sliders", 4)]
         for label, icon, page in _nav_defs:
             btn = QPushButton(label)
@@ -357,6 +388,16 @@ class ShellSidebarMixin:
             btn.setIconSize(QSize(18, 18))
             btn.clicked.connect(lambda _=False, idx=page: self._show_page(idx))
             self.nav_buttons.append(btn)
+        # UI Phase 2 (D-P2-11): the two sidebar badges — Activity
+        # (pending approvals) and Inbox (unread mail). Created
+        # here as children of their buttons (nav_buttons[1] and
+        # [8] in the visual order above); refreshed by
+        # _refresh_sidebar_badges on every _show_page. The pills
+        # are display-only — tapping the button navigates.
+        from .sidebar_badges import make_badge
+
+        self._badge_activity = make_badge(self.nav_buttons[1])
+        self._badge_inbox = make_badge(self.nav_buttons[8])
         self._nav_labels = [label for label, _, _ in _nav_defs]
         # Restore (2026-11-01, owner-delegated): the §9.2
         # section labels inside the EXISTING 220 px sidebar —
@@ -366,11 +407,9 @@ class ShellSidebarMixin:
         # groups System Pulse / Senses / Doctor
         # (replacing the "Advanced / Explore" label). Stage 0
         # features batch 1 adds VIEWS for Calendar / Inbox /
-        # Contacts / Calls (stack 8–11). There is deliberately
-        # NO CAPABILITIES label: Skills has no sidebar button
-        # (S1 pin: palette only), so a CAPABILITIES label would
-        # group nothing, and adding a button would break the
-        # labels-only scope.
+        # Contacts / Calls (stack 8–11). UI Phase 2 adds
+        # CAPABILITIES for Skills (stack 3) — the Centre's
+        # button, after Memory.
         _core_label = QLabel("CORE")
         _core_label.setObjectName("muted")
         self._sidebar_section_labels.append(_core_label)
@@ -389,28 +428,48 @@ class ShellSidebarMixin:
         layout.addWidget(_archive_label)
         layout.addWidget(self.nav_buttons[2])
         layout.addSpacing(12)
+        _capabilities_label = QLabel("CAPABILITIES")
+        _capabilities_label.setObjectName("muted")
+        self._sidebar_section_labels.append(_capabilities_label)
+        layout.addWidget(_capabilities_label)
+        layout.addWidget(self.nav_buttons[3])
+        layout.addSpacing(12)
         _system_label = QLabel("SYSTEM")
         _system_label.setObjectName("muted")
         self._sidebar_section_labels.append(_system_label)
         layout.addWidget(_system_label)
-        for btn in self.nav_buttons[3:6]:
+        for btn in self.nav_buttons[4:7]:
             layout.addWidget(btn)
         layout.addSpacing(12)
-        # Stage 0 features batch 1 (Group D): the VIEWS section
-        # for Calendar / Inbox / Contacts / Calls (stack 8–11).
-        _views_label = QLabel("VIEWS")
+        # UI Phase 3 (D-P3-12): the workspace buttons
+        # (Calendar / Inbox / Contacts / Calls, stack 8–11, plus
+        # Notes / Finance / Devices, stack 12–14, since UI Phase 5)
+        # sit under a WORKSPACES section at the VIEWS position. The
+        # VIEWS label is retired — the section is empty otherwise,
+        # and an empty section label is a lie. Relative order and
+        # stack indices are unchanged.
+        _views_label = QLabel("WORKSPACES")
         _views_label.setObjectName("muted")
         self._sidebar_section_labels.append(_views_label)
         layout.addWidget(_views_label)
-        for btn in self.nav_buttons[6:10]:
+        for btn in self.nav_buttons[7:14]:
             layout.addWidget(btn)
+        # UI Phase 5: the three new workspaces carry a fuller
+        # accessible description (what the page holds), not just
+        # its name — the loop above sets "Show the X page".
+        self.nav_buttons[11].setAccessibleDescription(
+            "Show the Notes page — your notes, on this machine")
+        self.nav_buttons[12].setAccessibleDescription(
+            "Show the Finance page — money you record yourself")
+        self.nav_buttons[13].setAccessibleDescription(
+            "Show the Devices page — your home hub, on your network")
         layout.addSpacing(12)
         self.nav_buttons[0].setChecked(True)
         self._refresh_nav_icons(0)
 
         layout.addStretch()
         # Footer: Settings lives here, not in the primary list.
-        layout.addWidget(self.nav_buttons[10])
+        layout.addWidget(self.nav_buttons[14])
 
         wake_label = QLabel("Wake word")
         wake_label.setObjectName("muted")
@@ -425,27 +484,23 @@ class ShellSidebarMixin:
         layout.addWidget(self.btn_wake)
         layout.addSpacing(12)
 
-        # Chat pass (2026-11-17, owner ruling): the v6.3
-        # privacy card is back — the one muted line was the
-        # sci-fi Home change, and the sidebar is v6.3 exactly.
+        # UI Phase 1 (Home plan §2): the sidebar privacy card is
+        # ONE muted line — "Private by design" — at the foot of
+        # the sidebar, the full promise on hover (the v6.3 title +
+        # paragraph is the old form). The promise sentence still
+        # lives in core/privacy_copy.py (PRIVACY_PROMISE), shared
+        # with the Settings privacy promise so the two cannot
+        # drift apart.
         privacy = QFrame()
         privacy.setObjectName("privacyCard")
         p_layout = QVBoxLayout(privacy)
-        p_layout.setContentsMargins(12, 12, 12, 12)
-        p_layout.setSpacing(4)
+        p_layout.setContentsMargins(12, 8, 12, 8)
+        p_layout.setSpacing(0)
+        from voice_assistant.core.gui_facade import privacy_copy
         p_title = QLabel("Private by design")
         p_title.setObjectName("privacyTitle")
-        # L-31 (loophole batch 8): the promise sentence lives in
-        # core/privacy_copy.py (PRIVACY_PROMISE), shared with the
-        # Settings privacy promise so the two cannot drift apart.
-        # "Memory stays on this device" hid that a cloud turn
-        # sends the facts she needs to answer to the cloud brain.
-        from voice_assistant.core.gui_facade import privacy_copy
-        p_body = QLabel(privacy_copy.PRIVACY_PROMISE)
-        p_body.setObjectName("privacyBody")
-        p_body.setWordWrap(True)
+        p_title.setToolTip(privacy_copy.PRIVACY_PROMISE)
         p_layout.addWidget(p_title)
-        p_layout.addWidget(p_body)
         self._sidebar_privacy_card = privacy
         layout.addWidget(privacy)
         return sidebar
@@ -497,7 +552,14 @@ class ShellSidebarMixin:
                     if wake.text():
                         self._wake_full_text = wake.text()
                         full = wake.text()
-                    wake.setIcon(make_icon("mic", TEXT_MUTED))
+                    # Look-fix 2026-11-24: the icon follows the
+                    # resolved theme (the house TEXT_MUTED is
+                    # near-white — invisible on Light).
+                    _resolved = getattr(self, "_resolved_theme", None) or {}
+                    _muted = (_resolved.get("text_muted", TEXT_MUTED)
+                              if isinstance(_resolved, dict)
+                              else TEXT_MUTED)
+                    wake.setIcon(make_icon("mic", _muted))
                     wake.setIconSize(QSize(18, 18))
                     wake.setText("")
                     wake.setToolTip(full)
@@ -516,22 +578,52 @@ class ShellSidebarMixin:
                     inner.setContentsMargins(8, 16, 8, 16)
                 else:
                     inner.setContentsMargins(16, 16, 16, 16)
+            # UI Phase 2: the badges ride their buttons, so a
+            # tier change re-anchors them to the icon (full:
+            # 12 px from the button's left; rail: centred).
+            # Counts are not re-read here — only positions move.
+            from .sidebar_badges import reposition_sidebar_badges
+
+            reposition_sidebar_badges(self)
         except Exception:  # noqa: BLE001 — floors are a nicety
             pass
 
     def _refresh_nav_icons(self, active: int):
         # `active` is a STACK page index. Nav buttons map through
-        # _nav_page_indices (S1 order: Home 0, Activity 1, Memory
-        # 2, System Pulse 5, Senses 6, Doctor 7, Calendar 8,
-        # Inbox 9, Contacts 10, Calls 11, Settings 4 — visual
-        # order, NOT stack order), so the highlighted button is
-        # the one whose page matches, not the button at position
-        # `active`. Skills (stack 3, no button) still highlights
-        # nothing, as Doctor did before S1.
+        # _nav_page_indices (visual order, NOT stack order), so
+        # the highlighted button is the one whose page matches,
+        # not the button at position `active`. Skills (stack 3)
+        # highlights its CAPABILITIES button since UI Phase 2.
+        # Look-fix 2026-11-24: the icon colours follow the
+        # resolved theme (the house TEXT is near-white — the
+        # active glyph was invisible on Light — and the house
+        # TEXT_MUTED is pale). The theme pass calls this too, so
+        # a theme change re-makes the icons with the page that
+        # is currently active.
+        _resolved = getattr(self, "_resolved_theme", None) or {}
+        if isinstance(_resolved, dict):
+            _text = _resolved.get("text", TEXT)
+            _muted = _resolved.get("text_muted", TEXT_MUTED)
+        else:
+            _text, _muted = TEXT, TEXT_MUTED
         _pages = getattr(self, "_nav_page_indices", None)
         for i, btn in enumerate(self.nav_buttons):
             _page = _pages[i] if _pages and i < len(_pages) else i
-            color = TEXT if _page == active else TEXT_MUTED
+            color = _text if _page == active else _muted
             btn.setIcon(make_icon(self._nav_icon_names[i], color))
+
+    def _refresh_sidebar_badges(self):
+        """Refresh both sidebar badges (UI Phase 2, D-P2-11).
+
+        Delegates to gui/sidebar_badges: Activity from the ONE
+        shared pending-approvals count, Inbox from the cached
+        unread count. Called from _show_page (every page show)
+        and after the count-changing events (an approval
+        resolved, an Inbox refresh). Never raises — a failed
+        read hides that badge, never the sidebar.
+        """
+        from .sidebar_badges import refresh_sidebar_badges
+
+        refresh_sidebar_badges(self)
 
 

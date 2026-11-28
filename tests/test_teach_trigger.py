@@ -2,7 +2,7 @@
 
 Pins the teach trigger decision, end to end:
 
-- VOICE TRIGGER EXISTS via the Live router path: the route_mind
+- VOICE TRIGGER EXISTS via the Live router path: the route_intelligence
   domain router carries all three teach tools, and use_toolbox
   keyword ranking surfaces them for canonical phrases. The
   trigger path is therefore: spoken phrase -> ranked tool name
@@ -143,13 +143,14 @@ class TestTeachTrigger(TriggerBase):
                                              limit=8)
         self.assertIn("teach_replay_sequence", ranked, ranked)
 
-    def test_route_mind_carries_all_teach_tools(self):
+    def test_route_intelligence_carries_all_teach_tools(self):
         routers = build_domain_routers(tools)
-        mind = [r for r in routers
+        # UI Phase 2 (2026-11-25): router follows the group rename ("Mind" -> "Intelligence").
+        intelligence = [r for r in routers
                 if (r.get("name") if isinstance(r, dict) else None)
-                == "route_mind"]
-        self.assertEqual(len(mind), 1, [r.get("name") for r in routers])
-        desc = mind[0].get("description") or ""
+                == "route_intelligence"]
+        self.assertEqual(len(intelligence), 1, [r.get("name") for r in routers])
+        desc = intelligence[0].get("description") or ""
         for tool in TEACH_TOOLS:
             self.assertIn(tool, desc, desc)
 

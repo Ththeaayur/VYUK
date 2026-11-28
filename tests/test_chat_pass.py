@@ -2,8 +2,11 @@
 v6.3 exactly, plus the chip-row freeze fix.
 
 The owner ruled the v6.3 look is the baseline and only decluttering
-was ever wanted: the sidebar is v6.3 (eleven buttons, section labels
-CORE/MISSION/ARCHIVE/SYSTEM/VIEWS, Skills Ctrl+K-only, the privacy card),
+was ever wanted: the sidebar is v6.3 (fifteen buttons since UI
+Phase 5 — Notes / Finance / Devices under WORKSPACES — section
+labels CORE/MISSION/ARCHIVE/CAPABILITIES/SYSTEM/WORKSPACES,
+Skills with its own button under CAPABILITIES since UI Phase 2,
+the privacy card),
 the chat panel's floor is 300 again (Build 1's raise to 380 and its
 compact tier are gone), and the docked strip Build 3 added stays.
 The chip row froze at 4 px tall in v6.3 itself (fit_chips resized
@@ -73,11 +76,17 @@ def _assign_value(func_node, name):
 
 
 class TestChatPassSidebarSource(unittest.TestCase):
-    def test_nav_defs_are_the_views_eleven(self):
+    def test_nav_defs_are_the_workspaces_fifteen(self):
         # Stage 0 features batch 1 (Group D): the v6.3 seven plus
         # the four views — Calendar / Inbox / Contacts / Calls
-        # (stack 8–11), before the footer Settings. Skills still
-        # has no sidebar button.
+        # (stack 8–11), before the footer Settings. UI Phase 2
+        # (2026-11-25): Skills gains its own sidebar button
+        # ("shapes", stack 3) under a new CAPABILITIES section,
+        # and Doctor / Contacts / Calls move to their Phosphor
+        # icons (heartbeat / address-book / phone-call).
+        # UI Phase 5 (2026-11-27): Notes / Finance / Devices
+        # join as workspace buttons (stack 12–14), before the
+        # footer Settings — fifteen buttons now.
         src = _gui_source("window_shell_sidebar.py")
         tree = ast.parse(src)
         func = _func(tree, "_build_sidebar")
@@ -85,21 +94,26 @@ class TestChatPassSidebarSource(unittest.TestCase):
         self.assertEqual(defs, [("Home", "spark", 0),
                                 ("Activity", "clock", 1),
                                 ("Memory", "database", 2),
+                                ("Skills", "shapes", 3),
                                 ("System Pulse", "pulse", 5),
                                 ("Senses", "senses", 6),
-                                ("Doctor", "check", 7),
+                                ("Doctor", "heartbeat", 7),
                                 ("Calendar", "grid", 8),
                                 ("Inbox", "send", 9),
-                                ("Contacts", "square", 10),
-                                ("Calls", "mic", 11),
+                                ("Contacts", "address-book", 10),
+                                ("Calls", "phone-call", 11),
+                                ("Notes", "note", 12),
+                                ("Finance", "currency-dollar", 13),
+                                ("Devices", "house", 14),
                                 ("Settings", "sliders", 4)])
         indices = [e.value for e in
                    _assign_value(func, "_nav_page_indices").elts
                    if isinstance(e, ast.Constant)]
-        self.assertEqual(indices, [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4])
+        self.assertEqual(indices, [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11,
+                                   12, 13, 14, 4])
         labels = [label for label, _, _ in defs]
-        self.assertNotIn("Skills", labels,
-                         "Skills must not have a sidebar button")
+        self.assertIn("Skills", labels,
+                      "Skills must have a sidebar button since UI Phase 2")
 
     def test_section_labels_present_in_order(self):
         src = _gui_source("window_shell_sidebar.py")
@@ -112,19 +126,30 @@ class TestChatPassSidebarSource(unittest.TestCase):
                  "layout.addWidget(self.nav_buttons[1])",
                  '_archive_label = QLabel("ARCHIVE")',
                  "layout.addWidget(self.nav_buttons[2])",
+                 # UI Phase 2 (2026-11-25): CAPABILITIES for Skills.
+                 '_capabilities_label = QLabel("CAPABILITIES")',
+                 "layout.addWidget(self.nav_buttons[3])",
                  '_system_label = QLabel("SYSTEM")',
-                 "for btn in self.nav_buttons[3:6]:",
+                 "for btn in self.nav_buttons[4:7]:",
                  # Stage 0 features batch 1 (Group D): VIEWS.
-                 '_views_label = QLabel("VIEWS")',
-                 "for btn in self.nav_buttons[6:10]:",
+                 # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+                 # section is WORKSPACES now — the four views are
+                 # usable workspaces, not read-only views.
+                 # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): the
+                 # section holds seven workspace buttons now
+                 # (nav_buttons[7:14]); Settings is the footer at
+                 # nav_buttons[14].
+                 '_views_label = QLabel("WORKSPACES")',
+                 "for btn in self.nav_buttons[7:14]:",
                  "layout.addStretch()",
-                 "layout.addWidget(self.nav_buttons[10])"]
+                 "layout.addWidget(self.nav_buttons[14])"]
         positions = [segment.index(marker) for marker in order]
         self.assertEqual(positions, sorted(positions),
                          "sidebar order is not CORE -> MISSION -> "
-                         "ARCHIVE -> SYSTEM -> VIEWS -> stretch -> "
-                         "footer Settings")
-        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM", "VIEWS"):
+                         "ARCHIVE -> CAPABILITIES -> SYSTEM -> "
+                         "WORKSPACES -> stretch -> footer Settings")
+        for label in ("CORE", "MISSION", "ARCHIVE", "CAPABILITIES",
+                      "SYSTEM", "WORKSPACES"):
             self.assertIn(f'QLabel("{label}")', segment)
 
     def test_privacy_card_present_not_a_line(self):
@@ -220,17 +245,25 @@ class TestChatPassWindow(WindowBase):
         # Inbox, Contacts, Calls) join before Settings under a
         # new VIEWS section label; the v6.3 seven keep their
         # order and Settings stays last.
+        # INTENTIONAL UPDATE (UI Phase 2, 2026-11-25): twelve
+        # buttons — Skills joins under a new CAPABILITIES section
+        # label between ARCHIVE and SYSTEM.
+        # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): fifteen
+        # buttons — Notes, Finance and Devices join as first-class
+        # workspaces before Settings under the WORKSPACES section.
         self._show_home()
         labels = [b.text() for b in self.window.nav_buttons]
         self.assertEqual(labels, ["Home", "Activity", "Memory",
-                                  "System Pulse", "Senses", "Doctor",
-                                  "Calendar", "Inbox", "Contacts",
-                                  "Calls", "Settings"])
+                                  "Skills", "System Pulse", "Senses",
+                                  "Doctor", "Calendar", "Inbox",
+                                  "Contacts", "Calls", "Notes",
+                                  "Finance", "Devices", "Settings"])
         from PySide6.QtWidgets import QLabel, QFrame
 
         inner = self.window.nav_buttons[0].parentWidget()
         seen = {lbl.text() for lbl in inner.findChildren(QLabel)}
-        for label in ("CORE", "MISSION", "ARCHIVE", "SYSTEM", "VIEWS"):
+        for label in ("CORE", "MISSION", "ARCHIVE", "CAPABILITIES",
+                      "SYSTEM", "WORKSPACES"):
             self.assertIn(label, seen,
                           "a v6.3 section label is missing")
         card = self.window.findChild(QFrame, "privacyCard")
@@ -239,9 +272,13 @@ class TestChatPassWindow(WindowBase):
         self.assertIn("Private by design", texts)
         self.assertIsNone(getattr(self.window, "privacy_lock", None))
 
-    def test_chat_panel_minimum_width_is_300(self):
+    def test_chat_panel_minimum_width_is_230(self):
+        # UI upgrade Phase 1 §5 (screenshot-size ruling,
+        # 2026-11-24): the chat is no longer frozen at 400/300 —
+        # at 1280 it is ~230 px (sidebar 170, HUD 868, chat 230),
+        # so the panel minimum is 230.
         self._show_home()
-        self.assertEqual(self.window.chat_panel.minimumWidth(), 300)
+        self.assertEqual(self.window.chat_panel.minimumWidth(), 230)
 
     def test_starter_chips_paint(self):
         # The freeze regression: on an empty conversation the

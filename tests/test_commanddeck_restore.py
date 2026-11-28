@@ -72,8 +72,9 @@ class SidebarRestoreTests(unittest.TestCase):
     def test_section_labels_present(self):
         # Chat pass (2026-11-17, owner ruling: the sidebar is
         # v6.3 exactly): the §9.2 section labels are BACK — the
-        # rail is eleven nav items in labelled groups (the v6.3
-        # seven plus the Stage 0 features batch 1 views), as
+        # rail is twelve nav items in labelled groups (the v6.3
+        # seven plus the Stage 0 features batch 1 views plus the
+        # UI Phase 2 Skills button under CAPABILITIES), as
         # restored 2026-11-01 and as shipped in v6.3 (proven at
         # backup_release_v630_pre gui/window_shell_sidebar.py
         # :330-345). This suite's own scope is the labels restore;
@@ -84,13 +85,19 @@ class SidebarRestoreTests(unittest.TestCase):
         for label in ('_core_label = QLabel("CORE")',
                       '_mission_label = QLabel("MISSION")',
                       '_archive_label = QLabel("ARCHIVE")',
+                      # UI Phase 2 (2026-11-25).
+                      '_capabilities_label = QLabel("CAPABILITIES")',
                       '_system_label = QLabel("SYSTEM")',
                       # Stage 0 features batch 1 (Group D).
-                      '_views_label = QLabel("VIEWS")'):
+                      # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25):
+                      # the section is WORKSPACES now.
+                      '_views_label = QLabel("WORKSPACES")'):
             self.assertIn(label, segment,
                           "a v6.3 section label is missing")
-        self.assertNotIn('QLabel("CAPABILITIES")', segment,
-                         "CAPABILITIES has no sidebar button to group")
+        # UI Phase 2 (2026-11-25): CAPABILITIES groups the Skills
+        # button — the label exists now.
+        self.assertIn('QLabel("CAPABILITIES")', segment,
+                      "the CAPABILITIES section label is missing")
 
     def test_sidebar_frame_and_indices_unchanged(self):
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
@@ -99,21 +106,27 @@ class SidebarRestoreTests(unittest.TestCase):
         # gone (proven at backup_release_v630_pre
         # gui/window_shell_sidebar.py:295). Stage 0 features
         # batch 1 (Group D) adds the four views at stack 8–11.
+        # UI Phase 2 (2026-11-25): Skills takes index 3 again
+        # under CAPABILITIES — the map is the fifteen-button value
+        # asserted below.
+        # UI Phase 5 (2026-11-27): Notes / Finance / Devices take
+        # stack 12–14, before the footer Settings (stack 4).
         segment = _segment("window_shell_sidebar.py", "_build_sidebar")
         self.assertIn("sidebar.setFixedWidth(220)", segment)
-        self.assertIn("_nav_page_indices = [0, 1, 2, 5, 6, 7, 8, 9, 10, 11, 4]",
+        self.assertIn("_nav_page_indices = [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 4]",
                       segment)
 
-    def test_no_capabilities_label_no_skills_button(self):
-        # Chat pass (2026-11-17): still no CAPABILITIES label —
-        # and the Build 3 Skills button is GONE (Skills is
-        # Ctrl+K-only as in v6.3; proven: no Skills def in
-        # backup_release_v630_pre gui/window_shell_sidebar.py).
+    def test_capabilities_label_and_skills_button(self):
+        # UI Phase 2 (2026-11-25): the CAPABILITIES label is back
+        # WITH the Skills button — Skills is no longer Ctrl+K-only
+        # (the Build 3 button was removed by the chat pass; Phase 2
+        # restores it as the Capabilities Centre's sidebar entry,
+        # "shapes" icon, stack 3).
         # INTENTIONAL (refactor P1 step 5): shell method moved verbatim to its panel mixin. Assertion unchanged.
         segment = _segment("window_shell_sidebar.py", "_build_sidebar")
-        self.assertNotIn('QLabel("CAPABILITIES")', segment)
-        self.assertNotIn('("Skills", "grid", 3, "Capabilities")',
-                         segment)
+        self.assertIn('QLabel("CAPABILITIES")', segment)
+        self.assertIn('("Skills", "shapes", 3)',
+                      segment)
 
 
 class NotRestoredTests(unittest.TestCase):

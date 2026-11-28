@@ -634,7 +634,7 @@ class ClassificationTests(unittest.TestCase):
         from core.catalogue_groups_data import GROUP_MEMBERS  # noqa: E402
         for name in ("search_documents", "list_documents",
                      "forget_documents"):
-            self.assertIn(name, GROUP_MEMBERS["Mind"])
+            self.assertIn(name, GROUP_MEMBERS["Intelligence"])
             self.assertIn(name, labels.TOOL_FRIENDLY_NAMES)
         # The generated snapshot must not drift from the live
         # groups data (the anticipation-executor precedent).
@@ -813,7 +813,7 @@ class CensusTests(unittest.TestCase):
         import core.tool_labels as labels  # noqa: E402
         from core.catalogue_groups_data import GROUP_MEMBERS  # noqa: E402
         grouped = sum(len(v) for v in GROUP_MEMBERS.values())
-        self.assertEqual(grouped, 769)
+        self.assertEqual(grouped, 772)  # UI Phase 2 (2026-11-25): grouped 769 -> 772 — click_anywhere + 2 plugin tools join the catalogue
         self.assertEqual(snap.GROUP_MEMBERS, GROUP_MEMBERS)
         decls = tools.get_declarations()
         closed = sum(

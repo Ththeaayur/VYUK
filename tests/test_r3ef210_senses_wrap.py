@@ -180,9 +180,13 @@ class TestQualityValueOneLine(unittest.TestCase):
 
     def test_sibling_cards_unchanged_at_908(self):
         self._resize(908)
+        # UI Phase 4 (D-P4-12): the privacy probe cannot run off
+        # Windows, so the leg reads "—" (couldn't check) instead
+        # of the pre-Phase-4 "Idle" default; the connection and
+        # battery legs are unchanged.
         for key, want in (("connection", "Ethernet"),
                           ("battery", "\u2014"),
-                          ("privacy", "Idle")):
+                          ("privacy", "\u2014")):
             lab = self.senses.state_labels[key]
             self.assertEqual(lab.text(), want)
             self.assertTrue(self._one_line(lab),

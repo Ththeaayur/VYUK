@@ -155,23 +155,31 @@ class D1Tests(unittest.TestCase):
 class D2D3D4Tests(unittest.TestCase):
     def test_memory_page_wrapped_in_outer_scroll(self):
         # GUI split #8 INTENTIONAL: _build_memory_page moved verbatim to
-        # window_pages_memory.py. Assertion unchanged.
+        # window_pages_memory.py. Phase 1: the List/Web toggle is
+        # gone — the saved memory/view migrates once ("web" lands
+        # on the Knowledge Graph tab) and the key is retired; the
+        # outer scroll and the list card are unchanged.
         src = _func_src("window_pages_memory.py", "_build_memory_page")
         _order(src, [
-            'self._set_memory_view("web" if saved_view == "web"',
+            'initial = 4 if saved_view == "web"',
             "scroll = QScrollArea()",
             "scroll.setWidget(page)",
             "page.setAutoFillBackground(False)",
         ])
         self.assertIn("self.memory_list = QListWidget()", src)
         self.assertIn("layout.addWidget(card, stretch=1)", src)
+        self.assertIn('qsettings_remove("memory/view"', src)
 
     def test_skills_page_wrapped_in_outer_scroll(self):
         # GUI split #8 INTENTIONAL: _build_skills_page moved verbatim to
         # window_pages_memory.py. Assertion unchanged.
+        # UI Phase 2 (2026-11-25): the page is a left column beside
+        # the detail drawer, so the rescan button now lands on the
+        # left column's layout — the outer scroll wrapping is
+        # unchanged.
         src = _func_src("window_pages_memory.py", "_build_skills_page")
         _order(src, [
-            "layout.addWidget(btn_rescan)",
+            "left.addWidget(btn_rescan)",
             "scroll = QScrollArea()",
             "scroll.setWidget(page)",
             "page.setAutoFillBackground(False)",
@@ -181,11 +189,14 @@ class D2D3D4Tests(unittest.TestCase):
     def test_galaxy_canvas_floor_preserved(self):
         # The D4 fix is the page scroll plus the fit guard below,
         # not a smaller canvas: the canvas minimum that the ring
-        # needs stays 320x280.
+        # needs stays 320x360 — the Galaxy looks-round fix
+        # (2026-11-25, parent-verified) raised the floor from 280
+        # to 360 so the canvas is the dominant element instead of
+        # a small strip; this pin still guards that floor.
         # GUI split #5 INTENTIONAL: canvas moved verbatim to
         # skills_galaxy_canvas2d.py. Assertion unchanged.
         src = _source("skills_galaxy_canvas2d.py")
-        self.assertIn("self.setMinimumSize(320, 280)", src)
+        self.assertIn("self.setMinimumSize(320, 360)", src)
 
 
 class D4Tests(unittest.TestCase):
@@ -300,14 +311,22 @@ class D5Tests(unittest.TestCase):
             "layout.addWidget(self.nav_buttons[1])",
             '_archive_label = QLabel("ARCHIVE")',
             "layout.addWidget(self.nav_buttons[2])",
+            # UI Phase 2 (2026-11-25): CAPABILITIES for Skills.
+            '_capabilities_label = QLabel("CAPABILITIES")',
+            "layout.addWidget(self.nav_buttons[3])",
             '_system_label = QLabel("SYSTEM")',
-            "for btn in self.nav_buttons[3:6]:",
+            "for btn in self.nav_buttons[4:7]:",
             # Stage 0 features batch 1 (Group D): the VIEWS
             # section sits between SYSTEM and the stretch.
-            '_views_label = QLabel("VIEWS")',
-            "for btn in self.nav_buttons[6:10]:",
+            # INTENTIONAL UPDATE (UI Phase 3, 2026-11-25): the
+            # section is WORKSPACES now.
+            # INTENTIONAL UPDATE (UI Phase 5, 2026-11-27): seven
+            # workspace buttons (nav_buttons[7:14]); Settings is
+            # the footer at nav_buttons[14].
+            '_views_label = QLabel("WORKSPACES")',
+            "for btn in self.nav_buttons[7:14]:",
             "layout.addStretch()",
-            "layout.addWidget(self.nav_buttons[10])",
+            "layout.addWidget(self.nav_buttons[14])",
         ])
 
 

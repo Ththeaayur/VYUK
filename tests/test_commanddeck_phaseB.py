@@ -86,8 +86,8 @@ def tearDownModule():
 
 EXPECTED_THEMES = (
     "Cyan", "Sunset", "Violet", "Graphite", "Aurora", "Ember",
-    "Mono", "Rose", "Contrast", "Amber", "Crimson",
-)
+    "Mono", "Rose", "Contrast", "Amber", "Crimson", "Light",
+)  # D-08 (Phase 6): "Light" was missing — the proof carries 12 themes.
 
 
 class TestProofGreen(unittest.TestCase):

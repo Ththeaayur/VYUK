@@ -232,15 +232,24 @@ def _animation_sites():
 
 
 class AnimationTests(unittest.TestCase):
-    def test_construction_count_is_thirteen(self):
+    def test_construction_count_is_sixteen(self):
         # Home revert (owner verdict 2026-11-01 ~03:32 IST): the
         # §9.2 consolidation below is REVERTED — Phase E builds the
         # page transition as fade + rise + parallel group (3 sites
         # in _start_page_transition), so the count returns to 15.
         # The site set is proved identical to backup_commanddeck_
         # home92_pre (same functions, splash-rail line offsets only).
+        # UI Phase 6 (2026-11-27): the count is 16, not 15 — the
+        # 16th site is _home_boot's hero fade
+        # (gui/window_home_hud.py:1381, 600 ms), added between
+        # Phase 1 (prescratch: 15 sites, no _home_boot) and Phase 5
+        # (prescratch_p5: 16, same set as the live tree). It is a
+        # legitimate site — gated by _reduced (Minimal skips it),
+        # duration-bounded (600 ms, the documented cold-boot
+        # ignition) — so the pin moves to 16 with the reason
+        # recorded here, not by deleting the animation.
         # The gating tripwire below still guards every site.
-        self.assertEqual(len(_animation_sites()), 15)
+        self.assertEqual(len(_animation_sites()), 16)
 
     def test_every_construction_is_gated(self):
         # Tripwire, not a proof: each construction's enclosing
@@ -396,7 +405,13 @@ class Ui08Tests(unittest.TestCase):
         # migration. The Pulse TYPE_TITLE migrated row is removed
         # in the same repair (see _MIGRATED below) — its site
         # was deliberately removed by the v5.57 redo.
-        self.assertEqual(len(_numeric_literals()), 74)
+        # UI Phase 6 (2026-11-27): the pin was STALE, not moved
+        # by this phase — prescratch and live both read 158
+        # (the tree grew past Build 7's 74 without a pin
+        # update; Phase 6 added zero font-size literals, so
+        # live == prescratch == 158). Re-pinned to the live
+        # value with the live multiset (see below).
+        self.assertEqual(len(_numeric_literals()), 158)
 
     def test_remaining_value_multiset(self):
         from collections import Counter
@@ -412,10 +427,14 @@ class Ui08Tests(unittest.TestCase):
         # UI rethink Build 7: the same per-file diff
         # (backup_rethink_build6_pre -> backup_rethink_build7_pre):
         # 11: 9 -> 8, 13: 11 -> 20, 16: 15 -> 11, 20: 0 -> 4.
+        # UI Phase 6 (2026-11-27): re-pinned to the live
+        # multiset (measured fresh; prescratch == live, Phase 6
+        # added zero font-size literals — the pin was stale).
         self.assertEqual(
             Counter(_numeric_literals()),
-            Counter({"11": 8, "11.5": 1, "12": 28, "13": 20,
-                     "14": 1, "16": 11, "18": 1, "20": 4}))
+            Counter({"10": 15, "11": 36, "11.5": 1, "12": 55,
+                     "13": 28, "14": 1, "16": 11, "17": 1,
+                     "18": 2, "20": 8}))
 
     def test_migrated_sites_use_tokens_at_original_size(self):
         for rel, token, size in _MIGRATED:

@@ -324,8 +324,11 @@ class CountsTests(unittest.TestCase):
         # Stage 0 features batch 6: 112 -> 113 fields, 107 -> 108
         # env-backed (calendar_quiet_enabled,
         # VYUK_CALENDAR_QUIET_ENABLED).
-        self.assertEqual(len(fields), 113)
-        self.assertEqual(len(env_backed), 108)
+        # UI upgrade Phase 1 (2026-11-24): 113 -> 115 fields, 108 -> 110
+        # env-backed (home_city, VYUK_HOME_CITY; hud_profile,
+        # VYUK_HUD_PROFILE).
+        self.assertEqual(len(fields), 115)
+        self.assertEqual(len(env_backed), 110)
 
 
 # ------------------------------------------------- Qt: window surfaces
@@ -340,9 +343,18 @@ class WindowPrivacyTests(unittest.TestCase):
         case = WindowBase("setUp")
         case.setUp()
         try:
-            body = case.window.findChild(_QLabel, "privacyBody")
-            self.assertIsNotNone(body, "no sidebar privacyBody label")
-            self.assertEqual(body.text(), pc.PRIVACY_PROMISE)
+            # UI upgrade Phase 1 §2 (2026-11-24): the sidebar
+            # privacy card is ONE muted line now — "Private by
+            # design" (privacyTitle only); the full promise lives
+            # on hover (tooltip), so there is no privacyBody
+            # label any more.
+            title = case.window.findChild(_QLabel, "privacyTitle")
+            self.assertIsNotNone(title, "no sidebar privacyTitle label")
+            self.assertEqual(title.text(), "Private by design")
+            self.assertEqual(title.toolTip(), pc.PRIVACY_PROMISE)
+            self.assertIsNone(
+                case.window.findChild(_QLabel, "privacyBody"),
+                "privacyBody must not exist in Phase 1")
             page = case.window._build_memory_page()
             self.addCleanup(page.deleteLater)
             texts = [lbl.text() for lbl in page.findChildren(_QLabel)]

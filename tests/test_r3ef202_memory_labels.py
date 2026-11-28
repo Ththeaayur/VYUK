@@ -206,9 +206,14 @@ class _MemoryWebBase(unittest.TestCase):
         self._orig = _canvas2d._draw_label
         self._recorded = []
 
-        def _rec(painter, rect, text, font, colour):
+        # UI upgrade Phase 1 (M-21): _draw_label gained a 6th
+        # `halo` argument (the label halo follows the theme's
+        # bg). The wrapper must accept + forward it — a 5-arg
+        # wrapper raises TypeError inside paintEvent on every
+        # label, Qt swallows it, and nothing is recorded.
+        def _rec(painter, rect, text, font, colour, halo=None):
             self._recorded.append((rect, text, font))
-            return self._orig(painter, rect, text, font, colour)
+            return self._orig(painter, rect, text, font, colour, halo)
 
         _canvas2d._draw_label = _rec
         self.window._show_page(2)  # Memory page
@@ -237,6 +242,20 @@ class _MemoryWebBase(unittest.TestCase):
         self.window.resize(width, 750)
         _pump(self.app, 0.6)
         self._recorded.clear()
+        # UI upgrade Phase 1: the Graph is a SECTION inside the
+        # Memory page's scroll area (below Overview / Profile /
+        # Projects / Episodes), so its canvas sits ~640 px down
+        # the scroll content and its labels fall below the
+        # 750 px window's fold — the grab shows no ink. Scroll
+        # the CANVAS itself into view before repainting, so the
+        # labels land inside the grabbed window.
+        scroll = getattr(self.window, "_mem_page_scroll", None)
+        if scroll is not None:
+            try:
+                scroll.ensureWidgetVisible(self.canvas)
+            except Exception:  # noqa: BLE001 — scroll best-effort
+                pass
+            _pump(self.app, 0.3)
         # repaint() is synchronous: it paints NOW. Grab the
         # window immediately, with NO pump, so the grab shows
         # exactly the paint whose rects were recorded.

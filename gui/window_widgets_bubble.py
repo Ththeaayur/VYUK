@@ -171,7 +171,7 @@ class ChatBubble(QFrame):
             time_str if time_str is not None
             else datetime.datetime.now().strftime("%H:%M")
         )
-        self.time_lbl.setObjectName("bubbleTime")
+        self.time_lbl.setObjectName("chatMsgTime")
         self.time_lbl.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )

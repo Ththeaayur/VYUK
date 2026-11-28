@@ -188,6 +188,18 @@ class ShellMemoryIOMixin:
         for fid in fact_ids:
             fact = by_id.get(fid)
             if fact is None:
+                # The fact is not on the page (filtered out of
+                # the list, or rejected from the Review Inbox):
+                # read it from the store so the undo bar can
+                # still restore it.
+                try:
+                    for row in _memory_store().get_all_facts():
+                        if row.get("id") == fid:
+                            fact = row
+                            break
+                except Exception:  # noqa: BLE001
+                    fact = None
+            if fact is None:
                 continue
             try:
                 ok = bool(_memory_store().delete_fact(fid))
@@ -201,18 +213,27 @@ class ShellMemoryIOMixin:
         else:
             self._notify("Those memories were already gone.")
 
-    def _show_mem_undo(self, facts):
+    def _show_mem_undo(self, facts, label=None):
         """The one-tap undo bar: the deleted facts, restorable
-        for a few seconds."""
+        for a few seconds. An explicit label (the rename) names
+        the act instead of the fact; in private mode the bar
+        never names a fact at all (M-26)."""
         self._mem_undone_facts = list(facts)
-        label = getattr(self, "_mem_undo_label", None)
+        undo_label = getattr(self, "_mem_undo_label", None)
         bar = getattr(self, "_mem_undo_bar", None)
-        if label is None or bar is None:
+        if undo_label is None or bar is None:
             return
-        if len(facts) == 1:
-            label.setText(f"Forgot “{facts[0].get('key', '')}”.")
+        if self._mem_private_on():
+            if len(facts) == 1:
+                undo_label.setText("Fact forgotten")
+            else:
+                undo_label.setText(f"{len(facts)} facts forgotten")
+        elif label is not None:
+            undo_label.setText(label)
+        elif len(facts) == 1:
+            undo_label.setText(f"Forgot “{facts[0].get('key', '')}”.")
         else:
-            label.setText(f"Forgot {len(facts)} memories.")
+            undo_label.setText(f"Forgot {len(facts)} memories.")
         bar.setVisible(True)
         QTimer.singleShot(8000, self._hide_mem_undo)
 
@@ -224,21 +245,40 @@ class ShellMemoryIOMixin:
 
     def _undo_mem_forget(self):
         """Put the just-forgotten facts back, exactly as they
-        were (same category, key and value)."""
+        were (same category, key and value). A rename's undo
+        also removes the new row the rename created (D-M3:
+        forget-old + save-new together, one undo), and a pin
+        the fact carried is put back on the restored row."""
         facts = list(getattr(self, "_mem_undone_facts", None) or [])
         self._hide_mem_undo()
         if not facts:
             return
         restored = 0
         for fact in facts:
+            category = str(fact.get("category") or "general")
+            key = str(fact.get("key") or "")
             try:
                 if _memory_store().save_fact(
-                        str(fact.get("category") or "general"),
-                        str(fact.get("key") or ""),
+                        category, key,
                         str(fact.get("value") or "")):
                     restored += 1
+                    if fact.get("user_pinned"):
+                        try:
+                            fresh = _memory_store().get_fact(
+                                category, key)
+                            if fresh is not None:
+                                _memory_store().set_user_pinned(
+                                    fresh["id"], True)
+                        except Exception:  # noqa: BLE001
+                            pass
             except Exception:  # noqa: BLE001
                 pass
+            new_id = fact.get("_rename_new_id")
+            if new_id is not None:
+                try:
+                    _memory_store().delete_fact(new_id)
+                except Exception:  # noqa: BLE001
+                    pass
         self._refresh_memories()
         if restored:
             self._notify(

@@ -1,7 +1,7 @@
 """Research wiring batch: the A6 research_loop now has a real
 production caller — the deep_research tool (core/memory/deep_research.py,
 registered in core/funnel/tools_handlers.py, grouped in Mind, routed via
-route_mind). These tests prove the CALLER invokes the loop (not
+route_intelligence). These tests prove the CALLER invokes the loop (not
 merely that the loop exists), the local-only retriever, the honest
 empty/failure states, the funnel leg, and the gate classification.
 
@@ -194,7 +194,8 @@ class FunnelAndGateTests(unittest.TestCase):
         self.assertIn("deep_research", names)
         from core.brain import domain_routers as rm  # Phase 3 B1b INTENTIONAL: domain_routers moved to core/brain/
         membership = rm.domain_router_membership(tools)
-        self.assertIn("deep_research", membership.get("route_mind", ()))
+        # UI Phase 2 (2026-11-25): router follows the group rename ("Mind" -> "Intelligence").
+        self.assertIn("deep_research", membership.get("route_intelligence", ()))
 
     def test_contract_names_the_tool(self):
         text = Path(__file__).parent.parent.joinpath(

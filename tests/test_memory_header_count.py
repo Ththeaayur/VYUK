@@ -19,11 +19,18 @@ the page — "14 facts remembered" while 22 facts were on it (14
 hand-saved in the list + 8 learned in the card above it), and
 "14" while 114 were shown in the 100-fact stress. The header
 counted only the store total, but the page renders the learned
-facts twice — once in the card, once in the list — so the header
-must count the facts actually ON the page: list rows + card rows.
+facts twice — once in the card, once in the list. The E-F204 fix
+made the header count the facts ON the page: list rows + card
+rows. That rule is SUPERSEDED by the hunt fix (c) header round
+(2026-11-26, parent ruling): the item-6 widening made the card
+render every user fact — the same facts already in the list — so
+the old rule counted every fact twice ("10 facts remembered" for
+5 facts, "2" for 1). The header now counts UNIQUE facts (the
+store's shown/total); the card's second rendering never adds.
 The expectations below pin that rule (1 learned fact reads
-"2 facts remembered": 1 list row + 1 card row); the old
-distinct-fact numbers were the E-F204 bug, not the rule.
+"1 fact remembered": 1 unique fact in the store, rendered twice
+on the page); the old list-plus-card numbers were the E-F204 bug,
+not the rule.
 
 Two halves:
   * HeaderViewTests (pure, both interpreters): memory_facts_view
@@ -212,10 +219,11 @@ class HeaderWindowTests(WindowBase):
     def test_one_learned_fact_header_counts_it(self):
         self._teach("remember that my dentist is Dr. Rao")
         self._show_memory()
-        # E-F204: the header counts the facts ON the page — the
-        # fact's list row AND its card row — so one learned fact
-        # reads 2, not 1.
-        self.assertEqual(self._header(), "2 facts remembered")
+        # Hunt fix (c) header round: the header counts unique
+        # facts — one stored fact reads 1, even though the card
+        # renders it a second time (list + card). The old E-F204
+        # rule read 2 here.
+        self.assertEqual(self._header(), "1 fact remembered")
         rows, texts = self._card_rows()
         self.assertEqual(rows, 1)
         self.assertTrue(any("Dr. Rao" in t for t in texts))
@@ -227,10 +235,14 @@ class HeaderWindowTests(WindowBase):
         self._teach("remember that my dog is called Biscuit")
         self._store.save_fact("general", "Favourite drink", "Masala tea")
         self._show_memory()
-        # E-F204: 4 list rows + 3 card rows = 7 facts on the page.
-        self.assertEqual(self._header(), "7 facts remembered")
+        # Hunt fix (c) header round: 4 unique facts in the store
+        # (3 learned + 1 general). The widened card shows all 4
+        # (its rows stay 4 — the card side of item 6 is unchanged),
+        # but its rows do not add to the header. The old E-F204
+        # rule read 8 here (4 list + 4 card).
+        self.assertEqual(self._header(), "4 facts remembered")
         rows, _texts = self._card_rows()
-        self.assertEqual(rows, 3)
+        self.assertEqual(rows, 4)
         self.assertEqual(self._fact_rows(), 4)
 
     def test_zero_facts_header_is_honest_zero(self):
@@ -251,8 +263,8 @@ class HeaderWindowTests(WindowBase):
         self.app.processEvents()
         self._teach("remember that my dentist is Dr. Rao")
         self._show_memory()
-        # E-F204: 1 list row + 1 card row.
-        self.assertEqual(self._header(), "2 facts remembered")
+        # Hunt fix (c) header round: 1 unique fact reads 1.
+        self.assertEqual(self._header(), "1 fact remembered")
         rows, texts = self._card_rows()
         self.assertEqual(rows, 1)
         self.assertTrue(any("Dr. Rao" in t for t in texts))
@@ -261,14 +273,14 @@ class HeaderWindowTests(WindowBase):
         self._teach("remember that my dentist is Dr. Rao")
         self._teach("remember that my favourite colour is azure")
         self._show_memory()
-        # E-F204: 2 list rows + 2 card rows.
-        self.assertEqual(self._header(), "4 facts remembered")
+        # Hunt fix (c) header round: 2 unique facts read 2.
+        self.assertEqual(self._header(), "2 facts remembered")
         facts = self._learn.get_learned_facts()
         self.assertTrue(
             self._learn.forget_learned_fact(facts[0]["id"]))
         self._show_memory()
-        # E-F204: 1 list row + 1 card row.
-        self.assertEqual(self._header(), "2 facts remembered")
+        # Hunt fix (c) header round: 1 unique fact left, reads 1.
+        self.assertEqual(self._header(), "1 fact remembered")
         rows, _texts = self._card_rows()
         self.assertEqual(rows, 1)
 

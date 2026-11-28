@@ -344,13 +344,40 @@ class MemoryBuild6Tests(WindowBase):
                     Qt.ItemDataRole.UserRole) is None]
 
     def test_toolbar_is_one_row(self):
+        from PySide6.QtWidgets import QWidget
+
         self.window.show()
         self._show_memory()
         win = self.window
+        # Phase 1: the search lives in a glass pill above the
+        # tabs, shared by every section; the List/Web toggle and
+        # the "Filter: All" button are gone — the six tabs are
+        # the view switch now.
         self.assertTrue(win.mem_search.isVisible())
-        self.assertEqual(win.btn_mem_filter.text(), "Filter: All")
-        self.assertTrue(win.btn_mem_view_list.isVisible())
-        self.assertTrue(win.btn_mem_view_web.isVisible())
+        # Find by objectName through QWidget, not HudPanel: the
+        # page imports HudPanel via the relative
+        # voice_assistant.gui.design_system path while this test
+        # imports the bare gui.design_system.panels — two class
+        # objects for one file, so a HudPanel-typed findChild
+        # misses the pill (dual identity, 2026-11-24).
+        pill = win.findChild(QWidget, "memorySearchPill")
+        self.assertIsNotNone(pill)
+        self.assertTrue(getattr(pill, "glass", False))
+        self.assertIs(pill.findChild(type(win._memory_search)),
+                      win._memory_search)
+        self.assertFalse(hasattr(win, "btn_mem_filter"))
+        self.assertFalse(hasattr(win, "btn_mem_view_list"))
+        self.assertFalse(hasattr(win, "btn_mem_view_web"))
+        tabs = win._memory_tabs
+        self.assertEqual(tabs.count(), 6)
+        # "Projects && Context": Qt consumes a single & as a
+        # mnemonic marker, so the tab is added with && and
+        # tabText() returns the && form; the DISPLAY reads
+        # "Projects & Context" (same as leg 22 / test_ui_p1).
+        self.assertEqual(
+            [tabs.tabText(i) for i in range(6)],
+            ["Overview", "Profile", "Projects && Context", "Episodes",
+             "Knowledge Graph", "Review Inbox"])
         self.assertEqual(win.btn_mem_overflow.text(), "···")
         # The category combo is a hidden state holder now, not a
         # visible control; the old "Clear conversation history"
@@ -401,7 +428,12 @@ class MemoryBuild6Tests(WindowBase):
         self.window.mem_cat_filter.setCurrentText("learned")
         self.window._refresh_memories()
         self.assertEqual(self._fact_rows(), 1)
-        self.assertIn("learned", self.window.btn_mem_filter.text())
+        # UI Phase 1: the filter button is gone — the filter chips
+        # replaced it (the chip row mirrors the hidden combo, which
+        # still holds the filter state). The narrowing above proves
+        # the filter applied; the combo's text is the visible state.
+        self.assertEqual(
+            self.window.mem_cat_filter.currentText(), "learned")
 
 
 @unittest.skipUnless(_QT, "Qt unavailable")
@@ -456,15 +488,27 @@ class DoctorBuild6Tests(WindowBase):
         # 20 px semibold at every site, whatever the headline says.
         self.assertIn("font-size: 20px", page.hero_title.styleSheet())
         self.assertIn("font-weight: 600", page.hero_title.styleSheet())
+        # Fix round (F-P4-02, parent ruling 2026-11-26): the hero
+        # counts CHECKS, not verdict lines. Each fake payload
+        # carries both tallies — the verdict counts (40/25/3, the
+        # old hero) and the per-check counts — and the hero must
+        # read the per-check ones: 37 checks all passing, then
+        # 30 passing with 5 warnings and 2 failures (7 issues,
+        # not 28).
         page._on_done({"ok": True, "counts": {"PASS": 40, "WARN": 0,
                                                "FAIL": 0},
+                       "check_counts": {"PASS": 37, "WARN": 0,
+                                        "FAIL": 0},
                        "findings": [], "text": ""})
         self.assertEqual(page.hero_title.text(), "Healthy")
+        self.assertIn("37 checks passed", page.hero_counts.text())
         page._on_done({"ok": True, "counts": {"PASS": 40, "WARN": 25,
                                                "FAIL": 3},
+                       "check_counts": {"PASS": 30, "WARN": 5,
+                                        "FAIL": 2},
                        "findings": [], "text": ""})
-        self.assertEqual(page.hero_title.text(), "28 issues")
-        self.assertIn("40 checks passed", page.hero_counts.text())
+        self.assertEqual(page.hero_title.text(), "7 issues")
+        self.assertIn("30 checks passed", page.hero_counts.text())
 
     def test_findings_are_rows_not_cards(self):
         self._show_doctor()
@@ -611,10 +655,17 @@ class SensesBuild6Tests(_GrantsMixin):
         _app()
         page = SensesPage(providers={})
         self.addCleanup(page.deleteLater)
+        # UI Phase 4 (D-P4-11, 2026-11-26): the grant store's
+        # unknown reads "Unknown" on the App column — the screen
+        # grant has never been set, so it no longer reads "Off".
+        # (Parent ruling 2026-11-26 19:19 IST, fix round F-08:
+        # the probe cannot tell never-asked from unreadable, so
+        # the page asserts neither — "Not asked yet" became
+        # "Unknown" here.)
         words = {pid: lb.text()
                  for pid, lb in page._sense_rows.items()}
         self.assertEqual(words, {"microphone": "Off", "camera": "Off",
-                                 "screen": "Off"})
+                                 "screen": "Unknown"})
         self._pg.set_permission_state("microphone", "granted")
         self._pg.grant_session_only("camera")
         page.refresh_state()
@@ -622,7 +673,9 @@ class SensesBuild6Tests(_GrantsMixin):
                  for pid, lb in page._sense_rows.items()}
         self.assertEqual(words["microphone"], "On")
         self.assertEqual(words["camera"], "This session only")
-        self.assertEqual(words["screen"], "Off")
+        # UI Phase 4 (D-P4-11): screen was never granted or denied,
+        # so it still reads "Unknown" — see the note above.
+        self.assertEqual(words["screen"], "Unknown")
 
 
 @unittest.skipUnless(_QT, "Qt unavailable")

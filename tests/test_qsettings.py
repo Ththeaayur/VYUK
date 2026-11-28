@@ -91,7 +91,7 @@ def _need_w9(test):
 
 
 class QSettingsTableTests(unittest.TestCase):
-    def test_table_has_100_entries(self):
+    def test_table_has_108_entries(self):
         # Chat UI build (2026-11-16): 90 + chat/composer_draft +
         # chat/last_seen_id. Field-check fix #7 (U4 #31):
         # + chat/last_seen_store_id. Field-check fix #12
@@ -105,15 +105,28 @@ class QSettingsTableTests(unittest.TestCase):
         # setup card's declines and snooze).
         # Stage 0 features batch 6 (2026-11-23): +1
         # (quiet/calendar_quiet_enabled — calendar-aware quiet).
-        self.assertEqual(len(cs.QSETTINGS_FIELDS), 100)
+        # UI Phase 1 (2026-11-23): +3 (home/city, appearance/
+        # hud_profile, learning/reviewed_ids).
+        # UI Phase 2 (2026-11-25): +2 (skills/pinned, palette/recent).
+        # UI Phase 3 (2026-11-25): +1 (calendar/view).
+        # UI Phase 4 (2026-11-26): +2 (pulse/refresh_ms,
+        # doctor/run_selection).
+        self.assertEqual(len(cs.QSETTINGS_FIELDS), 108)
 
     def test_names_and_keys_unique(self):
         names = [n for n, _k, _t, _d in cs.QSETTINGS_FIELDS]
         keys = [k for _n, k, _t, _d in cs.QSETTINGS_FIELDS]
         # Stage 0 features batch 6 (2026-11-23): 99 -> 100
         # (quiet/calendar_quiet_enabled).
-        self.assertEqual(len(set(names)), 100)
-        self.assertEqual(len(set(keys)), 100)
+        # UI upgrade Phase 1 (2026-11-24): 100 -> 103
+        # (home/city, appearance/hud_profile, learning/reviewed_ids).
+        # UI Phase 2 (2026-11-25): 103 -> 105
+        # (skills/pinned, palette/recent).
+        # UI Phase 3 (2026-11-25): 105 -> 106 (calendar/view).
+        # UI Phase 4 (2026-11-26): 106 -> 108 (pulse/refresh_ms,
+        # doctor/run_selection).
+        self.assertEqual(len(set(names)), 108)
+        self.assertEqual(len(set(keys)), 108)
 
     def test_types_valid(self):
         for _n, _k, typ, _d in cs.QSETTINGS_FIELDS:
@@ -123,7 +136,14 @@ class QSettingsTableTests(unittest.TestCase):
         defaults = cs.qsettings_defaults()
         # Stage 0 features batch 6 (2026-11-23): 99 -> 100
         # (quiet/calendar_quiet_enabled).
-        self.assertEqual(len(defaults), 100)
+        # UI upgrade Phase 1 (2026-11-24): 100 -> 103
+        # (home/city, appearance/hud_profile, learning/reviewed_ids).
+        # UI Phase 2 (2026-11-25): 103 -> 105
+        # (skills/pinned, palette/recent).
+        # UI Phase 3 (2026-11-25): 105 -> 106 (calendar/view).
+        # UI Phase 4 (2026-11-26): 106 -> 108 (pulse/refresh_ms,
+        # doctor/run_selection).
+        self.assertEqual(len(defaults), 108)
         table = {k: d for _n, k, _t, d in cs.QSETTINGS_FIELDS}
         self.assertEqual(defaults, table)
 
