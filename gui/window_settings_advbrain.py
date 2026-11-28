@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QAbstractScrollArea,
     QAbstractSpinBox,
-    QCheckBox,
     QColorDialog,
     QComboBox,
     QFrame,
@@ -28,6 +27,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from .design_system.switches import HudSwitch, toggle_row
 from voice_assistant.core.gui_facade import config
 from PySide6.QtCore import (
     QEvent,
@@ -324,13 +324,12 @@ class SettingsAdvBrainMixin:
         kokoro_hint.setWordWrap(True)
         adv_layout.addWidget(kokoro_hint)
         # v5.41: automatic voice switching (Kokoro path only).
-        self.chk_voice_auto_switch = QCheckBox(
-            "Switch voice to match language")
+        self.chk_voice_auto_switch = HudSwitch(text="Switch voice to match language")
         self.chk_voice_auto_switch.setChecked(
             bool(getattr(config, "voice_auto_switch", True)))
         self.chk_voice_auto_switch.toggled.connect(
             self._on_voice_auto_switch_toggled)
-        adv_layout.addWidget(self.chk_voice_auto_switch)
+        adv_layout.addWidget(toggle_row(self.chk_voice_auto_switch))
         auto_switch_hint = QLabel("When a reply comes out in another language, she speaks it in that "
                                   "language's voice, then returns home. Her emergency fallback voices never switch.")
         auto_switch_hint.setObjectName("cardHint")

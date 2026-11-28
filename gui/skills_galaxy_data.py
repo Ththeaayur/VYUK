@@ -191,23 +191,56 @@ def _cluster_radius(count: int) -> float:
     return 34.0 + 6.0 * math.sqrt(max(count, 1))
 
 
+# Galaxy looks round (2026-11-25): the clear gap between two
+# neighbouring cluster discs, in world units (~13 screen px at
+# the 1280 fit zoom). The ring radius is computed from it (see
+# layout_positions_2d) so no two constellation bounding boxes
+# ever touch, whatever the group sizes are. The gap also absorbs
+# the hub/star display radii the pixel test adds on top of the
+# star discs when it builds a cluster's screen bounding box.
+_CLUSTER_GAP = 40.0
+
+
 def layout_positions_2d(data: GalaxyData) -> dict:
     """{node id: (x, y)} in world units. Hubs sit on a ring (first
     hub at the top, then clockwise in group order); each hub's
     stars fill a golden-angle spiral disc around it, phase-seeded
-    by the group so no two clusters share a rotation."""
+    by the group so no two clusters share a rotation.
+
+    Galaxy looks round (2026-11-25): the ring radius is sized
+    from the clusters, not a fixed constant. The rule is the
+    AXIS-ALIGNED bounding box, not the disc: two clusters'
+    boxes separate iff the hub-centre offset beats
+    r_i + r_j + _CLUSTER_GAP in EITHER the x or the y
+    projection, and the binding projection is the larger of
+    |cos|/|sin| of the chord direction (the chord of adjacent
+    pair i sits at angle (i + 0.5) * step from the x axis). The
+    disc-only rule let System & apps x Files & media touch by
+    0.4 px — their centres are diagonally offset, so the
+    circles cleared while the axis-aligned boxes met."""
     pos: dict[str, tuple] = {}
     hubs = data.hubs
     if not hubs:
         return pos
-    ring_r = max(250.0, len(hubs) * 26.0)
+    radii = {hub.id: _cluster_radius(hub.count) for hub in hubs}
+    ring_r = 250.0
+    if len(hubs) >= 2:
+        n = len(hubs)
+        chord = 2.0 * math.sin(math.pi / n)
+        step = 2.0 * math.pi / n
+        for i, hub in enumerate(hubs):
+            nxt = hubs[(i + 1) % n]
+            need = radii[hub.id] + radii[nxt.id] + _CLUSTER_GAP
+            theta = (i + 0.5) * step
+            proj = max(abs(math.cos(theta)), abs(math.sin(theta)))
+            ring_r = max(ring_r, need / (chord * proj))
     for i, hub in enumerate(hubs):
         angle = -math.pi / 2.0 + i * (2.0 * math.pi / len(hubs))
         hx, hy = ring_r * math.cos(angle), ring_r * math.sin(angle)
         pos[hub.id] = (hx, hy)
         stars = [n for n in data.nodes
                  if n.kind == "star" and n.group == hub.group]
-        cluster_r = _cluster_radius(len(stars))
+        cluster_r = radii[hub.id]
         phase = _seed_floats(f"phase:{hub.group}", 1)[0] \
             * 2.0 * math.pi
         for j, star in enumerate(stars):
@@ -321,23 +354,70 @@ def search_sets(data: GalaxyData, text: str):
 # collisions skip, hubs may flip side, halos keep text legible)
 # ---------------------------------------------------------------------------
 
-def _plan_label_rects(entries: list, obstacles: list | None = None) -> dict:
+def _plan_label_rects(entries: list, obstacles: list | None = None,
+                    bounds: QRectF | None = None) -> dict:
     """Each entry: {id, priority (lower wins), degree (tiebreak),
     rect, alt_rect, force, sticky, extra_rects (optional list of
     further candidates, tried in order after rect/alt)}.
     obstacles: optional [(centre QPointF, radius float)] discs a
-    label must clear as well (3D hub orbs). Returns {id: QRectF}.
+    label must clear as well (3D hub orbs). bounds: optional
+    QRectF the chosen rect must stay inside (the 2D canvas).
+    Returns {id: QRectF}.
 
-    Without obstacles/extra_rects the behaviour is exactly the
-    old one (the 2D canvas calls it that way, unchanged)."""
+    Without obstacles/extra_rects/bounds the behaviour is exactly
+    the old one (the 3D canvas calls it that way, unchanged).
+
+    Galaxy looks round (2026-11-25): a STICKY entry (a hub
+    label, never dropped) whose rect and alt both collide is
+    SLID along its row — smallest shift first, primary row
+    then alt row — instead of being placed overlapping a
+    neighbour. The old sticky fallback placed it at the alt
+    rect regardless, which put 'Play & create' on top of
+    'Everyday skills' (10x5 px of text, plates overlapping by
+    more) when the ring put their hubs 67 px apart
+    horizontally. A slide of ~24 px keeps the label next to
+    its hub and clear of every other label; if no slide fits,
+    the old place-anyway fallback remains as a last resort
+    (the label stays visible rather than vanishing)."""
     placed: dict[str, QRectF] = {}
     placed_rects: list[QRectF] = []
 
-    def collides(rect: QRectF) -> bool:
-        probe = rect.adjusted(-2.0, -2.0, 2.0, 2.0)
+    def collides(rect: QRectF, entry: dict | None = None) -> bool:
+        # Galaxy looks round (2026-11-25): the probe is the
+        # label PLATE, not the text rect — the opaque halo
+        # extends 5 px past the text horizontally and ~2 px
+        # vertically, and the already-placed labels' plates
+        # extend the same way, so the probe must clear the
+        # placed text rect by the two plates plus 1 px air:
+        # 5 + 5 + 1 = 11 px horizontally, 2 + 2 + 1 = 5 px
+        # vertically. (The plates are all the same colour, so
+        # a plate touch would be invisible — but the brief
+        # says labels never overlap each other, so the probe
+        # keeps the plates apart too.)
+        probe = rect.adjusted(-11.0, -5.0, 11.0, 5.0)
+        # An edge-touch (0 px overlap) is not a collision: the
+        # rects above are built from floats, and two edges that
+        # meet at exactly the same y (e.g. a label's probe top
+        # on the label above's bottom) can differ by a float
+        # ULP and read as intersecting. Shrink the probe by a
+        # hair so only a real overlap counts.
+        probe = probe.adjusted(0.01, 0.01, -0.01, -0.01)
         if any(probe.intersects(other) for other in placed_rects):
             return True
-        for centre, radius in (obstacles or []):
+        # Hunt fix (c) item 5: obstacles may carry an owner
+        # group as a third element — a label ignores its own
+        # cluster's stars (they surround its hub, so the label
+        # below the hub would always collide with them) and
+        # only clears OTHER clusters' orbs and stars. A 2-tuple
+        # obstacle has no owner and applies to every label
+        # (the 3D canvas's hub orbs).
+        group = (entry or {}).get("group")
+        for obstacle in (obstacles or []):
+            centre, radius = obstacle[0], obstacle[1]
+            owner = obstacle[2] if len(obstacle) > 2 else None
+            if owner is not None and group is not None \
+                    and owner == group:
+                continue
             cx = min(max(centre.x(), rect.left()), rect.right())
             cy = min(max(centre.y(), rect.top()), rect.bottom())
             if ((centre.x() - cx) ** 2 + (centre.y() - cy) ** 2
@@ -353,21 +433,39 @@ def _plan_label_rects(entries: list, obstacles: list | None = None) -> dict:
         alt = entry.get("alt_rect")
         if entry.get("force"):
             chosen = rect
-        elif not collides(rect):
+        elif not collides(rect, entry):
             chosen = rect
-        elif alt is not None and not collides(alt):
+        elif alt is not None and not collides(alt, entry):
             chosen = alt
         else:
             chosen = None
             for cand in entry.get("extra_rects") or []:
-                if not collides(cand):
+                if not collides(cand, entry):
                     chosen = cand
                     break
             if chosen is None:
-                if alt is not None and entry.get("sticky"):
-                    chosen = alt
-                elif entry.get("sticky"):
-                    chosen = rect
+                if entry.get("sticky"):
+                    # Slide along the row (smallest shift first,
+                    # primary row then alt) instead of overlapping.
+                    for base in ([rect, alt] if alt is not None
+                                 else [rect]):
+                        for k in range(1, 16):
+                            for shift in (-8.0 * k, 8.0 * k):
+                                cand = QRectF(base)
+                                cand.translate(shift, 0.0)
+                                if bounds is not None \
+                                        and not bounds.contains(cand):
+                                    continue
+                                if not collides(cand, entry):
+                                    chosen = cand
+                                    break
+                            if chosen is not None:
+                                break
+                        if chosen is not None:
+                            break
+                    if chosen is None:
+                        # Last resort: keep the label visible.
+                        chosen = alt if alt is not None else rect
                 else:
                     continue
         placed[entry["id"]] = QRectF(chosen)
@@ -375,16 +473,24 @@ def _plan_label_rects(entries: list, obstacles: list | None = None) -> dict:
     return placed
 
 
-_LABEL_HALO = QColor(10, 12, 17, 130)
+# Galaxy looks round (2026-11-25): the label halo is the label
+# PLATE — fully opaque, in the canvas backdrop colour. The old
+# semi-transparent halo (alpha 130) let the cluster's bright dots
+# show through the text: 2,244 star-coloured pixels inside the 11
+# hub label rects at 1280, and thin glyphs (I, l, b) vanished
+# behind dots — "Desktop contro", "ntelligence", "3uilt-in".
+# An opaque plate hides every dot beneath the text, in both themes
+# (the canvas is dark in both).
+_LABEL_HALO = QColor(10, 12, 17, 255)
 
 
 def _label_halo_rect(rect: QRectF, text: str, font: QFont) -> QRectF:
     metrics = QFontMetrics(font)
     text_w = metrics.horizontalAdvance(text)
     text_h = metrics.height()
-    return QRectF(rect.center().x() - text_w / 2.0 - 4.0,
-                  rect.center().y() - text_h / 2.0 - 1.0,
-                  text_w + 8.0, text_h + 2.0)
+    return QRectF(rect.center().x() - text_w / 2.0 - 5.0,
+                  rect.center().y() - text_h / 2.0 - 2.0,
+                  text_w + 10.0, text_h + 4.0)
 
 
 def _draw_label_halo(painter: QPainter, rect: QRectF, text: str,

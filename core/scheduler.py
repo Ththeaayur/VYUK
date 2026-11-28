@@ -574,6 +574,31 @@ class ProactiveScheduler:
                 for r in self._reminders
             ]
 
+    def get_all_reminders_with_epoch(self) -> list[dict]:
+        """Every active reminder with its fire epoch.
+
+        Same rows as get_all_reminders(), plus "fire_at_epoch"
+        (seconds since the epoch, a number). The epoch is read
+        off the record's fire_at datetime — never parsed back out
+        of the formatted display string (A-04: a formatted
+        string is not a time source).
+        """
+        with self._lock:
+            return [
+                {
+                    "label": r.label,
+                    "fire_at": _fmt_local(r.fire_at, self._tz),
+                    "fire_at_epoch": r.fire_at.timestamp(),
+                    "message": r.message_for(r.fire_at, self._tz),
+                    "repeat": r.repeat,
+                    "repeat_kind": r.repeat_kind,
+                    "kind": r.kind,
+                    "fired": r.fired,
+                    "persistent": True,
+                }
+                for r in self._reminders
+            ]
+
     def get_fired_history(self) -> list[dict]:
         """Fired one-shot records (capped at MAX_HISTORY, oldest
         dropped). Fired records live here, not in the active

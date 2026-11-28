@@ -129,6 +129,7 @@ from .google_services_gmail import (
     _render_message,
     _list_messages,
     unread_email,
+    unread_count,
     _message_body_text,
     search_email,
     recent_messages,
@@ -142,6 +143,9 @@ from .google_services_gmail import (
     download_attachment,
     send_email,
     snooze_email,
+    _parse_snooze_until,
+    _load_snoozed,
+    _active_snooze_ids,
 )
 
 from .google_services_sync import sync_updates  # GAPS-7: the sync_updates tool
@@ -158,6 +162,7 @@ __all__ = [
     "events_in_range",
     "todays_timed_events",
     "unread_email",
+    "unread_count",
     "search_email",
     "recent_messages",
     "message_body",

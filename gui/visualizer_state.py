@@ -48,6 +48,31 @@ def _rgb(hex_color: str) -> list[float]:
     return [float(c.red()), float(c.green()), float(c.blue())]
 
 
+# UI Phase 1 — teal orb (ruling 2026-11-24, Aayur; supersedes
+# the Aura lock). The orb is teal regardless of the UI theme:
+# highlight is the logo's near-white cyan core (239,255,255),
+# mid is the reference's measured rim bright cyan-teal #52C5CC,
+# edge is the reference's measured body deep teal #227084. The
+# theme triple still drives the UI accent; only the orb wears
+# teal. accent_color() (the mid) is what the room glow reads, so
+# the shell wash turns teal with it.
+_TEAL_TRIPLE: tuple[str, str, str] = ("#EFFFFF", "#52C5CC", "#227084")
+# Disconnected keeps a dim teal core (never grey — the grey ball
+# reads as dead), the same shape as the old dim-blue triple.
+_TEAL_DISCONNECTED: tuple[str, str, str] = (
+    "#8CC8C8", "#186073", "#1B3F4A")
+
+
+# UI Phase 1 (R5): the private-mode palette — a grey triple, so
+# the orb's accents mute and the gold ring goes grey. All three
+# channels equal (spread 0): the quiet is total, not a tint.
+_PRIVATE_GREY: tuple[list[float], list[float], list[float]] = (
+    _rgb("#A8A8A8"),
+    _rgb("#8C8C8C"),
+    _rgb("#6E6E6E"),
+)
+
+
 class OrbStateMixin:
     """State half of OrbVisualizer (GUI split #7).
 
@@ -75,6 +100,18 @@ class OrbStateMixin:
         # the ambient accumulators in _animate_frame.
         self._muted = False
         self._reduced_motion = False
+        # UI Phase 1 (R5): private mode goes quiet — the orb's
+        # accents mute to a grey triple (the gold ring goes grey
+        # with them). A presentation flag like _muted: it never
+        # rewrites self.state, so leaving private mode restores
+        # exactly the behaviour the orb had before.
+        self._private = False
+        # UI Phase 1 §5 (ruling 2026-11-24, Aayur — screenshot
+        # sizes): the orb's body diameter in px, set by the
+        # window from 19.5% of the window width. 0.0 means
+        # unset — the paint falls back to the legacy
+        # paint_min * 0.34 body (standalone / mini-orb use).
+        self._orb_diameter = 0.0
 
         # Travelling-dot phase (degrees) for the compact mark's orbit
         # ring, shared with the big orb so state speeds feel identical.
@@ -174,8 +211,14 @@ class OrbStateMixin:
             for _ in range(26)
         ]
 
-        # Interpolated palette (floats) for crossfades
-        hi, mid, edge = THEMES[self.theme_name]
+        # Interpolated palette (floats) for crossfades. The orb
+        # starts AT the teal triple (ruling 2026-11-24) — the
+        # crossfade is for state changes, not for a blue-to-teal
+        # drift at boot. Starting from the theme triple would
+        # leave accent_color() drifting for the first seconds,
+        # so a surface that snapshots it (the state line, leg 70)
+        # and a later read disagree.
+        hi, mid, edge = _TEAL_TRIPLE
         self._cur_hi, self._cur_mid, self._cur_edge = _rgb(hi), _rgb(mid), _rgb(edge)
         self._glow_alpha = 60.0
 
@@ -220,6 +263,32 @@ class OrbStateMixin:
 
     def is_muted(self) -> bool:
         return self._muted
+
+    def set_private_mode(self, on: bool):
+        """Install / clear the private-mode presentation (UI P1, R5).
+
+        Driven by the main window from the app's private-mode
+        flag. While private the orb is grey — accents muted, the
+        gold ring grey — regardless of the session state. The
+        palette is SNAPPED to the grey triple immediately: the
+        crossfade alone cannot converge within one processEvents,
+        and a single frame must already read quiet. Clearing it
+        returns the orb to its prior palette (the crossfade
+        carries it back).
+        """
+        on = bool(on)
+        if on == self._private:
+            return
+        self._private = on
+        if on:
+            grey_hi, grey_mid, grey_edge = _PRIVATE_GREY
+            self._cur_hi = list(grey_hi)
+            self._cur_mid = list(grey_mid)
+            self._cur_edge = list(grey_edge)
+        self.update()
+
+    def is_private_mode(self) -> bool:
+        return self._private
 
     def set_reduced_motion(self, reduced: bool):
         """Honour the reduced-motion setting (v5.43 F5) — the same
@@ -426,14 +495,21 @@ class OrbStateMixin:
         return any(n in self.state for n in names)
 
     def _target_palette(self):
+        if getattr(self, "_private", False):
+            # UI Phase 1 (R5): private mode goes quiet — the grey
+            # triple, regardless of the session state or the mute
+            # flag. The crossfade holds it here; set_private_mode
+            # snaps the current palette to it immediately.
+            grey_hi, grey_mid, grey_edge = _PRIVATE_GREY
+            return list(grey_hi), list(grey_mid), list(grey_edge), 16.0
         if self._muted:
             # v5.43 F2: MUTED wins over every session state — the
             # face must not wear a live palette while the mic is
-            # muted. The resolved theme palette (custom triple
-            # included) is pulled toward its own luminance and
+            # muted. The TEAL triple (the orb is teal, ruling
+            # 2026-11-24) is pulled toward its own luminance and
             # dimmed; unmuting returns to the normal resolution
             # below, untouched.
-            hi, mid, edge = self._custom_theme or THEMES[self.theme_name]
+            hi, mid, edge = _TEAL_TRIPLE
 
             def _dim(rgb: list[float]) -> list[float]:
                 lum = 0.35 * rgb[0] + 0.45 * rgb[1] + 0.20 * rgb[2]
@@ -444,17 +520,19 @@ class OrbStateMixin:
             return _rgb("#FFBEBE"), _rgb("#F06E6E"), _rgb("#AA3746"), 40.0
         if self._is("DISCONNECTED"):
             # UI rethink Build 1: a disconnected orb keeps a dim
-            # blue core, never grey — the grey ball read as dead,
+            # teal core, never grey — the grey ball read as dead,
             # and at night it was the brightest thing on the page.
-            # The Aura (Cyan) triple dimmed toward dark blue; the
-            # state itself is still named in words (state line,
+            # The state itself is still named in words (state line,
             # status word), never by the orb's colour alone.
-            return _rgb("#8CAFC8"), _rgb("#186073"), _rgb("#1B3F73"), 22.0
-        # The single palette resolution point: a custom triple
-        # (set_custom_theme) replaces the named theme here, and
-        # every downstream modulation (the THINKING violet blend,
-        # the crossfade in _animate_frame) treats it identically.
-        hi, mid, edge = self._custom_theme or THEMES[self.theme_name]
+            hi, mid, edge = _TEAL_DISCONNECTED
+            return _rgb(hi), _rgb(mid), _rgb(edge), 22.0
+        # The single palette resolution point: the orb is TEAL
+        # (ruling 2026-11-24, supersedes the Aura lock) — the
+        # teal triple, not the named theme. The theme triple
+        # still drives the UI accent elsewhere; the orb wears
+        # teal in every theme. The THINKING violet blend and the
+        # crossfade treat it identically.
+        hi, mid, edge = _TEAL_TRIPLE
         hi_l, mid_l, edge_l = _rgb(hi), _rgb(mid), _rgb(edge)
         if self._is("THINKING"):
             violet = _rgb("#A78BFA")

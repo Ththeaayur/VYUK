@@ -205,6 +205,30 @@ def unread_email(limit: int = 8) -> str:
     return "\n".join(lines)
 
 
+def unread_count(limit: int = 50) -> int:
+    """The number of unread messages in the inbox (an exact count
+    of what is listed, never the resultSizeEstimate — Gmail
+    documents that as approximate). Snoozed mail is excluded,
+    mirroring unread_email. Returns 0 when not connected or on
+    any read failure (the caller omits the clause, never fakes
+    a number). UI Phase 1 (2026-11-24): the Home greeting's
+    unread clause needs a count, and unread_email returns prose.
+    """
+    svc, _failure = _service_or_failure("gmail", "your mail")
+    if svc is None:
+        return 0
+    try:
+        listing = _list_messages(svc, "is:unread", max(1, int(limit)))
+    except Exception:  # noqa: BLE001
+        return 0
+    stubs = listing.get("messages") or []
+    snoozed = _active_snooze_ids()
+    if snoozed:
+        stubs = [s for s in stubs
+                 if str(s.get("id") or "") not in snoozed]
+    return len(stubs)
+
+
 def _message_body_text(svc, message_id: str) -> str:
     """A message's body as plain text (#25): the first
     text/plain part of the full payload, base64-decoded,

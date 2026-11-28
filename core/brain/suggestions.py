@@ -349,7 +349,18 @@ class SuggestionRegistry:
         when a discipline rule (master switch, dedupe, dismiss
         suppression, per-kind cap) says this raise does not
         happen. `action` is {"tool": name, "args": {...}} — an
-        execute() call, nothing bespoke."""
+        execute() call, nothing bespoke. UI Phase 1 (H-01): in
+        private mode NOTHING is raised — a suggestion is a
+        proactive surface, and private mode blanks every surface.
+        The check sits at the top, before the master switch,
+        because it is a mode, not a preference."""
+        try:
+            from ..private_mode import private_mode_on
+
+            if private_mode_on():
+                return None
+        except Exception:  # noqa: BLE001 — unreadable mode reads
+            return None  # as ON (private_mode_on fail-closes)
         try:
             if not suggestions_enabled():
                 return None

@@ -201,6 +201,78 @@ def state_from(status_raw, *, connected, in_flight, muted, busy,
     return "idle"
 
 
+# The boot moment (UI Phase 1, R2): the first window build plays a
+# short orb-light bloom; later builds do not. The flag lives here
+# (not on the window) so a second MainWindow in the same process
+# can read it — the repro asserts exactly that.
+BOOT_PLAYED = False
+
+
+def orb_state_for(status_raw, *, plan_active=False,
+                  tool_executing=False, pending=False, muted=False):
+    """One of the six orb states (H-09) from the live signals.
+
+    Precedence is fixed: error holds the room; offline follows;
+    responding and listening outrank a pending approval and a
+    muted mic (the orb shows what she is DOING, not what she is
+    waiting on, while she is speaking or listening); a pending
+    approval means the mission is paused, so "waiting" outranks
+    the thinking states; inside thinking, a running tool outranks
+    a running plan. The six states map to the existing washes:
+    listening 8%, understanding / planning / executing the 6%
+    thinking wash, waiting the 4% idle wash, responding the
+    speaking wash, error holds the last wash, offline the 2%
+    offline wash.
+    """
+    upper = (status_raw or "").upper()
+    if "FAULT" in upper or "ERROR" in upper:
+        return "error"
+    if "OFFLINE" in upper:
+        return "offline"
+    if "SPEAKING" in upper or "RESPONDING" in upper:
+        return "responding"
+    if "LISTENING" in upper:
+        return "listening"
+    if pending:
+        return "waiting"
+    if ("PROCESSING" in upper or "THINKING" in upper
+            or "CONNECTING" in upper):
+        if tool_executing:
+            return "executing"
+        if plan_active:
+            return "planning"
+        return "understanding"
+    return "idle"
+
+
+def countdown_text(target, now=None):
+    """The agenda row's countdown to a real event, honestly.
+
+    ``target`` / ``now`` are epoch seconds (or datetimes). Past
+    or happening now reads "now"; under an hour reads "in N min";
+    over an hour reads "in H h M min". Never a fake countdown.
+    """
+    import time as _time
+
+    def _epoch(value):
+        if isinstance(value, datetime.datetime):
+            return value.timestamp()
+        return float(value)
+
+    if now is None:
+        now = _time.time()
+    delta = _epoch(target) - _epoch(now)
+    if delta <= 0:
+        return "now"
+    minutes = int(-(-delta // 60))  # ceiling: 30 s away is "in 1 min"
+    if minutes < 60:
+        return f"in {minutes} min"
+    hours, rest = divmod(minutes, 60)
+    if rest == 0:
+        return f"in {hours} h"
+    return f"in {hours} h {rest} min"
+
+
 def is_night(hour=None):
     """True between 22:00 and 05:59. ``hour`` is 0-23; None reads
     the clock."""

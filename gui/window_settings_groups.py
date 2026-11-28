@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QAbstractScrollArea,
     QAbstractSpinBox,
-    QCheckBox,
     QColorDialog,
     QComboBox,
     QFrame,
@@ -38,6 +37,8 @@ from .style import (
 from voice_assistant.core.gui_facade import config
 from voice_assistant.core.gui_facade import qsettings_get
 from .design_system.flowlayout import FlowLayout
+from .design_system.switches import HudSwitch, toggle_row
+
 
 
 
@@ -50,31 +51,31 @@ class SettingsGroupsMixin:
         # before v2.9). Same widgets, same QSettings keys, same
         # handlers — _init_presence_card below wires both cards.
         notices = self._settings_card(_g_notices, "Notices", "What VYUK keeps an eye on — and mentions only when it matters.")
-        self.chk_watch_master = QCheckBox("VYUK notices things")
-        notices.addWidget(self.chk_watch_master)
-        self.chk_watch_battery = QCheckBox("Battery")
-        self.chk_watch_downloads = QCheckBox("Downloads && drives")
-        self.chk_watch_network = QCheckBox("Internet")
-        self.chk_watch_welcome = QCheckBox("Welcome back")
-        self.chk_watch_disk = QCheckBox("Disk space")
-        self.chk_watch_calendar = QCheckBox("Calendar heads-ups")
-        self.chk_watch_clipboard = QCheckBox("Clipboard watcher")
-        self.chk_watch_privacy = QCheckBox("Camera & microphone")
-        self.chk_watch_fullscreen = QCheckBox("Fullscreen breaks")
-        self.chk_watch_load = QCheckBox("Heavy load")
+        self.chk_watch_master = HudSwitch(text="VYUK notices things")
+        notices.addWidget(toggle_row(self.chk_watch_master))
+        self.chk_watch_battery = HudSwitch(text="Battery")
+        self.chk_watch_downloads = HudSwitch(text="Downloads && drives")
+        self.chk_watch_network = HudSwitch(text="Internet")
+        self.chk_watch_welcome = HudSwitch(text="Welcome back")
+        self.chk_watch_disk = HudSwitch(text="Disk space")
+        self.chk_watch_calendar = HudSwitch(text="Calendar heads-ups")
+        self.chk_watch_clipboard = HudSwitch(text="Clipboard watcher")
+        self.chk_watch_privacy = HudSwitch(text="Camera & microphone")
+        self.chk_watch_fullscreen = HudSwitch(text="Fullscreen breaks")
+        self.chk_watch_load = HudSwitch(text="Heavy load")
         # NOSE Wave 3 (v5.45, N12/N13): ambient light is OPT-IN
         # (off unless ticked) and says plainly what it does;
         # foreground awareness shares only app NAMES, never
         # window titles, and nothing leaves this PC.
-        self.chk_watch_ambient = QCheckBox("Ambient light (opt-in)")
-        self.chk_watch_foreground = QCheckBox("Foreground app awareness")
+        self.chk_watch_ambient = HudSwitch(text="Ambient light (opt-in)")
+        self.chk_watch_foreground = HudSwitch(text="Foreground app awareness")
         for chk in (self.chk_watch_battery, self.chk_watch_downloads,
                     self.chk_watch_network, self.chk_watch_welcome,
                     self.chk_watch_disk, self.chk_watch_calendar,
                     self.chk_watch_clipboard, self.chk_watch_privacy,
                     self.chk_watch_fullscreen, self.chk_watch_load,
                     self.chk_watch_ambient, self.chk_watch_foreground):
-            notices.addWidget(chk)
+            notices.addWidget(toggle_row(chk))
         notices_hint = QLabel("VYUK quietly keeps an eye on your battery, downloads and connection — and mentions what matters. She only speaks up out loud while she's connected. Turning a notice off means she won't mention it — it still goes in the timeline.")
         notices_hint.setObjectName("cardHint")
         notices_hint.setWordWrap(True)
@@ -121,32 +122,30 @@ class SettingsGroupsMixin:
         suggestions_card = self._settings_card(
             _g_notices, "Suggestions",
             "VYUK can offer to act — open a meeting link, dim the screen — as a card you accept or dismiss. Accepting runs the action through the same checks as anything she does.")
-        self.chk_suggestions_enabled = QCheckBox(
-            "Show suggestions")
+        self.chk_suggestions_enabled = HudSwitch(text="Show suggestions")
         self.chk_suggestions_enabled.setChecked(bool(
             qsettings_get("suggestions/enabled", settings=self.settings)))
         self.chk_suggestions_enabled.toggled.connect(
             self._on_suggestions_enabled_toggled)
-        suggestions_card.addWidget(self.chk_suggestions_enabled)
-        self.chk_suggestions_auto_act = QCheckBox(
-            "Act automatically — only for the classes ticked below")
+        suggestions_card.addWidget(toggle_row(self.chk_suggestions_enabled))
+        self.chk_suggestions_auto_act = HudSwitch(text="Act automatically — only for the classes ticked below")
         self.chk_suggestions_auto_act.setChecked(bool(
             qsettings_get("suggestions/auto_act", settings=self.settings)))
         self.chk_suggestions_auto_act.toggled.connect(
             self._on_suggestions_auto_act_toggled)
-        suggestions_card.addWidget(self.chk_suggestions_auto_act)
+        suggestions_card.addWidget(toggle_row(self.chk_suggestions_auto_act))
         auto_act_lbl = QLabel("Kinds she may act on without asking")  # v5.51 (X-1): plain words for "auto-act classes"
         auto_act_lbl.setObjectName("muted")
         suggestions_card.addWidget(auto_act_lbl)
-        self.suggestion_class_checks: dict[str, QCheckBox] = {}
+        self.suggestion_class_checks: dict[str, HudSwitch] = {}
         for _cls_name, _cls_label in self._SUGGESTION_CLASSES:
-            _chk = QCheckBox(_cls_label)
+            _chk = HudSwitch(text=_cls_label)
             _chk.setChecked(bool(qsettings_get(f"suggestions/auto_act_{_cls_name}", settings=self.settings)))
             _chk.toggled.connect(
                 lambda on, n=_cls_name:
                 self._on_suggestion_class_toggled(n, on))
             self.suggestion_class_checks[_cls_name] = _chk
-            suggestions_card.addWidget(_chk)
+            suggestions_card.addWidget(toggle_row(_chk))
         suggestions_hint = QLabel("Auto-act is off unless you turn it on, and even then it only ever fires for a ticked class. Everything else waits for your tap on the card.")
         suggestions_hint.setObjectName("cardHint")
         suggestions_hint.setWordWrap(True)
@@ -166,13 +165,12 @@ class SettingsGroupsMixin:
         # not the deprecated speaker_lock alias — and the card's
         # label is the honest name (the hint keeps saying why:
         # session provenance, not voiceprint).
-        self.chk_session_provenance_lock = QCheckBox(
-            "Session provenance lock")
+        self.chk_session_provenance_lock = HudSwitch(text="Session provenance lock")
         self.chk_session_provenance_lock.setChecked(
             bool(getattr(config, "session_provenance_lock", False)))
         self.chk_session_provenance_lock.toggled.connect(
             self._on_session_provenance_lock_toggled)
-        privacy.addWidget(self.chk_session_provenance_lock)
+        privacy.addWidget(toggle_row(self.chk_session_provenance_lock))
         session_provenance_lock_hint = QLabel("On by default — a voice session starts unproven, and a spoken yes cannot approve anything until you prove the session: start it from the app, unlock it on screen below, or say your voice PIN. While unproven it can still answer and read — it just cannot approve anything or grant anything. This is a session lock, not voiceprint verification: it does not recognise who is speaking.")
         session_provenance_lock_hint.setObjectName("cardHint")
         session_provenance_lock_hint.setWordWrap(True)
@@ -221,12 +219,12 @@ class SettingsGroupsMixin:
         # record, no Activity line, no cost-ledger row, no
         # learning. The mode says so plainly, on this card and
         # in the status line below. Off by default.
-        self.chk_private_mode = QCheckBox("Private mode")
+        self.chk_private_mode = HudSwitch(text="Private mode")
         self.chk_private_mode.setChecked(
             bool(getattr(config, "private_mode", False)))
         self.chk_private_mode.toggled.connect(
             self._on_private_mode_toggled)
-        privacy.addWidget(self.chk_private_mode)
+        privacy.addWidget(toggle_row(self.chk_private_mode))
         private_mode_hint = QLabel("While on, a turn writes nothing anywhere — no transcript, no receipt, no audit record, no Activity line, no cost-ledger row, nothing learned. The turn still runs and you still see it; it is simply never stored. Turn it off again to record turns normally.")
         private_mode_hint.setObjectName("cardHint")
         private_mode_hint.setWordWrap(True)
@@ -425,10 +423,10 @@ class SettingsGroupsMixin:
         screen_watch_card = self._settings_card(
             _g_privacy, "Screen watching",
             "VYUK can keep an eye on your screen and mention what changes.")
-        self.chk_watch_screen = QCheckBox("Watch my screen")
+        self.chk_watch_screen = HudSwitch(text="Watch my screen")
         self.chk_watch_screen.setChecked(False)
         self.chk_watch_screen.toggled.connect(self._on_watch_screen_toggled)
-        screen_watch_card.addWidget(self.chk_watch_screen)
+        screen_watch_card.addWidget(toggle_row(self.chk_watch_screen))
         watch_screen_hint = QLabel(
             "While this is on, VYUK looks at your screen every few "
             "seconds and speaks up only when something visibly "
@@ -469,7 +467,7 @@ class SettingsGroupsMixin:
         fo_card = self._settings_card(
             _g_privacy, _fo_prompt["title"],
             " ".join(_fo_paras[1:3]))
-        self.chk_continuous_display = QCheckBox(_fo_prompt["choices"][0])
+        self.chk_continuous_display = HudSwitch(text=_fo_prompt["choices"][0])
         try:
             _fo_stored = {
                 _fos.PROMPT_SEEN_KEY: bool(self.settings.value(
@@ -483,7 +481,7 @@ class SettingsGroupsMixin:
         self.chk_continuous_display.setChecked(_fo_enabled)
         self.chk_continuous_display.toggled.connect(
             self._on_continuous_display_toggled)
-        fo_card.addWidget(self.chk_continuous_display)
+        fo_card.addWidget(toggle_row(self.chk_continuous_display))
         fo_note = QLabel(" ".join(_fo_paras[3:6]))
         fo_note.setObjectName("cardHint")
         fo_note.setWordWrap(True)
@@ -502,13 +500,12 @@ class SettingsGroupsMixin:
         browser_card = self._settings_card(
             _g_privacy, "Browser control",
             "Which Chrome VYUK drives when she works in the browser.")
-        self.chk_browser_real_chrome = QCheckBox(
-            "Allow attaching to my real Chrome")
+        self.chk_browser_real_chrome = HudSwitch(text="Allow attaching to my real Chrome")
         self.chk_browser_real_chrome.setChecked(bool(
             getattr(config, "browser_allow_real_chrome_attach", False)))
         self.chk_browser_real_chrome.toggled.connect(
             self._on_browser_real_chrome_toggled)
-        browser_card.addWidget(self.chk_browser_real_chrome)
+        browser_card.addWidget(toggle_row(self.chk_browser_real_chrome))
         browser_hint = QLabel("Off (the default): VYUK drives no browser at all — your real Chrome is the only browser she ever touches, and she won't touch it without this on. On: she may attach to your real Chrome — the one with your sign-ins — over the connection port below, but only when Chrome itself runs with that port open (see the help text in the app). Turn it off again any time; nothing is attached while it's off.")  # v5.70: real-Chrome-only — the separate-Chrome sentence was deleted with its launches; v5.51 (X-1): "debug port" is engineer-speak; the port is for connecting
         browser_hint.setObjectName("cardHint")
         browser_hint.setWordWrap(True)

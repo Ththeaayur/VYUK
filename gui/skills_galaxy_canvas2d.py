@@ -57,7 +57,13 @@ class Galaxy2DCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
-        self.setMinimumSize(320, 280)
+        # Galaxy looks round (2026-11-25): the canvas gets room
+        # to be the dominant element — 360 px tall at minimum, so
+        # the container matches the catalogue card's ~375 px at
+        # 1280 instead of collapsing to the old 280 (the map was
+        # a small strip in a wide page). The page VBox stretches
+        # it taller at 1920.
+        self.setMinimumSize(320, 360)
         self._data = GalaxyData()
         # Stage 0 features batch 5 (larger text): the painted
         # star labels + empty state scale with the appearance
@@ -242,7 +248,14 @@ class Galaxy2DCanvas(QWidget):
     def _display_radius(self, node: GalaxyNode) -> float:
         if node.kind == "hub":
             return node.radius * self._zoom
-        return node.radius * max(0.8, min(1.2, self._zoom))
+        # Galaxy looks round (2026-11-25): the old 0.8 floor kept
+        # stars at 3.4 px radius even as the fit zoom shrank their
+        # spacing below their diameter — the clusters read as
+        # packed blobs (min neighbour gap ~5 px vs 6.7 px
+        # diameter at 1280). A 0.4 floor lets the dots breathe
+        # (~1 px gaps) while staying clearly visible; hubs stay
+        # distinct from members.
+        return node.radius * max(0.4, min(1.2, self._zoom))
 
     def paintEvent(self, event):  # noqa: N802 (Qt naming)
         painter = QPainter(self)
@@ -382,7 +395,25 @@ class Galaxy2DCanvas(QWidget):
             font.setPixelSize(max(1, round(
                 (_LABEL_HUB_PX if node.kind == "hub"
                  else _LABEL_STAR_PX) * self._font_scale)))
-            text_w = float(QFontMetrics(font).horizontalAdvance(label))
+            # Galaxy looks round fix 2 (2026-11-25): measure the
+            # DRAWN ink, not the advance — the Memory Web canvas's
+            # E-F202 lesson, which this canvas never adopted.
+            # drawText clips to the rect, and the ink overhangs
+            # the advance by ~1 px (plus antialiasing), so an
+            # advance-wide rect cuts the edge glyphs — thin ones
+            # ("I" of "Intelligence", "l" of "Desktop control")
+            # vanish while the labels test still passes.
+            # boundingRect is the ink box; +8 px (4 each side)
+            # leaves the ink clear of the clip edge however
+            # drawText centres the advance. +4 was tried first
+            # and restored the "I" but NOT the "l": the mech
+            # probe's green control copy (same centre, wider
+            # rect) paints a full "l" bar at x565 while the
+            # white original's 93-wide rect ends at 564.5 — the
+            # LCD fringe carries the ink ~2 px past boundingRect
+            # on each side here, so 2 px of padding is not enough.
+            ink_w = float(QFontMetrics(font).boundingRect(label).width())
+            text_w = ink_w + 8.0
             rect = QRectF(centre.x() - text_w / 2.0,
                           centre.y() + r + 3.0, text_w, 16.0)
             alt = QRectF(centre.x() - text_w / 2.0,
@@ -393,12 +424,40 @@ class Galaxy2DCanvas(QWidget):
                 "degree": node.count if node.kind == "hub" else 0,
                 "rect": rect, "alt_rect": alt,
                 "force": force, "sticky": sticky,
+                "group": node.group,
             })
             colour = QColor(_TEXT_MAIN if node.kind == "hub"
                             else _TEXT_MUTED)
             colour.setAlpha(int(255 * node_alpha(node)))
             label_info[node.id] = (label, font, colour)
-        planned = _plan_label_rects(entries)
+        # Hunt fix (c) item 5: every node disc is an obstacle
+        # for every OTHER cluster's label — the "Desktop
+        # control" label's final "l" hid behind the
+        # Intelligence cluster's left-edge stars (the planner
+        # only avoided other labels, so the "l" read as merged
+        # with the dots). A label ignores its own cluster's
+        # discs (the planner's owner filter); the halo is opaque,
+        # so a label that clears a disc hides every dot beneath
+        # its plate.
+        obstacles = [(screen(node.id), self._display_radius(node),
+                      node.group)
+                     for node in ordered]
+        planned = _plan_label_rects(
+            entries, obstacles=obstacles,
+            bounds=QRectF(0.0, 0.0,
+                          float(self.width()),
+                          float(self.height())))
+        # Galaxy looks round (2026-11-25): a label may never clip
+        # at the canvas edge — shift any planned rect back inside
+        # (the planner only avoids other labels, it knows nothing
+        # about the canvas bounds).
+        for node_id, rect in planned.items():
+            x = min(max(rect.x(), 0.0),
+                    self.width() - rect.width())
+            y = min(max(rect.y(), 0.0),
+                    self.height() - rect.height())
+            planned[node_id] = QRectF(x, y, rect.width(),
+                                      rect.height())
         for node_id, rect in planned.items():
             label, font, _c = label_info[node_id]
             _draw_label_halo(painter, rect, label, font)

@@ -400,6 +400,13 @@ class MemoryRoutinesMixin:
                 empty.setObjectName("muted")
                 empty.setWordWrap(True)
                 layout.addWidget(empty)
+            # Phase 1: the Scheduled timeline carries the
+            # routines' next runs too — rebuild it whenever the
+            # routines change, even when there are none.
+            try:
+                self._rebuild_scheduled_timeline()
+            except Exception:  # noqa: BLE001 — cosmetic
+                pass
             return
         live_names = set()
         for routine in routines:
@@ -419,6 +426,13 @@ class MemoryRoutinesMixin:
             if _name not in live_names:
                 _widget.hide()
                 _widget.deleteLater()
+        # Phase 1: the Scheduled timeline carries the routines'
+        # next runs too — rebuild it whenever the routines
+        # change.
+        try:
+            self._rebuild_scheduled_timeline()
+        except Exception:  # noqa: BLE001 — cosmetic
+            pass
 
     # --------------------------------- plans (v5.49, item 32)
     def _refresh_plans(self):

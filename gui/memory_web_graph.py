@@ -594,7 +594,7 @@ def relax_step_3d(data: GraphData, pos: dict, pinned=frozenset(),
 # ---------------------------------------------------------------------------
 
 
-def _plan_label_rects(entries: list) -> dict:
+def _plan_label_rects(entries: list, obstacles: list | None = None) -> dict:
     """Decide which labels get drawn, and where.
 
     Each entry: {id, priority (lower draws first / wins space),
@@ -604,13 +604,48 @@ def _plan_label_rects(entries: list) -> dict:
     sides collide, still draw at the alt side rather than vanish)}.
     A non-forced label whose rect — inflated by 2 px — intersects
     any already-placed rect is skipped (or flipped, for hubs).
-    Returns {id: QRectF}."""
+    obstacles: optional [(centre QPointF, radius float, owner_id)]
+    discs a label must clear as well (node spheres). A label
+    clears every NON-OWN disc by >= 6 px — the own disc is
+    excluded (the label sits 3 px below it by construction, so a
+    6 px clearance would collide with itself). Without obstacles
+    the behaviour is exactly the old one.
+    Returns {id: QRectF}.
+
+    Hunt fix (c) item 9: a fact label whose rect sits ~3 px from
+    a neighbouring hub's sphere reads as merged with it (the
+    "repro_quokka_alpha" label against the General hub). A label
+    whose rect and alt both collide is SLID along its row —
+    smallest shift first — instead of vanishing or landing on
+    the sphere; the slide is tried for every entry (a fact label
+    has no alt and is not sticky, so without it the quokka label
+    would simply disappear)."""
     placed: dict[str, QRectF] = {}
     placed_rects: list[QRectF] = []
 
-    def collides(rect: QRectF) -> bool:
+    def collides(rect: QRectF, entry: dict) -> bool:
         probe = rect.adjusted(-2.0, -2.0, 2.0, 2.0)
-        return any(probe.intersects(other) for other in placed_rects)
+        if any(probe.intersects(other) for other in placed_rects):
+            return True
+        for centre, radius, owner in (obstacles or []):
+            if owner == entry["id"]:
+                continue  # the label's own sphere, by construction
+            cx = min(max(centre.x(), rect.left()), rect.right())
+            cy = min(max(centre.y(), rect.top()), rect.bottom())
+            if ((centre.x() - cx) ** 2 + (centre.y() - cy) ** 2
+                    < (radius + 6.0) ** 2):
+                return True
+        return False
+
+    def slide(base: QRectF, entry: dict) -> QRectF | None:
+        # Smallest shift first, left then right, along the row.
+        for k in range(1, 11):
+            for shift in (-4.0 * k, 4.0 * k):
+                cand = QRectF(base)
+                cand.translate(shift, 0.0)
+                if not collides(cand, entry):
+                    return cand
+        return None
 
     ordered = sorted(entries,
                      key=lambda e: (e["priority"], -e.get("degree", 0),
@@ -620,16 +655,21 @@ def _plan_label_rects(entries: list) -> dict:
         alt = entry.get("alt_rect")
         if entry.get("force"):
             chosen = rect
-        elif not collides(rect):
+        elif not collides(rect, entry):
             chosen = rect
-        elif alt is not None and not collides(alt):
+        elif alt is not None and not collides(alt, entry):
             chosen = alt
-        elif alt is not None and entry.get("sticky"):
-            chosen = alt  # both sides busy — hubs stay labelled anyway
-        elif entry.get("sticky"):
-            chosen = rect
         else:
-            continue
+            chosen = slide(rect, entry)
+            if chosen is None and alt is not None:
+                chosen = slide(alt, entry)
+            if chosen is None:
+                if alt is not None and entry.get("sticky"):
+                    chosen = alt  # both sides busy — hubs stay labelled
+                elif entry.get("sticky"):
+                    chosen = rect
+                else:
+                    continue
         placed[entry["id"]] = QRectF(chosen)
         placed_rects.append(QRectF(chosen))
     return placed
@@ -646,9 +686,9 @@ def _label_halo_rect(rect: QRectF, text: str, font: QFont) -> QRectF:
                   text_w + 8.0, text_h + 2.0)
 
 def _draw_label_halo(painter: QPainter, rect: QRectF, text: str,
-                     font: QFont):
+                     font: QFont, halo: QColor | None = None):
     painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(_LABEL_HALO)
+    painter.setBrush(halo if halo is not None else _LABEL_HALO)
     painter.drawRoundedRect(_label_halo_rect(rect, text, font), 3.0, 3.0)
 
 def _draw_label_text(painter: QPainter, rect: QRectF, text: str,
@@ -658,11 +698,12 @@ def _draw_label_text(painter: QPainter, rect: QRectF, text: str,
     painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
 
 def _draw_label(painter: QPainter, rect: QRectF, text: str, font: QFont,
-                colour: QColor):
+                colour: QColor, halo: QColor | None = None):
     """One halo-backed label: a soft rounded rect hugging the text
     (padding 4×1) so words stay legible over edges and orbs, then
-    the text centred in its band."""
-    _draw_label_halo(painter, rect, text, font)
+    the text centred in its band. ``halo`` overrides the dark
+    default (M-21: on Light the halo is the theme's bg)."""
+    _draw_label_halo(painter, rect, text, font, halo)
     _draw_label_text(painter, rect, text, font, colour)
 
 def _node_tooltip(node: GraphNode) -> str:

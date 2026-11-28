@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QAbstractScrollArea,
     QAbstractSpinBox,
-    QCheckBox,
     QColorDialog,
     QComboBox,
     QFrame,
@@ -30,6 +29,8 @@ from PySide6.QtCore import (
 )
 from voice_assistant.core.gui_facade import config
 from .design_system.flowlayout import FlowLayout
+from .design_system.switches import HudSwitch, toggle_row
+
 from .style import THEMES as STYLE_THEMES
 from .style import (
     build_stylesheet,
@@ -101,10 +102,10 @@ class SettingsVoiceMixin:
         pron_save_row.addStretch()
         voice.addLayout(pron_save_row)
         whisper = self._settings_card(_g_voice, "Whisper hours", "She speaks softer between these hours.")
-        self.chk_whisper_hours = QCheckBox("Whisper hours — speak softer at night")
+        self.chk_whisper_hours = HudSwitch(text="Whisper hours — speak softer at night")
         self.chk_whisper_hours.setChecked(bool(getattr(config, "whisper_hours_enabled", False)))
         self.chk_whisper_hours.toggled.connect(self._on_whisper_hours_toggled)
-        whisper.addWidget(self.chk_whisper_hours)
+        whisper.addWidget(toggle_row(self.chk_whisper_hours))
         whisper_row = QHBoxLayout()
         whisper_row.setSpacing(6)
         from_lbl = QLabel("From")
@@ -152,24 +153,24 @@ class SettingsVoiceMixin:
             "and stays silent — the same as a fixed quiet window. "
             "All-day events never count, declined and cancelled "
             "ones never count, and alarms still speak.")
-        self.chk_calendar_quiet = QCheckBox("Go quiet during meetings")
+        self.chk_calendar_quiet = HudSwitch(text="Go quiet during meetings")
         self.chk_calendar_quiet.setChecked(
             bool(getattr(config, "calendar_quiet_enabled", True)))
         self.chk_calendar_quiet.toggled.connect(
             self._on_calendar_quiet_toggled)
-        quiet.addWidget(self.chk_calendar_quiet)
+        quiet.addWidget(toggle_row(self.chk_calendar_quiet))
         self._calendar_quiet_status = QLabel("")
         self._calendar_quiet_status.setObjectName("cardHint")
         self._calendar_quiet_status.setWordWrap(True)
         quiet.addWidget(self._calendar_quiet_status)
         self._refresh_calendar_quiet_status()
         briefing = self._settings_card(_g_voice, "Briefing voice", "While the preset is on, the morning briefing is spoken at the pace below; turn it off and the briefing uses her normal pace.")
-        self.chk_briefing_preset = QCheckBox("Briefing voice preset")
+        self.chk_briefing_preset = HudSwitch(text="Briefing voice preset")
         self.chk_briefing_preset.setChecked(
             bool(qsettings_get("voice/briefing_preset", settings=self.settings)))
         self.chk_briefing_preset.toggled.connect(
             lambda on: qsettings_set("voice/briefing_preset", bool(on), settings=self.settings))
-        briefing.addWidget(self.chk_briefing_preset)
+        briefing.addWidget(toggle_row(self.chk_briefing_preset))
         self.slider_briefing_speed, _ = self._slider_row(
             briefing, "Briefing pace", 80, 120,
             int(round(float(qsettings_get("voice/briefing_speed", settings=self.settings)) * 100)),
@@ -287,11 +288,11 @@ class SettingsVoiceMixin:
         ptt_row.addStretch()
         mic.addLayout(ptt_row)
         self._sync_ptt_mode_buttons()
-        self.chk_media_pause = QCheckBox("Stay quiet while media is playing (Windows)")
+        self.chk_media_pause = HudSwitch(text="Stay quiet while media is playing (Windows)")
         self.chk_media_pause.setChecked(
             bool(qsettings_get("ears/pause_while_media", settings=self.settings)))
         self.chk_media_pause.toggled.connect(self._on_media_pause_toggled)
-        mic.addWidget(self.chk_media_pause)
+        mic.addWidget(toggle_row(self.chk_media_pause))
         test_row = QHBoxLayout()
         test_row.setSpacing(6)
         self.btn_mic_test = QPushButton("Test microphone")
@@ -337,11 +338,10 @@ class SettingsVoiceMixin:
             _g_voice, "Voice bridge",
             "Let free-form voice goals run on the text brain. Off by default.")
         from voice_assistant.core.gui_facade import voice_text_bridge as _bridge_mod
-        self.chk_voice_bridge = QCheckBox(
-            "Voice bridge — voice goals run on the text loop")
+        self.chk_voice_bridge = HudSwitch(text="Voice bridge — voice goals run on the text loop")
         self.chk_voice_bridge.setChecked(_bridge_mod.is_voice_bridge_enabled())
         self.chk_voice_bridge.toggled.connect(self._on_voice_bridge_toggled)
-        bridge.addWidget(self.chk_voice_bridge)
+        bridge.addWidget(toggle_row(self.chk_voice_bridge))
         self.lbl_voice_bridge = QLabel("Voice bridge off.")
         self.lbl_voice_bridge.setObjectName("cardHint")
         self.lbl_voice_bridge.setWordWrap(True)
@@ -350,9 +350,9 @@ class SettingsVoiceMixin:
         sounds = self._settings_card(
             _g_voice, "Sounds",
             "Short, quiet sounds for waking, sending, finishing and errors.")
-        self.chk_sounds = QCheckBox("Interface sounds")
+        self.chk_sounds = HudSwitch(text="Interface sounds")
         self.chk_sounds.toggled.connect(self._on_sounds_toggled)
-        sounds.addWidget(self.chk_sounds)
+        sounds.addWidget(toggle_row(self.chk_sounds))
         vol_row = QHBoxLayout()
         vol_lbl = QLabel("Volume")
         vol_lbl.setObjectName("muted")
@@ -395,15 +395,15 @@ class SettingsVoiceMixin:
         sounds.addWidget(cue_lbl)
         cue_grid = QGridLayout()
         cue_grid.setSpacing(4)
-        self.cue_checks: dict[str, QCheckBox] = {}
+        self.cue_checks: dict[str, HudSwitch] = {}
         from voice_assistant.gui.sounds import CUE_NAMES as _CUE_NAMES
         for _i, _cue in enumerate(_CUE_NAMES):
-            _chk = QCheckBox(_cue.capitalize())
+            _chk = HudSwitch(text=_cue.capitalize())
             _chk.setChecked(bool(qsettings_get(f"sounds/cue_{_cue}", settings=self.settings)))
             _chk.toggled.connect(
                 lambda on, n=_cue: self._on_cue_toggled(n, on))
             self.cue_checks[_cue] = _chk
-            cue_grid.addWidget(_chk, _i // 3, _i % 3)
+            cue_grid.addWidget(toggle_row(_chk), _i // 3, _i % 3)
         sounds.addLayout(cue_grid)
         # B-R1-9: Kenney audition row — explicit-demand A/B of the
         # six CC0 candidates in gui/assets/audition/kenney/.
@@ -511,6 +511,83 @@ class SettingsVoiceMixin:
             font_row.addWidget(btn)
         font_row.addStretch()
         appear.addLayout(font_row)
+        # UI Phase 1 (plan §10): the HUD profile — Cinematic /
+        # Professional / Minimal. One call site (_apply_hud_profile)
+        # resolves it via resolve_profile(stored, power_saver,
+        # contrast_theme); the stored value is ConfigSpec hud_profile
+        # + QSettings appearance/hud_profile.
+        hud_row = QHBoxLayout()
+        hud_lbl = QLabel("HUD")
+        hud_lbl.setObjectName("muted")
+        hud_row.addWidget(hud_lbl)
+        self.hud_profile_buttons: dict[str, QPushButton] = {}
+        for profile_name in ("Cinematic", "Professional", "Minimal"):
+            btn = QPushButton(profile_name)
+            btn.setObjectName("chipBtn")
+            btn.setCheckable(True)
+            btn.clicked.connect(
+                lambda _=False, p=profile_name:
+                self._on_hud_profile_selected(p))
+            self.hud_profile_buttons[profile_name] = btn
+            hud_row.addWidget(btn)
+        hud_row.addStretch()
+        appear.addLayout(hud_row)
+        # Phase 4 (D-P4-32): the HUD profile previews — picking
+        # a profile shows it at once but writes nothing until
+        # Apply; Cancel puts the previous profile back. The
+        # buttons stay hidden until a preview starts.
+        hud_preview_row = QHBoxLayout()
+        self.hud_preview_label = QLabel(
+            "Previewing — Apply to keep it, Cancel to go back.")
+        self.hud_preview_label.setObjectName("muted")
+        self.hud_preview_label.setVisible(False)
+        hud_preview_row.addWidget(self.hud_preview_label)
+        self.hud_apply_btn = QPushButton("Apply")
+        self.hud_apply_btn.setObjectName("chipBtn")
+        self.hud_apply_btn.clicked.connect(self._on_hud_profile_apply)
+        self.hud_apply_btn.setVisible(False)
+        hud_preview_row.addWidget(self.hud_apply_btn)
+        self.hud_cancel_btn = QPushButton("Cancel")
+        self.hud_cancel_btn.setObjectName("chipBtn")
+        self.hud_cancel_btn.clicked.connect(self._on_hud_profile_cancel)
+        self.hud_cancel_btn.setVisible(False)
+        hud_preview_row.addWidget(self.hud_cancel_btn)
+        hud_preview_row.addStretch()
+        appear.addLayout(hud_preview_row)
+        # Phase 4 (D-P4-08, R-P4-E): the Pulse cadence mirror —
+        # the same pulse/refresh_ms key the Pulse header writes,
+        # so the two controls stay in sync on show.
+        cadence_row = QHBoxLayout()
+        cadence_lbl = QLabel("Pulse refresh")
+        cadence_lbl.setObjectName("muted")
+        cadence_row.addWidget(cadence_lbl)
+        self.pulse_cadence_combo = QComboBox()
+        for _label, _ms in (("Every second", 1000),
+                            ("Every 2 seconds", 2000),
+                            ("Every 5 seconds", 5000)):
+            self.pulse_cadence_combo.addItem(_label, _ms)
+        self.pulse_cadence_combo.currentIndexChanged.connect(
+            self._on_pulse_cadence_selected)
+        cadence_row.addWidget(self.pulse_cadence_combo)
+        cadence_row.addStretch()
+        appear.addLayout(cadence_row)
+        # UI Phase 1 (H-11): the home city for the Home weather
+        # (one canonical store: ConfigSpec home_city + QSettings
+        # home/city — the same store the wizard and the inline Home
+        # prompt write).
+        city_row = QHBoxLayout()
+        city_lbl = QLabel("Home city")
+        city_lbl.setObjectName("muted")
+        city_row.addWidget(city_lbl)
+        self.home_city_edit = QLineEdit()
+        self.home_city_edit.setObjectName("homeCityEdit")
+        self.home_city_edit.setPlaceholderText(
+            "Your home city (for the weather)")
+        self.home_city_edit.editingFinished.connect(
+            self._on_home_city_edit_finished)
+        city_row.addWidget(self.home_city_edit, 1)
+        city_row.addStretch()
+        appear.addLayout(city_row)
         # Stage 0 features batch 5, item 11: reply verbosity —
         # how long her replies run. Persists like the voice
         # settings (config field + .env); applies from the
@@ -576,10 +653,10 @@ class SettingsVoiceMixin:
         # already translucent-frameless, so this softens the
         # shell's own fill and lets the desktop ghost through.
         glass_row = QHBoxLayout()
-        self.chk_glass = QCheckBox("Translucent shell")
+        self.chk_glass = HudSwitch(text="Translucent shell")
         self.chk_glass.setChecked(bool(qsettings_get("appearance/glass", settings=self.settings)))
         self.chk_glass.toggled.connect(self._on_glass_toggled)
-        glass_row.addWidget(self.chk_glass)
+        glass_row.addWidget(toggle_row(self.chk_glass))
         glass_row.addStretch()
         appear.addLayout(glass_row)
         glass_hint = QLabel("The shell goes softly see-through, so your desktop glows through it. Applied instantly.")
@@ -589,30 +666,30 @@ class SettingsVoiceMixin:
         self._sync_appearance_controls()
 
         presence = self._settings_card(_g_connect, "Presence", "How VYUK lives on this PC — starting by itself, the floating orb, and speaking first.")
-        self.chk_autostart = QCheckBox("Launch VYUK when Windows starts")
+        self.chk_autostart = HudSwitch(text="Launch VYUK when Windows starts")
         autostart_hint = QLabel("Starts quietly in your tray with the mini orb — no window, no noise.")
         autostart_hint.setObjectName("cardHint")
         autostart_hint.setWordWrap(True)
-        presence.addWidget(self.chk_autostart)
+        presence.addWidget(toggle_row(self.chk_autostart))
         presence.addWidget(autostart_hint)
         # v5.65 (Wave 10 — PF-24): the toggle was created but never
         # wired — checking it did nothing. It now works both ways
         # through the lifecycle consent record + the frozen Run-key
         # mechanism (core/presence.py, value "Nova").
         self._syncing_autostart = False
-        self.chk_connect_launch = QCheckBox("Connect automatically on launch")
-        presence.addWidget(self.chk_connect_launch)
-        self.chk_auto_reconnect = QCheckBox("Reconnect automatically")
+        self.chk_connect_launch = HudSwitch(text="Connect automatically on launch")
+        presence.addWidget(toggle_row(self.chk_connect_launch))
+        self.chk_auto_reconnect = HudSwitch(text="Reconnect automatically")
         reconnect_hint = QLabel("If the connection drops, VYUK quietly tries to come back on her own.")
         reconnect_hint.setObjectName("cardHint")
         reconnect_hint.setWordWrap(True)
-        presence.addWidget(self.chk_auto_reconnect)
+        presence.addWidget(toggle_row(self.chk_auto_reconnect))
         presence.addWidget(reconnect_hint)
-        self.chk_mini_orb = QCheckBox("Floating mini orb")
+        self.chk_mini_orb = HudSwitch(text="Floating mini orb")
         mini_hint = QLabel("A small always-on-top orb that mirrors VYUK's state. Drag it anywhere; right-click it for options.")
         mini_hint.setObjectName("cardHint")
         mini_hint.setWordWrap(True)
-        presence.addWidget(self.chk_mini_orb)
+        presence.addWidget(toggle_row(self.chk_mini_orb))
         presence.addWidget(mini_hint)
         # R8-6 (yasb port): the status strip toggle, beside the mini
         # orb — off by default; it shows live CPU, memory, disk,
@@ -621,26 +698,25 @@ class SettingsVoiceMixin:
         # at the bottom of the window — the numbers live behind a tap
         # on it (and on the System Pulse page). The checkbox hides the
         # row; it never deletes it.
-        self.chk_status_strip = QCheckBox(
-            "Status strip (system status at the bottom of the window)")
+        self.chk_status_strip = HudSwitch(text="Status strip (system status at the bottom of the window)")
         strip_hint = QLabel("A thin always-on-top bar with live CPU, memory, disk, network and battery. Drag it anywhere; it only samples while visible.")
         strip_hint.setObjectName("cardHint")
         strip_hint.setWordWrap(True)
-        presence.addWidget(self.chk_status_strip)
+        presence.addWidget(toggle_row(self.chk_status_strip))
         presence.addWidget(strip_hint)
-        self.chk_summon_hotkey = QCheckBox("Summon hotkey (Ctrl+Shift+Space)")
+        self.chk_summon_hotkey = HudSwitch(text="Summon hotkey (Ctrl+Shift+Space)")
         summon_hint = QLabel("Press it anywhere to bring VYUK forward — or tuck her away.")
         summon_hint.setObjectName("cardHint")
         summon_hint.setWordWrap(True)
-        presence.addWidget(self.chk_summon_hotkey)
+        presence.addWidget(toggle_row(self.chk_summon_hotkey))
         presence.addWidget(summon_hint)
         briefing_row = QHBoxLayout()
-        self.chk_briefing = QCheckBox("Morning briefing")
+        self.chk_briefing = HudSwitch(text="Morning briefing")
         self.time_briefing = QTimeEdit()
         self.time_briefing.setAccessibleName("Morning briefing time")
         self.time_briefing.setDisplayFormat("HH:mm")
         self.time_briefing.setFixedWidth(90)
-        briefing_row.addWidget(self.chk_briefing)
+        briefing_row.addWidget(toggle_row(self.chk_briefing))
         briefing_row.addWidget(self.time_briefing)
         briefing_row.addStretch()
         presence.addLayout(briefing_row)
@@ -653,12 +729,12 @@ class SettingsVoiceMixin:
         # (not QSettings): the toggle is the on-demand opt-in, the
         # time is the chosen nudge time.
         nudge_row = QHBoxLayout()
-        self.chk_nudge = QCheckBox("Daily nudge")
+        self.chk_nudge = HudSwitch(text="Daily nudge")
         self.time_nudge = QTimeEdit()
         self.time_nudge.setAccessibleName("Daily nudge time")
         self.time_nudge.setDisplayFormat("HH:mm")
         self.time_nudge.setFixedWidth(90)
-        nudge_row.addWidget(self.chk_nudge)
+        nudge_row.addWidget(toggle_row(self.chk_nudge))
         nudge_row.addWidget(self.time_nudge)
         nudge_row.addStretch()
         presence.addLayout(nudge_row)

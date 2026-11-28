@@ -680,10 +680,27 @@ class SessionConnectionMixin:
         self._toggle_mute()
 
     def _toggle_mute(self):
+        # The facade re-resolves audio_manager per access (no
+        # cache), but this module's top-level import bound the
+        # value at first import — a test harness that replaces
+        # the audio stub per test (WindowBase._install_shim)
+        # would leave _toggle_mute writing to a stale fake
+        # while the leg reads the current one. Resolve fresh
+        # here so the mute write lands on the live manager.
+        import voice_assistant.core.gui_facade as _facade
+        audio_manager = _facade.audio_manager
         audio_manager.is_muted = self.btn_mute.isChecked()
         muted = audio_manager.is_muted
         self.btn_mute.setText("Unmute" if muted else "Mute")
-        self.btn_mute.setIcon(make_icon("volume_off" if muted else "volume", TEXT_MUTED, 16))
+        # Look-fix 2026-11-24: the icon follows the resolved
+        # theme (the house TEXT_MUTED is near-white — invisible
+        # on Light); the theme pass re-makes it on appearance
+        # change, this toggle re-makes it on mute change.
+        _resolved = getattr(self, "_resolved_theme", None) or {}
+        _muted = (_resolved.get("text_muted", TEXT_MUTED)
+                  if isinstance(_resolved, dict) else TEXT_MUTED)
+        self.btn_mute.setIcon(make_icon(
+            "volume_off" if muted else "volume", _muted, 16))
         tray_mute = getattr(self, "tray_mute_action", None)
         if tray_mute is not None and tray_mute.isChecked() != muted:
             tray_mute.setChecked(muted)
@@ -695,6 +712,13 @@ class SessionConnectionMixin:
         except Exception:  # noqa: BLE001
             pass
         self._sync_muted_label()
+        # UI Phase 1: the header mute pill mirrors btn_mute.
+        try:
+            pill = getattr(self, "home_mute_pill", None)
+            if pill is not None:
+                pill.setText("Muted" if muted else "Mute")
+        except Exception:  # noqa: BLE001
+            pass
 
     def _sync_muted_label(self):
         """v5.43 F2: keep the state label honest about the mute.

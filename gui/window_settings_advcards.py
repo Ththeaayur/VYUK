@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QAbstractScrollArea,
     QAbstractSpinBox,
-    QCheckBox,
     QColorDialog,
     QComboBox,
     QFrame,
@@ -35,6 +34,8 @@ from PySide6.QtCore import (
 )
 from voice_assistant.core.gui_facade import VERSION
 from .design_system.flowlayout import FlowLayout
+from .design_system.switches import HudSwitch, toggle_row
+
 from .style import (
     # E-F201: the Theme-packs box is a QPlainTextEdit, and the app
     # sheet styles the QLineEdit family only — the same tokens the
@@ -434,8 +435,7 @@ class SettingsAdvCardsMixin:
             "— never the words. Crash reports carry only the crash "
             "signature — never what you said or did. Off unless "
             "you turn it on; separate from sign-in.")
-        self.chk_feedback_reporting = QCheckBox(
-            "Send feedback & crash reports")
+        self.chk_feedback_reporting = HudSwitch(text="Send feedback & crash reports")
         try:
             from voice_assistant.core.gui_facade import config as _cfg
 
@@ -445,7 +445,7 @@ class SettingsAdvCardsMixin:
             self.chk_feedback_reporting.setChecked(False)
         self.chk_feedback_reporting.toggled.connect(
             self._on_feedback_reporting_toggled)
-        feedback.addWidget(self.chk_feedback_reporting)
+        feedback.addWidget(toggle_row(self.chk_feedback_reporting))
         self._feedback_reporting_status = QLabel("")
         self._feedback_reporting_status.setObjectName("cardHint")
         self._feedback_reporting_status.setWordWrap(True)
@@ -566,6 +566,17 @@ class SettingsAdvCardsMixin:
         about_hint.setObjectName("cardHint")
         about_hint.setWordWrap(True)
         about.addWidget(about_hint)
+        # Phase 4 (D-P4-26): what Undo covers, stated where the
+        # app is described — recorded: settings changes, file
+        # writes, extension state; not recorded: a message sent,
+        # a payment completed.
+        undo_hint = QLabel(
+            "Undo covers settings changes, file writes, and "
+            "extension state. It can't undo a message sent or a "
+            "payment completed.")
+        undo_hint.setObjectName("cardHint")
+        undo_hint.setWordWrap(True)
+        about.addWidget(undo_hint)
         self.btn_updates = QPushButton("Check for updates")
         self.btn_updates.clicked.connect(self._on_updates_clicked)
         about.addWidget(self.btn_updates)
@@ -615,6 +626,372 @@ class SettingsAdvCardsMixin:
         update_actions.addStretch()
         about.addLayout(update_actions)
         self._refresh_update_buttons()
+
+    # ------------------------------------------------- UI Phase 5 Home hub
+    # (D-P5-15): the ONE place a hub is configured. Host in .env,
+    # token in the secrets store (never plaintext, never shown),
+    # allowlist in .env beside the host. ONE button tests the
+    # connection and saves — a failed test saves NOTHING (S-P5-03);
+    # there is no separate Save button to drift from the test.
+    def _build_ha_card(self, _g_connect):
+        from voice_assistant.core.gui_facade import (
+            home_assistant_config as _hac)
+        card = self._settings_card(
+            _g_connect, "Home hub",
+            "Connect a Home Assistant instance on your network. "
+            "Local network only — a hub on the public internet is "
+            "refused. The token is stored protected, never in "
+            "plaintext, and never shown again.")
+        self._ha_config_mod = _hac
+        host_row = QHBoxLayout()
+        host_label = QLabel("Hub address")
+        host_label.setObjectName("cardHint")
+        host_row.addWidget(host_label)
+        self._ha_host_edit = QLineEdit()
+        self._ha_host_edit.setPlaceholderText(
+            "192.168.1.10 or homeassistant.local")
+        self._ha_host_edit.setAccessibleName(
+            "Home Assistant hub address")
+        host_row.addWidget(self._ha_host_edit, stretch=1)
+        card.addLayout(host_row)
+        token_row = QHBoxLayout()
+        token_label = QLabel("Long-lived access token")
+        token_label.setObjectName("cardHint")
+        token_row.addWidget(token_label)
+        self._ha_token_edit = QLineEdit()
+        self._ha_token_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._ha_token_edit.setPlaceholderText(
+            "Paste a token from Home Assistant → Profile → "
+            "Long-lived access tokens")
+        self._ha_token_edit.setAccessibleName(
+            "Home Assistant long-lived access token")
+        token_row.addWidget(self._ha_token_edit, stretch=1)
+        card.addLayout(token_row)
+        btn_row = QHBoxLayout()
+        self._ha_test_btn = QPushButton("Test connection and save")
+        self._ha_test_btn.setObjectName("chipBtn")
+        self._ha_test_btn.clicked.connect(self._ha_test_and_save)
+        btn_row.addWidget(self._ha_test_btn)
+        self._ha_discover_btn = QPushButton("Discover entities")
+        self._ha_discover_btn.setObjectName("chipBtn")
+        self._ha_discover_btn.clicked.connect(self._ha_discover)
+        btn_row.addWidget(self._ha_discover_btn)
+        self._ha_remove_btn = QPushButton("Remove hub")
+        self._ha_remove_btn.setObjectName("chipBtn")
+        self._ha_remove_btn.clicked.connect(self._ha_remove_hub)
+        btn_row.addWidget(self._ha_remove_btn)
+        btn_row.addStretch()
+        card.addLayout(btn_row)
+        self._ha_status = QLabel("")
+        self._ha_status.setObjectName("cardHint")
+        self._ha_status.setWordWrap(True)
+        card.addWidget(self._ha_status)
+        # The allowlist editor: one row per discovered entity —
+        # Allow checkbox, name + entity id, room field, and the
+        # Assist-exposed checkbox. The Assist tick is user-asserted
+        # (no REST source exists for it — the Devices page gates
+        # controls on it, so only tick it for entities actually
+        # exposed to Assist in Home Assistant). Ticks are staged
+        # and saved by the next Test & save.
+        self._ha_assist_hint = QLabel(
+            "Only tick “Exposed to Assist” for entities actually "
+            "exposed to Assist in Home Assistant — the Devices "
+            "page will only offer controls for ticked entities.")
+        self._ha_assist_hint.setObjectName("cardHint")
+        self._ha_assist_hint.setWordWrap(True)
+        card.addWidget(self._ha_assist_hint)
+        self._ha_entities_box = QVBoxLayout()
+        self._ha_entities_box.setSpacing(6)
+        card.addLayout(self._ha_entities_box)
+        self._ha_unsaved_hint = QLabel(
+            "Changes not yet saved — Test connection and save to "
+            "save them.")
+        self._ha_unsaved_hint.setObjectName("muted")
+        self._ha_unsaved_hint.setWordWrap(True)
+        self._ha_unsaved_hint.setVisible(False)
+        card.addWidget(self._ha_unsaved_hint)
+        # Configuring a hub and granting the permission are two
+        # different steps — say so, with the door to Permissions.
+        grant_row = QHBoxLayout()
+        grant_hint = QLabel(
+            "Setting up a hub does not grant VYUK permission to "
+            "use your home devices — grant that in Permissions.")
+        grant_hint.setObjectName("cardHint")
+        grant_hint.setWordWrap(True)
+        grant_row.addWidget(grant_hint, stretch=1)
+        self._ha_perm_btn = QPushButton("Open Permissions")
+        self._ha_perm_btn.setObjectName("chipBtn")
+        self._ha_perm_btn.clicked.connect(
+            lambda: self.show_settings_card("Permissions"))
+        grant_row.addWidget(self._ha_perm_btn)
+        card.addLayout(grant_row)
+        self._ha_staged = {}
+        self._ha_discovered = {}
+        self._ha_refresh_card()
+
+    def _ha_staged_allowlist(self):
+        """{entity_id: room} from the staged ticks (allowed only)."""
+        return {eid: str(s.get("room") or "").strip()
+                for eid, s in self._ha_staged.items()
+                if s.get("allow") and str(s.get("room") or "").strip()}
+
+    def _ha_staged_exposed(self):
+        """Assist-exposed set from the staged ticks — allowed
+        entities only (an exposed-but-unallowed entity can never
+        be controlled, so it is not stored as exposed)."""
+        return {eid for eid, s in self._ha_staged.items()
+                if s.get("allow") and s.get("assist")}
+
+    def _ha_entered_token(self):
+        """The token to test with: the field when filled, else the
+        stored token (an empty field reuses it — the token is
+        never shown, so it can never be re-typed from here)."""
+        entered = self._ha_token_edit.text().strip()
+        if entered:
+            return entered
+        token, _status = self._ha_config_mod.load_ha_token()
+        return token or ""
+
+    def _ha_refresh_card(self):
+        """Fill the card from the stored config (on build, and
+        after every save/remove)."""
+        cfg = self._ha_config_mod.load_ha_config()
+        self._ha_host_edit.setText(cfg.get("host") or "")
+        if cfg.get("has_token"):
+            self._ha_token_edit.setPlaceholderText(
+                "Token saved — enter a new one to replace it")
+        else:
+            self._ha_token_edit.setPlaceholderText(
+                "Paste a token from Home Assistant → Profile → "
+                "Long-lived access tokens")
+        self._ha_token_edit.clear()
+        allowlist = dict(cfg.get("allowlist") or {})
+        exposed = set(cfg.get("assist_exposed") or set())
+        self._ha_staged = {}
+        for eid in sorted(set(self._ha_discovered)
+                          | set(allowlist)):
+            self._ha_staged[eid] = {
+                "allow": eid in allowlist,
+                "room": allowlist.get(eid, ""),
+                "assist": eid in exposed,
+            }
+        self._ha_rebuild_entities()
+        self._ha_update_unsaved_hint()
+        if cfg.get("configured"):
+            self._ha_status.setText(
+                f"Configured — hub at {cfg.get('host')}, "
+                f"{len(allowlist)} entit"
+                f"{'y' if len(allowlist) == 1 else 'ies'} allowed.")
+        elif cfg.get("host"):
+            self._ha_status.setText(
+                "Hub address saved, but no token is stored — "
+                "paste a token and test the connection.")
+        else:
+            self._ha_status.setText("No hub configured yet.")
+
+    def _ha_rebuild_entities(self):
+        """Rebuild the allowlist editor rows from staged + discovered."""
+        # The _mem_clear_layout pattern: setParent(None) FIRST, not
+        # just deleteLater — until the deferred delete lands, an
+        # orphaned widget keeps answering findChildren (the orphan
+        # trap from legs 51/54).
+        while self._ha_entities_box.count():
+            item = self._ha_entities_box.takeAt(0)
+            wdg = item.widget()
+            if wdg is not None:
+                wdg.setParent(None)
+                wdg.deleteLater()
+                continue
+            lay = item.layout()
+            if lay is not None:
+                while lay.count():
+                    sub = lay.takeAt(0)
+                    if sub.widget() is not None:
+                        sub.widget().setParent(None)
+                        sub.widget().deleteLater()
+        if not self._ha_discovered and not self._ha_staged:
+            return
+        for eid in sorted(set(self._ha_discovered)
+                          | set(self._ha_staged)):
+            staged = self._ha_staged.get(eid) or {
+                "allow": False, "room": "", "assist": False}
+            self._ha_staged[eid] = staged
+            row = QHBoxLayout()
+            allow = HudSwitch(text="Allow")
+            allow.setChecked(bool(staged.get("allow")))
+            allow.toggled.connect(
+                lambda _c=False, _e=eid, _cb=allow:
+                    self._ha_stage_toggle(_e, "allow", _cb.isChecked()))
+            row.addWidget(toggle_row(allow))
+            name = self._ha_discovered.get(eid) or eid
+            label = QLabel(f"{name}\n{eid}")
+            label.setObjectName("cardHint")
+            label.setWordWrap(True)
+            row.addWidget(label, stretch=1)
+            room = QLineEdit(str(staged.get("room") or ""))
+            room.setPlaceholderText("Room")
+            room.setAccessibleName(f"Room for {eid}")
+            room.textChanged.connect(
+                lambda _t="", _e=eid, _f=room:
+                    self._ha_stage_toggle(_e, "room", _f.text()))
+            row.addWidget(room)
+            assist = HudSwitch(text="Exposed to Assist")
+            assist.setChecked(bool(staged.get("assist")))
+            assist.toggled.connect(
+                lambda _c=False, _e=eid, _cb=assist:
+                    self._ha_stage_toggle(_e, "assist", _cb.isChecked()))
+            row.addWidget(toggle_row(assist))
+            self._ha_entities_box.addLayout(row)
+
+    def _ha_stage_toggle(self, entity_id, key, value):
+        staged = self._ha_staged.setdefault(
+            entity_id, {"allow": False, "room": "", "assist": False})
+        staged[key] = value
+        self._ha_update_unsaved_hint()
+
+    def _ha_update_unsaved_hint(self):
+        try:
+            stored_allow, stored_exposed = \
+                self._ha_config_mod.load_ha_allowlist()
+        except Exception:  # noqa: BLE001 — a failed read reads as empty
+            stored_allow, stored_exposed = {}, set()
+        staged_allow = self._ha_staged_allowlist()
+        staged_exposed = self._ha_staged_exposed()
+        self._ha_unsaved_hint.setVisible(
+            staged_allow != stored_allow
+            or staged_exposed != stored_exposed)
+
+    def _ha_test_and_save(self):
+        """ONE button: validate pre-network, test live, then save
+        host + token + allowlist together. A failed test saves
+        NOTHING (S-P5-03) — there is no separate Save button."""
+        hac = self._ha_config_mod
+        host = self._ha_host_edit.text().strip()
+        if not host:
+            self._ha_status.setText("That needs the hub's address.")
+            return
+        token = self._ha_entered_token()
+        if not token:
+            self._ha_status.setText(
+                "A token is needed — create a long-lived access "
+                "token in Home Assistant first.")
+            return
+        client, reason = hac.build_ha_client_for(
+            host, token, self._ha_staged_allowlist(),
+            self._ha_staged_exposed())
+        if client is None:
+            self._ha_status.setText(reason or
+                                    "The hub couldn't be reached.")
+            return
+        try:
+            client.health()
+        except Exception as err:  # noqa: BLE001 — failed test:
+            # nothing is saved.
+            self._ha_status.setText(hac.ha_error_line(err))
+            return
+        try:
+            states = client.get_states()
+        except Exception:  # noqa: BLE001 — discovery failing does
+            states = []  # not fail the save
+        for state in states or []:
+            eid = str((state or {}).get("entity_id") or "")
+            if not eid:
+                continue
+            attrs = (state or {}).get("attributes") or {}
+            friendly = str(attrs.get("friendly_name") or eid)
+            self._ha_discovered[eid] = friendly
+            self._ha_staged.setdefault(
+                eid, {"allow": False, "room": "", "assist": False})
+        ok_token, token_msg = hac.save_ha_token(token)
+        if not ok_token:
+            self._ha_status.setText(token_msg)
+            return
+        if not hac.save_ha_host(host):
+            self._ha_status.setText(
+                "The token is saved, but the hub address couldn't "
+                "be saved — check the settings can be written, "
+                "then try again.")
+            return
+        if not hac.save_ha_allowlist(
+                self._ha_staged_allowlist(),
+                self._ha_staged_exposed()):
+            self._ha_status.setText(
+                "The hub is saved, but the allowlist couldn't be "
+                "saved — check the settings can be written, then "
+                "try again.")
+            return
+        self._ha_token_edit.clear()
+        self._ha_refresh_card()
+        self._ha_status.setText(
+            f"Saved — connected to {host}. "
+            f"{len(self._ha_discovered)} entit"
+            f"{'y' if len(self._ha_discovered) == 1 else 'ies'} "
+            "found on the hub.")
+        try:
+            self._refresh_settings_card_values()
+        except Exception:  # noqa: BLE001 — the value line is a nicety
+            pass
+
+    def _ha_discover(self):
+        """Refresh the entity list from the hub without saving
+        anything (the list is staged until the next Test & save)."""
+        hac = self._ha_config_mod
+        host = self._ha_host_edit.text().strip()
+        if not host:
+            self._ha_status.setText("That needs the hub's address.")
+            return
+        token = self._ha_entered_token()
+        if not token:
+            self._ha_status.setText(
+                "A token is needed — create a long-lived access "
+                "token in Home Assistant first.")
+            return
+        client, reason = hac.build_ha_client_for(
+            host, token, self._ha_staged_allowlist(),
+            self._ha_staged_exposed())
+        if client is None:
+            self._ha_status.setText(reason or
+                                    "The hub couldn't be reached.")
+            return
+        try:
+            states = client.get_states()
+        except Exception as err:  # noqa: BLE001
+            self._ha_status.setText(hac.ha_error_line(err))
+            return
+        found = 0
+        for state in states or []:
+            eid = str((state or {}).get("entity_id") or "")
+            if not eid:
+                continue
+            attrs = (state or {}).get("attributes") or {}
+            self._ha_discovered[eid] = str(
+                attrs.get("friendly_name") or eid)
+            self._ha_staged.setdefault(
+                eid, {"allow": False, "room": "", "assist": False})
+            found += 1
+        self._ha_rebuild_entities()
+        self._ha_update_unsaved_hint()
+        self._ha_status.setText(
+            f"Found {found} entit{'y' if found == 1 else 'ies'} on "
+            "the hub — tick Allow and a room, then Test connection "
+            "and save.")
+
+    def _ha_remove_hub(self):
+        """Clear the host, delete the token envelope, clear the
+        allowlist. The Devices page reads not-configured after
+        this, immediately."""
+        hac = self._ha_config_mod
+        hac.save_ha_host("")
+        hac.clear_ha_token_file()
+        hac.save_ha_allowlist({}, set())
+        self._ha_discovered = {}
+        self._ha_host_edit.clear()
+        self._ha_refresh_card()
+        self._ha_status.setText("Hub removed.")
+        try:
+            self._refresh_settings_card_values()
+        except Exception:  # noqa: BLE001 — the value line is a nicety
+            pass
 
 
     # ------------------------------------------------- v5.56 trust surfaces

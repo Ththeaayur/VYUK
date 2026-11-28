@@ -609,11 +609,16 @@ class ShellFrameMixin(ShellBootMixin):
             self._grip.raise_()
         # Sci-fi Home: the collapsed briefing summary is elided to
         # one line against the label's width — re-elide after a
-        # resize, since the available width changed.
+        # resize, since the available width changed. The synchronous
+        # pass runs before the layout settles (its width is the
+        # pre-resize one — a 5-line reminder state elided to a bare
+        # "Connect…" that way), so a deferred pass re-elides once
+        # the layout has the settled width (the Build 1 pattern).
         try:
             _reelide = getattr(self, "_reelide_briefing_summary", None)
             if _reelide is not None:
                 _reelide()
+                QTimer.singleShot(0, _reelide)
         except Exception:  # noqa: BLE001 — cosmetic
             pass
         try:
@@ -863,18 +868,21 @@ class ShellFrameMixin(ShellBootMixin):
         btn_min = QPushButton()
         btn_min.setObjectName("winBtn")
         btn_min.setAccessibleName("Minimize window")
+        btn_min.setToolTip("Minimize window")
         btn_min.setFixedSize(36, 26)
         btn_min.setIcon(make_icon("minus", TEXT_MUTED, 13))
         btn_min.clicked.connect(self.showMinimized)
         btn_max = QPushButton()
         btn_max.setObjectName("winBtn")
         btn_max.setAccessibleName("Maximize window")
+        btn_max.setToolTip("Maximize window")
         btn_max.setFixedSize(36, 26)
         btn_max.setIcon(make_icon("square", TEXT_MUTED, 12))
         btn_max.clicked.connect(self._toggle_maximize)
         btn_close = QPushButton()
         btn_close.setObjectName("winBtn")
         btn_close.setAccessibleName("Close window")
+        btn_close.setToolTip("Close window")
         btn_close.setFixedSize(36, 26)
         btn_close.setIcon(make_icon("x", TEXT_MUTED, 13))
         btn_close.setStyleSheet(f"QPushButton:hover {{ background-color: {with_alpha(DANGER, 160)}; }}")

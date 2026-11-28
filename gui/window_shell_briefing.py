@@ -64,6 +64,15 @@ class _CalendarWorker(QThread):
 # between the two.
 _BRIEFING_NARROW_WIDTH = 420
 
+# Briefing fix (2026-11-26): the failure/loading lines that must
+# show in full, never elided — see _reelide_briefing_summary.
+# The empty-schedule copy joins them from room_home.ROOM_COPY
+# (the single source for that line) at the point of use.
+_BRIEFING_NOT_CONNECTED = "Connect your calendar to see your day"
+_BRIEFING_LOAD_FAILED = ("Today's calendar couldn't be loaded — press Play "
+                        "briefing and ask her.")
+_BRIEFING_LOADING = "Checking today's calendar…"
+
 
 class ShellBriefingMixin:
 
@@ -236,6 +245,29 @@ class ShellBriefingMixin:
             full = briefing_summary_for(text)
         except Exception:  # noqa: BLE001 — summary never breaks home
             full = text
+        # Hunt fix (c) §7: when the schedule's first clause is a
+        # state line (not connected / loading / failed / empty) with
+        # a reminders clause appended, the summary is the state
+        # line alone. Keeping both clauses elides the one-line
+        # summary to a bare "Connect…" — the real Sora bold
+        # measures "Connect your…" at 99 px against a 96 px label,
+        # so no word-boundary trick can make it read. The state
+        # line is the actionable thing; the reminders stay in the
+        # details schedule (shown in full when expanded). The
+        # state line then matches _show_in_full and wraps whole.
+        try:
+            from voice_assistant.gui.room_home import ROOM_COPY
+            _state_lines = (
+                _BRIEFING_NOT_CONNECTED,
+                _BRIEFING_LOAD_FAILED,
+                _BRIEFING_LOADING,
+                ROOM_COPY["empty_schedule"],
+            )
+            _first = (text or "").split(" · ")[0].strip()
+            if _first in _state_lines:
+                full = _first
+        except Exception:  # noqa: BLE001 — summary never breaks home
+            pass
         self._briefing_summary_full = full
         self._reelide_briefing_summary()
 
@@ -246,35 +278,78 @@ class ShellBriefingMixin:
         full = getattr(self, "_briefing_summary_full", None)
         if summary is None or full is None:
             return
+        # Briefing fix (2026-11-26): a failure/empty/loading line
+        # is a complete short line, never an elision — the old
+        # width cut left "Calendar not…" on the collapsed card.
+        # These lines wrap to as many lines as the narrow card
+        # needs (the not-connected copy takes three at 1280);
+        # every other summary keeps the one-line elision below,
+        # so a real multi-clause schedule still reads as its
+        # first two clauses + "…".
         try:
-            from PySide6.QtGui import QFontMetrics
-            width = summary.width()
-            if width > 0:
-                elided = QFontMetrics(summary.font()).elidedText(
-                    full, Qt.TextElideMode.ElideRight, width)
-                # UI rethink Build 1: elide at a word boundary —
-                # the old cut left "Y…" / "Setting…" mid-word. If
-                # the cut fell mid-word, back up to the last space
-                # and strip any trailing separator. A first word
-                # too long for the label keeps the character cut.
-                if elided.endswith("…") and len(elided) < len(full):
-                    visible = elided[:-1]
-                    if (len(full) > len(visible)
-                            and full[len(visible)] not in (" ", "·")):
-                        cut = visible.rfind(" ")
-                        if cut > 0:
-                            visible = visible[:cut]
-                    visible = visible.rstrip(" ·").rstrip()
-                    summary.setText(visible + "…" if visible else elided)
-                else:
-                    summary.setText(elided)
-            else:
-                summary.setText(full)
-        except Exception:  # noqa: BLE001 — cosmetic
+            from voice_assistant.gui.room_home import ROOM_COPY
+            _show_in_full = (
+                _BRIEFING_NOT_CONNECTED,
+                _BRIEFING_LOAD_FAILED,
+                _BRIEFING_LOADING,
+                ROOM_COPY["empty_schedule"],
+            )
+        except Exception:  # noqa: BLE001 — summary never breaks home
+            _show_in_full = ()
+        if full in _show_in_full:
+            summary.setWordWrap(True)
+            summary.setText(full)
+        else:
+            summary.setWordWrap(False)
             try:
-                summary.setText(full)
-            except Exception:  # noqa: BLE001
-                pass
+                from PySide6.QtGui import QFontMetrics
+                width = summary.width()
+                if width > 0:
+                    # Hunt fix (c) §7: elide word by word, not by
+                    # character. elidedText cut mid-word ("Connect
+                    # you…") and the old backup then dropped the
+                    # whole partial word, leaving a bare "Connect…"
+                    # for a not-connected card with a reminder.
+                    # Whole words only: take words while the next
+                    # still fits with the ellipsis, so the summary
+                    # reads "Connect your…" — the most the one line
+                    # can honestly carry. A first word too long for
+                    # the label keeps the character cut.
+                    metrics = QFontMetrics(summary.font())
+                    text = full
+                    had_marker = text.endswith(" …")
+                    if had_marker:
+                        text = text[:-2].rstrip()
+                    ellipsis = "…"
+                    visible = ""
+                    for word in text.split(" "):
+                        candidate = (word if not visible
+                                     else visible + " " + word)
+                        # Measure the candidate WITH the ellipsis as
+                        # one string — the summed advances overstate
+                        # it ("Connect your" 87 + "…" 11 = 98, but
+                        # "Connect your…" measures 96, exactly the
+                        # label's width) and would drop a word that
+                        # fits.
+                        if (metrics.horizontalAdvance(
+                                candidate + ellipsis) <= width):
+                            visible = candidate
+                        else:
+                            break
+                    if not visible:
+                        summary.setText(metrics.elidedText(
+                            full, Qt.TextElideMode.ElideRight, width))
+                    elif visible == text and not had_marker:
+                        summary.setText(text)
+                    else:
+                        summary.setText(visible + ellipsis)
+                else:
+                    summary.setText(full)
+            except Exception:  # noqa: BLE001 — cosmetic
+                try:
+                    summary.setText(full)
+                except Exception:  # noqa: BLE001
+                    pass
         # Field-check fix #8 (U5 #34): the narrow rule — a state
         # change shifts the layout, so re-elide once it settles
         # (the Build 1 deferred pattern); the second pass sees
@@ -282,6 +357,18 @@ class ShellBriefingMixin:
         try:
             if self._apply_briefing_narrow_rule():
                 QTimer.singleShot(0, self._reelide_briefing_summary)
+        except Exception:  # noqa: BLE001 — cosmetic
+            pass
+        # Briefing fix (2026-11-26): the news block's preferred
+        # height tracks the width — re-ask here so a resize
+        # re-computes it after the layout settles (the deferred
+        # passes carry the new width; the synchronous resizeEvent
+        # pass carries the old one and is corrected by the
+        # deferred pass).
+        try:
+            _hint = getattr(self, "_refresh_home_news_hint", None)
+            if _hint is not None:
+                _hint()
         except Exception:  # noqa: BLE001 — cosmetic
             pass
 
@@ -323,13 +410,37 @@ class ShellBriefingMixin:
 
     def _toggle_briefing_card(self):
         """Expand / collapse the day briefing card in place. The
-        summary stays visible either way; the chevron and its
-        accessible name track the state."""
+        chevron and its accessible name track the state. The
+        summary shows only while collapsed — it IS the collapsed
+        card ("Today's briefing in one line — tap the arrow to see
+        the full briefing"); while expanded the details carry the
+        same schedule line, and keeping a 3-line summary in the
+        header squeezes the details (the card is capped at 272 px)
+        so the 5-line schedule clips. Hiding it on expand frees
+        the 51 px the details need."""
         expanded = not getattr(self, "_briefing_expanded", False)
         self._briefing_expanded = expanded
         details = getattr(self, "_briefing_details", None)
         if details is not None:
             details.setVisible(expanded)
+        summary = getattr(self, "briefing_summary", None)
+        if summary is not None:
+            summary.setVisible(not expanded)
+        # Hunt fix (c) §7: the news block yields while the card is
+        # expanded. The right column is exactly full (570 px); the
+        # briefing panel gets the remainder after the other panels
+        # (309 px) and the card gets the body's remainder after the
+        # news block (133 px) — so the details are pinned at 58 px
+        # however much content is hidden inside them (measured:
+        # hiding the countdown + weather moves the hints but not
+        # the allocation; no stretch lever moves the card). The
+        # details need ~150 px at the 96 px interior width, and
+        # the news block's 133 px is the only room available.
+        # While expanded the news hides; collapsing the card
+        # brings it straight back.
+        news = getattr(self, "_home_news_block", None)
+        if news is not None:
+            news.setVisible(not expanded)
         btn = getattr(self, "btn_briefing_expand", None)
         if btn is not None:
             btn.setText("▴" if expanded else "▾")
@@ -481,6 +592,33 @@ class ShellBriefingMixin:
         """One schedule line for the briefing card. events is None
         while the calendar is still loading; ok False means the
         fetch itself raised (the failure line, with a next step)."""
+        # UI Phase 1 (leg 41): the next event's countdown lives on
+        # the agenda row — "in 25 min" / "in 1 h 5 min" / "now".
+        # The label is created up front so it exists on every
+        # render path (including not-connected); its text is set
+        # below when there is a next event.
+        try:
+            label = getattr(self, "_briefing_next_countdown", None)
+            if label is None:
+                from PySide6.QtWidgets import QLabel as _QLabel
+                label = _QLabel("")
+                label.setObjectName("briefingNextCountdown")
+                details = getattr(self, "_briefing_details", None)
+                parent = details if details is not None else getattr(
+                    self, "briefing_card", None)
+                if parent is not None and parent.layout() is not None:
+                    parent.layout().addWidget(label)
+                self._briefing_next_countdown = label
+            # Hunt fix (c) §7: hidden until there is a next event
+            # to count down to. The early-return branches below
+            # (not connected / loading / failed) never reach the
+            # text-setting code, so the default must be hidden —
+            # an empty visible label is a blank row costing 17 px
+            # + spacing in the squeezed details.
+            if label is not None:
+                label.setVisible(False)
+        except Exception:  # noqa: BLE001
+            label = None
         # UI rethink Build 1: the Connect-calendar row shows only
         # in the not-connected branch below; every other branch
         # hides it (a failed fetch is not fixed by connecting).
@@ -499,16 +637,18 @@ class ShellBriefingMixin:
             return " · ".join(shown)
 
         if not ok:
-            self._set_briefing_schedule_text(
-                "Today's calendar couldn't be loaded — press Play "
-                "briefing and ask her.")
+            self._set_briefing_schedule_text(_BRIEFING_LOAD_FAILED)
             return
         if not connected:
             # UI rethink Build 1: one short sentence on the bar —
             # the "connect it in Settings" instruction is the
             # Connect calendar row behind the chevron, not a
-            # sentence on the bar.
-            parts = ["Calendar not connected"]
+            # sentence on the bar. Briefing fix (2026-11-26): the
+            # old line ("Calendar not connected") elided to
+            # "Calendar not…" on the collapsed card — a failure
+            # line must show complete, so the copy names the
+            # action instead.
+            parts = [_BRIEFING_NOT_CONNECTED]
             if reminders:
                 parts.append(
                     f"Reminders: {_names([r['message'] for r in reminders])}")
@@ -518,11 +658,10 @@ class ShellBriefingMixin:
         if events is None:
             if reminders:
                 self._set_briefing_schedule_text(
-                    "Checking today's calendar… · Reminders: "
+                    _BRIEFING_LOADING + " · Reminders: "
                     f"{_names([r['message'] for r in reminders])}")
             else:
-                self._set_briefing_schedule_text(
-                    "Checking today's calendar…")
+                self._set_briefing_schedule_text(_BRIEFING_LOADING)
             return
         parts = []
         if events:
@@ -550,6 +689,31 @@ class ShellBriefingMixin:
             total = len(events) + len(reminders)
             self._set_briefing_schedule_text(
                 f"{total} things coming up · " + " · ".join(parts))
+        # The countdown text for the next event (set above only
+        # when a next event exists; otherwise the label stays
+        # empty — it is a row, not a promise).
+        try:
+            if label is not None:
+                text = ""
+                if events:
+                    try:
+                        from .room_home import countdown_text as _cd
+                        import time as _time
+                        first = events[0].get("start")
+                        if first is not None:
+                            epoch = first.timestamp() if hasattr(
+                                first, "timestamp") else float(first)
+                            text = _cd(epoch, int(_time.time()))
+                    except Exception:  # noqa: BLE001
+                        text = ""
+                label.setText(text)
+                # Hunt fix (c) §7: an empty countdown is a blank
+                # row — it still costs 17 px + spacing in the
+                # squeezed details. Hide it until there is a next
+                # event to count down to.
+                label.setVisible(bool(text))
+        except Exception:  # noqa: BLE001
+            pass
         # Conversion Wave 9: refresh the on-this-day line whenever
         # the briefing schedule renders (every render path funnels
         # here, including the calendar worker's completion).

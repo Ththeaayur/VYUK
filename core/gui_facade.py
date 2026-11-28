@@ -89,6 +89,9 @@ _EXPORTS = {
     "audit": (".audit", None),
     "backup": (".backup", None),
     "boot_sequence": (".desktop.boot_sequence", None),
+    # UI Phase 1 (2026-11-24): the Home vitals strip reads the
+    # brain source + wake-word state through here.
+    "brain_state": (".brain_state", None),
     "browser_enable": (".desktop.browser_enable", None),
     "build_manifest": (".icon_manifest", "build_manifest"),
     "cancel_waking": (".taskwake", "cancel_waking"),
@@ -110,6 +113,9 @@ _EXPORTS = {
     "current_profile_name": (".funnel.tool_profiles", "current_profile_name"),
     "cursor": (".desktop.cursor", None),
     "daily_count": (".daily_count", None),
+    # UI Phase 1 (2026-11-24): the Home degradation banner reads
+    # the STT/voice readiness through here.
+    "degradation": (".degradation", None),
     "developer_telemetry_doctor": (".developer_telemetry_doctor", None),
     "diagnose_downloads": (".voice.local_assets", "diagnose_downloads"),
     "discover_plugins": (".plugin_loader", "discover_plugins"),
@@ -134,6 +140,18 @@ _EXPORTS = {
     "generate_session_summary": (".memory.session_summary", "generate_session_summary"),
     "gemini_oauth": (".gemini_oauth", None),
     "google_services": (".google_services", None),
+    # UI Phase 1 (2026-11-24): the Home greeting's unread
+    # clause needs an exact unread-mail count.
+    "unread_count": (".google_services", "unread_count"),
+    "google_services_calendar": (".google_services_calendar", None),
+    # UI Phase 5 (2026-11-27): the Devices page and the Home hub
+    # Settings card read the hub config through here (gui never
+    # imports core directly).
+    "home_assistant_config": (".home_assistant_config", None),
+    # UI Phase 1 (2026-11-24): the Home weather/news feeds read
+    # through here (MET Norway + Google News RSS, keyless).
+    "home_feeds": (".home_feeds", None),
+    "homeassistant": (".homeassistant", None),
     "hotkey_daemon": (".desktop.hotkeys", "hotkey_daemon"),
     "integration_harness_tools": (".integration_harness_tools", None),
     "is_non_success": (".funnel.tool_result", "is_non_success"),
@@ -144,20 +162,49 @@ _EXPORTS = {
     "live_client": (".voice.live_client", None),
     "live_session": (".brain.brain", "live_session"),
     "local_assets": (".voice.local_assets", None),
+    # UI Phase 4 (D-P4-06): the Pulse "VYUK herself" Voice row
+    # reads the first ready local rung through here (file-only
+    # checks, never a download trigger) — gui never imports
+    # core.voice directly (the layering rule).
+    "local_assets_kokoro": (".voice.local_assets_kokoro", None),
+    "local_assets_piperwake": (".voice.local_assets_piperwake", None),
     "loop_action_entries": (".command_palette", "loop_action_entries"),
     "memory_store": (".memory.memory", "memory_store"),
     "migrate_legacy_briefing_records": (".scheduler", "migrate_legacy_briefing_records"),
     "migrate_orb_style": (".app_settings", "migrate_orb_style"),
     "migrate_theme_name": (".tokens", "migrate_theme_name"),
     "model_manager": (".model_manager", None),
+    # UI Phase 1 (2026-11-24): the Home money alerts read through
+    # here. Absolute top-level import, NOT the relative alias:
+    # money_alerts reads the memory store through a relative
+    # import, and under the test harness the aliased
+    # voice_assistant.core.memory.memory is stubbed to a _Fake,
+    # so the aliased module sees no envelopes. The top-level
+    # core.money_alerts resolves its relative store import to
+    # the real core.memory.memory (same file, same DB). The
+    # module is stateless (every call re-reads the DB), so the
+    # dual module identity is harmless. Same for
+    # skills_money_budget below (subscription_audit).
+    "money_alerts": ("core.money_alerts", None),
     "music_player": (".music_player", None),
     "normalize_verbosity": (".verbosity", "normalize_verbosity"),
     "note_image_frame": (".injection", "note_image_frame"),
     "on_this_day": (".memory.on_this_day", None),
+    # UI Phase 6 (D-P6-12): the OS reduced-motion preference is
+    # read by the appearance pass (gui never imports core
+    # directly); the module is stdlib-only, so the lazy facade
+    # resolves it without dragging Qt in.
+    "os_motion": (".os_motion", None),
+    # UI Phase 3 (2026-11-25): the Contacts writes classify their
+    # result through here (gui never imports core directly).
+    "outcome_kind": (".tool_outcome", "outcome_kind"),
     "perf": (".perf", None),
     "permission_grants": (".permission_grants", None),
     "plan_approval": (".plan_approval", None),
     "planner": (".brain.planner", None),
+    # UI Phase 1 (2026-11-24): the Memory Projects & Context
+    # section reads plans through here.
+    "planner_plans": (".brain.planner_plans", None),
     "platform_permission_probe": (".platform_permission_probe", None),
     "plugin_loader": (".plugin_loader", None),
     "portability": (".portability", None),
@@ -168,6 +215,9 @@ _EXPORTS = {
     # place — every user-facing sentence about what leaves this
     # PC, read through here (gui never imports core directly).
     "privacy_copy": (".privacy_copy", None),
+    # UI Phase 1 (2026-11-24): the Home/Memory private-mode
+    # reads go through here (config.private_mode, fail-closed).
+    "private_mode": (".private_mode", None),
     "qsettings_contains": (".config_spec", "qsettings_contains"),
     "qsettings_get": (".config_spec", "qsettings_get"),
     "qsettings_remove": (".config_spec", "qsettings_remove"),
@@ -175,13 +225,26 @@ _EXPORTS = {
     "qsettings_set": (".config_spec", "qsettings_set"),
     "qsettings_set_noted": (".config_spec", "qsettings_set_noted"),
     "qsettings_store": (".config_spec", "qsettings_store"),
+    "rank_entries": (".command_palette", "rank_entries"),
     "read_memory": (".memory.read_memory", "read_memory"),
     "record_family": (".record_family", None),
     "remove_offline_pack": (".voice.local_assets", "remove_offline_pack"),
     "resilience_gate": (".resilience.resilience_gate", None),
+    # UI Phase 1 (2026-11-24): the Home telemetry/power-saver
+    # reads go through here (battery_state).
+    "resilience_power": (".resilience.resilience_power", None),
     "resolve": (".icon_manifest", "resolve"),
     "resolve_provider": (".provider_identity", "resolve_provider"),
     "resume_goal": (".brain.planner_rungoal", "resume_goal"),
+    # UI Phase 1 (2026-11-24): the Memory Review Inbox reads
+    # through here (collect_inbox_rows / mark_reviewed /
+    # resolve_conflict take the store as an argument). Absolute
+    # top-level import, like money_alerts above: importing the
+    # aliased voice_assistant.core.memory package runs its
+    # __init__, which imports MemoryStore from the harness-stubbed
+    # voice_assistant.core.memory.memory (only memory_store) and
+    # raises. The top-level core.memory package is the real one.
+    "review_inbox": ("core.memory.review_inbox", None),
     "routine_templates": (".routine_templates", None),
     "run_routine": (".brain.planner", "run_routine"),
     "save_env_setting": (".config", "save_env_setting"),
@@ -216,16 +279,47 @@ _EXPORTS = {
     # list view reads the contact store through here (gui never
     # imports core directly).
     "skills_admin_schedules": (".skills_admin_schedules", None),
+    # UI Phase 2 (2026-11-24): the Capabilities Centre reads
+    # the shared goal-search index through here.
+    "skill_search": (".skill_search", None),
+    # UI Phase 1 (2026-11-24): the Home subscription alerts
+    # read through here. Absolute top-level import, like
+    # money_alerts above — it reads the same memory store.
+    "skills_money_budget": ("core.skills_money_budget", None),
+    # UI Phase 5 (2026-11-27): the Finance page formats money
+    # and the Notes page reads the notes store through here
+    # (gui never imports core directly). Relative spelling, like
+    # most entries: the aliased voice_assistant.core.* identity
+    # is the one the harness stubs, so the relative form
+    # preserves the GUI's current behaviour exactly (the
+    # money_alerts/skills_money_budget absolute spelling exists
+    # because the relative form saw no store data there).
+    "skills_money_helpers": (".skills_money_helpers", None),
+    "skills_notes": (".skills_notes", None),
     "sound_pools_v564": (".sound_pools_v564", None),
     "speak_text": (".skills_plus", "speak_text"),
     "state_bus": (".state_bus", None),
     "storage_report": (".voice.local_assets", "storage_report"),
     "suggestions": (".brain.suggestions", None),
+    # UI Phase 3 (2026-11-25): the Inbox reading pane's labelled
+    # Summary line reads through here (layering rule: gui reaches
+    # core only through the facade).
+    "summarise_text": (".summary", "summarise_text"),
     "system_audio_active": (".voice.audio", "system_audio_active"),
     "task_coordinator": (".brain.task_coordinator", None),
     "terms": (".terms", None),
     "theme_sync": (".theme_sync", None),
     "tokens": (".tokens", None),
+    # UI Phase 2 (2026-11-24): the skill detail builder reads
+    # the trigger phrases (TOOL_SYNONYMS) through here — the
+    # GUI never imports the funnel directly.
+    "toolbox_tokens": (".funnel.toolbox_tokens", None),
+    # UI Phase 2 (2026-11-24): the skill detail surface reads
+    # the permission class (confirm / read / free) and the
+    # owner-only sets through here — the GUI never imports
+    # the funnel directly.
+    "tool_classification": (".funnel.tool_classification", None),
+    "tools_gate": (".funnel.tools_gate", None),
     "tool_labels": (".tool_labels", None),
     "tool_receipts": (".tool_receipts", None),
     "tools": (".funnel.tools_registry", "tools"),
@@ -254,7 +348,7 @@ _EXPORTS = {
 }
 
 
-__all__ = ['AdvisorySpeakerVerifier', 'AudioManager', 'DATA_DIR', 'DICTATION_BANNER_TEXT', 'DICTATION_ENTER_ANNOUNCEMENT', 'DICTATION_EXIT_ANNOUNCEMENT', 'DictationMode', 'DirectednessGate', 'FLUENT_WINDOWS_ACTIONS', 'INTERRUPTED_STATES', 'IconRef', 'LADDER_LEVELS', 'LANGUAGES', 'LessonPanelState', 'LocalLiveSession', 'ManifestProblem', 'MediaDucking', 'MemoryStore', 'ORB_STYLES', 'PRIMARY_SYSTEM', 'PTT_BUTTON_LABEL', 'PTT_BUTTON_TOOLTIP', 'PushToTalk', 'RoutineScheduler', 'ScreenWatcher', 'TRANSCRIPTION_PROFILES', 'TaskLedger', 'TurnCoordinator', 'VERSION', 'VoiceFailoverGate', 'WatcherEngine', '_KOKORO_VOICE_ROSTER', '_stored_env_file_value', 'action_journal', 'activity_feed', 'always_allow', 'ambient', 'apply_language_session', 'asset_repair', 'audio', 'audio_manager', 'audit', 'backup', 'boot_sequence', 'browser_enable', 'build_manifest', 'cancel_waking', 'capture_guard', 'catalogue_groups_data', 'changelog', 'chat_thread', 'clipboard_monitor', 'clipboard_notice', 'cloud_diag', 'cloud_text_client', 'config', 'config_module', 'config_spec', 'confirm_gate', 'confirm_gate_scrub', 'confirmation_shape', 'cost_ledger', 'current_profile_name', 'cursor', 'daily_count', 'developer_telemetry_doctor', 'diagnose_downloads', 'discover_plugins', 'document_memory', 'downloads', 'evaluate_spoken_diagnostic_notice', 'explicit_confirmation_prompt', 'failsafe', 'failure_script', 'feedback_report', 'filter_entries', 'first_open_prompt', 'first_run_asks', 'firstopen_surface', 'format_bytes', 'gate_custom_accent', 'gemini_oauth', 'generate_session_summary', 'google_services', 'hotkey_daemon', 'integration_harness_tools', 'is_non_success', 'kill_chain', 'last_download_error', 'learning', 'lifecycle', 'live_client', 'live_session', 'local_assets', 'loop_action_entries', 'mark_session_owner_proven', 'mark_session_owner_unproven', 'memory_store', 'migrate_legacy_briefing_records', 'migrate_orb_style', 'migrate_theme_name', 'model_manager', 'music_player', 'normalize_verbosity', 'note_image_frame', 'on_this_day', 'perf', 'permission_grants', 'plan_approval', 'planner', 'platform_permission_probe', 'plugin_loader', 'portability', 'power_policy', 'presence', 'privacy', 'privacy_copy', 'qsettings_contains', 'qsettings_get', 'qsettings_remove', 'qsettings_remove_noted', 'qsettings_set', 'qsettings_set_noted', 'qsettings_store', 'read_memory', 'record_family', 'remove_offline_pack', 'resilience_gate', 'resolve', 'resolve_provider', 'resume_goal', 'routine_templates', 'run_routine', 'save_env_setting', 'save_session_summary', 'scheduled_agents', 'scheduler', 'screen_watch', 'senses', 'senses_log', 'session_epoch', 'service_host', 'set_frame_sink', 'set_preferred_language', 'set_session_provenance', 'session_owner_proof_reason', 'session_owner_proof_status', 'session_owner_proven', 'set_status_strip_sink', 'settings_search', 'settings_voice', 'setup_pieces', 'skills_admin_schedules', 'sound_pools_v564', 'speak_text', 'state_bus', 'storage_report', 'suggestions', 'system_audio_active', 'task_coordinator', 'terms', 'theme_sync', 'tokens', 'tool_labels', 'tool_receipts', 'tools', 'undo_completion', 'undo_producers_p1', 'updater', 'validate_icon_name', 'validate_manifest', 'vision_manager', 'voice_agent', 'voice_confirm_allowed', 'voice_live_session', 'voice_pin', 'voice_text_bridge', 'w7_wiring_daily', 'w10_wiring', 'w8_wiring', 'w9_wiring', 'w9_wiring_lan', 'wake_word_detector', 'watchers', 'wizard_strings']
+__all__ = ['AdvisorySpeakerVerifier', 'AudioManager', 'DATA_DIR', 'DICTATION_BANNER_TEXT', 'DICTATION_ENTER_ANNOUNCEMENT', 'DICTATION_EXIT_ANNOUNCEMENT', 'DictationMode', 'DirectednessGate', 'FLUENT_WINDOWS_ACTIONS', 'INTERRUPTED_STATES', 'IconRef', 'LADDER_LEVELS', 'LANGUAGES', 'LessonPanelState', 'LocalLiveSession', 'ManifestProblem', 'MediaDucking', 'MemoryStore', 'ORB_STYLES', 'PRIMARY_SYSTEM', 'PTT_BUTTON_LABEL', 'PTT_BUTTON_TOOLTIP', 'PushToTalk', 'RoutineScheduler', 'ScreenWatcher', 'TRANSCRIPTION_PROFILES', 'TaskLedger', 'TurnCoordinator', 'VERSION', 'VoiceFailoverGate', 'WatcherEngine', '_KOKORO_VOICE_ROSTER', '_stored_env_file_value', 'action_journal', 'activity_feed', 'always_allow', 'ambient', 'apply_language_session', 'asset_repair', 'audio', 'audio_manager', 'audit', 'backup', 'boot_sequence', 'brain_state', 'browser_enable', 'build_manifest', 'cancel_waking', 'capture_guard', 'catalogue_groups_data', 'changelog', 'chat_thread', 'clipboard_monitor', 'clipboard_notice', 'cloud_diag', 'cloud_text_client', 'config', 'config_module', 'config_spec', 'confirm_gate', 'confirm_gate_scrub', 'confirmation_shape', 'cost_ledger', 'current_profile_name', 'cursor', 'daily_count', 'degradation', 'developer_telemetry_doctor', 'diagnose_downloads', 'discover_plugins', 'document_memory', 'downloads', 'evaluate_spoken_diagnostic_notice', 'explicit_confirmation_prompt', 'failsafe', 'failure_script', 'feedback_report', 'filter_entries', 'first_open_prompt', 'first_run_asks', 'firstopen_surface', 'format_bytes', 'gate_custom_accent', 'gemini_oauth', 'generate_session_summary', 'google_services', 'google_services_calendar', 'home_assistant_config', 'home_feeds', 'homeassistant', 'hotkey_daemon', 'integration_harness_tools', 'is_non_success', 'kill_chain', 'last_download_error', 'learning', 'lifecycle', 'live_client', 'live_session', 'local_assets', 'local_assets_kokoro', 'local_assets_piperwake', 'loop_action_entries', 'mark_session_owner_proven', 'mark_session_owner_unproven', 'memory_store', 'migrate_legacy_briefing_records', 'migrate_orb_style', 'migrate_theme_name', 'model_manager', 'money_alerts', 'music_player', 'normalize_verbosity', 'note_image_frame', 'on_this_day', 'os_motion', 'outcome_kind', 'perf', 'permission_grants', 'plan_approval', 'planner', 'planner_plans', 'platform_permission_probe', 'plugin_loader', 'portability', 'power_policy', 'presence', 'privacy', 'privacy_copy', 'private_mode', 'qsettings_contains', 'qsettings_get', 'qsettings_remove', 'qsettings_remove_noted', 'qsettings_set', 'qsettings_set_noted', 'qsettings_store', 'rank_entries', 'read_memory', 'record_family', 'remove_offline_pack', 'resilience_gate', 'resilience_power', 'resolve', 'resolve_provider', 'resume_goal', 'review_inbox', 'routine_templates', 'run_routine', 'save_env_setting', 'save_session_summary', 'scheduled_agents', 'scheduler', 'screen_watch', 'senses', 'senses_log', 'session_epoch', 'service_host', 'set_frame_sink', 'set_preferred_language', 'set_session_provenance', 'session_owner_proof_reason', 'session_owner_proof_status', 'session_owner_proven', 'set_status_strip_sink', 'settings_search', 'settings_voice', 'setup_pieces', 'skill_search', 'skills_admin_schedules', 'skills_money_budget', 'skills_money_helpers', 'skills_notes', 'sound_pools_v564', 'speak_text', 'state_bus', 'storage_report', 'suggestions', 'summarise_text', 'system_audio_active', 'task_coordinator', 'terms', 'theme_sync', 'tokens', 'tool_classification', 'tool_labels', 'tool_receipts', 'toolbox_tokens', 'tools', 'tools_gate', 'undo_completion', 'undo_producers_p1', 'unread_count', 'updater', 'validate_icon_name', 'validate_manifest', 'vision_manager', 'voice_agent', 'voice_confirm_allowed', 'voice_live_session', 'voice_pin', 'voice_text_bridge', 'w7_wiring_daily', 'w10_wiring', 'w8_wiring', 'w9_wiring', 'w9_wiring_lan', 'wake_word_detector', 'watchers', 'wizard_strings']
 
 
 def __getattr__(name):

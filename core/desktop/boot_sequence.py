@@ -33,10 +33,10 @@ round 1: on ONE clock (elapsed ms since boot began,
   1. ``bar`` — an angular status bar, "INITIATING SYSTEM",
      over a scrolling boot log;
   2. ``rings`` — concentric reticle rings assembling inward
-     until "J.A.R.V.I.S" resolves;
+     until the assistant name resolves;
   3. ``suit`` — the suit schematic, a wireframe figure with
      component call-outs;
-  4. ``reactor`` — the triangular arc reactor lighting from a
+  4. ``reactor`` — the triangular core glow lighting from a
      dim outline to full glow.
 It is React + Vite + Three.js + custom GLSL — NOT PySide6.
 This module re-implements the PATTERN in Qt/Python: the four

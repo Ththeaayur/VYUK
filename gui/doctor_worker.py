@@ -17,9 +17,11 @@ def _parse_report(text: str):
 
     A finding line is `[PASS|WARN|FAIL] label` plus an optional
     ` — detail`; a following `fix: ...` line (indented in the
-    printout) belongs to the finding above it. The SUMMARY line
-    carries the counts; if it is missing, counts fall back to the
-    parsed finding lines.
+    printout) belongs to the finding above it, as does a
+    `category: ...` marker line (UI Phase 4, D-P4-17 — the
+    check's category, printed by doctor.report()). The SUMMARY
+    line carries the counts; if it is missing, counts fall back
+    to the parsed finding lines.
     """
     counts = {"PASS": 0, "WARN": 0, "FAIL": 0}
     findings = []
@@ -36,7 +38,7 @@ def _parse_report(text: str):
             else:
                 label, detail = rest, ""
             current = {"status": status, "label": label,
-                       "detail": detail, "fix": ""}
+                       "detail": detail, "fix": "", "category": ""}
             if status != "PASS":
                 findings.append(current)
             else:
@@ -44,6 +46,9 @@ def _parse_report(text: str):
             continue
         if line.startswith("fix:") and current is not None:
             current["fix"] = line[len("fix:"):].strip()
+            continue
+        if line.startswith("category:") and current is not None:
+            current["category"] = line[len("category:"):].strip()
             continue
         if line.startswith("SUMMARY:"):
             sm = re.search(r"(\d+)\s+PASS.*?(\d+)\s+WARN.*?(\d+)\s+FAIL",
@@ -53,6 +58,26 @@ def _parse_report(text: str):
                           "WARN": int(sm.group(2)),
                           "FAIL": int(sm.group(3))}
     return counts, findings
+
+
+def _parse_check_counts(text: str):
+    """Parse doctor.py's CHECK_SUMMARY line into per-check counts.
+
+    Fix round (F-P4-02): one outcome per check, so the three
+    numbers sum to the number of checks run. Returns None when
+    the line is absent (an old cached report) — the caller falls
+    back to the verdict counts.
+    """
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("CHECK_SUMMARY:"):
+            sm = re.search(r"(\d+)\s+PASS.*?(\d+)\s+WARN.*?(\d+)\s+FAIL",
+                           line)
+            if sm:
+                return {"PASS": int(sm.group(1)),
+                        "WARN": int(sm.group(2)),
+                        "FAIL": int(sm.group(3))}
+    return None
 
 
 class _DoctorWorker(QThread):
@@ -79,9 +104,16 @@ class _DoctorWorker(QThread):
 
     done = Signal(dict)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, categories=None, checks=None):
+        """`categories` (UI Phase 4, D-P4-18): run only the checks
+        in these categories — None means every check. `checks`:
+        run only these check function names (the repair
+        verification re-runs one check) — takes precedence over
+        categories when both are given."""
         super().__init__(parent)
         self._proc = None
+        self._categories = (list(categories) if categories else None)
+        self._checks = (list(checks) if checks else None)
 
     def stop(self):
         """Ask the worker to stop: flag the interruption and kill
@@ -120,6 +152,16 @@ class _DoctorWorker(QThread):
             return
         self.done.emit(payload)
 
+    def _subprocess_args(self):
+        """CLI args for the doctor subprocess (D-P4-18): one
+        --check for a single-check verification, --only for a
+        category selection, nothing for a full run."""
+        if self._checks:
+            return ["--check", self._checks[0]]
+        if self._categories:
+            return ["--only", ",".join(self._categories)]
+        return []
+
     def _run_subprocess(self, doctor_mod):
         """Returns a payload dict, or None to mean 'fall back to
         in-process'. A timeout or a crash exit code is a real
@@ -141,7 +183,8 @@ class _DoctorWorker(QThread):
                              "finished"}
         try:
             self._proc = subprocess.Popen(
-                [sys.executable, str(doctor_py)],
+                [sys.executable, str(doctor_py)]
+                + self._subprocess_args(),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, cwd=str(doctor_py.parent))
             try:
@@ -172,6 +215,7 @@ class _DoctorWorker(QThread):
                              + err)
                 counts, findings = _parse_report(text)
                 return {"ok": True, "text": text, "counts": counts,
+                        "check_counts": _parse_check_counts(text),
                         "findings": findings}
             err_lines = (err or "").strip().splitlines()
             tail = (err_lines[-1] if err_lines
@@ -191,12 +235,29 @@ class _DoctorWorker(QThread):
         prints can leak in); the subprocess path avoids this."""
         try:
             checks = list(getattr(doctor_mod, "_CHECKS", []))
+            # UI Phase 4 (D-P4-18): the in-process fallback honours
+            # the same selection the subprocess path takes — one
+            # check for a verification, categories for a run.
+            if self._checks:
+                checks = [c for c in checks
+                          if c.__name__ in self._checks]
+            elif self._categories:
+                _cats = getattr(doctor_mod, "_CHECK_CATEGORIES", {})
+                checks = [c for c in checks
+                          if _cats.get(c.__name__) in self._categories]
             # doctor._counts accumulates across runs in one process;
             # reset it so this run's SUMMARY line is its own.
             try:
                 doctor_mod._counts.update({"PASS": 0, "WARN": 0,
                                            "FAIL": 0})
             except Exception:  # noqa: BLE001 — counts stay approximate
+                pass
+            # Fix round (F-P4-02): the per-check outcomes
+            # accumulate the same way — reset them too, so this
+            # run's hero counts only this run's checks.
+            try:
+                doctor_mod._check_outcomes.clear()
+            except Exception:  # noqa: BLE001 — hero falls back
                 pass
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
@@ -208,6 +269,13 @@ class _DoctorWorker(QThread):
                         return {"ok": False,
                                 "error": "the checks were stopped "
                                          "before they finished"}
+                    # UI Phase 4 (D-P4-17): the current-check name
+                    # is what report() prints the category marker
+                    # from — main() sets it the same way.
+                    try:
+                        doctor_mod._CURRENT_CHECK_NAME = check.__name__
+                    except Exception:  # noqa: BLE001 — marker stays blank
+                        pass
                     try:
                         check()
                     except Exception as exc:  # noqa: BLE001
@@ -228,7 +296,15 @@ class _DoctorWorker(QThread):
                             "please report it with this line")
             text = buf.getvalue()
             counts, findings = _parse_report(text)
+            # Fix round (F-P4-02): the fallback runs the checks
+            # in-process, so there is no CHECK_SUMMARY line to
+            # parse — the per-check counts come straight from the
+            # module's outcome table.
+            try:
+                _cc = doctor_mod._check_summary_counts()
+            except Exception:  # noqa: BLE001 — hero falls back
+                _cc = None
             return {"ok": True, "text": text, "counts": counts,
-                    "findings": findings}
+                    "check_counts": _cc, "findings": findings}
         except Exception as exc:  # noqa: BLE001 — the page reports it
             return {"ok": False, "error": str(exc)}

@@ -1421,6 +1421,38 @@ class PagesMixin:
         note.setObjectName("muted")
         note.setWordWrap(True)
         layout.addWidget(note)
+        # UI Phase 1 (H-11): the home-city ask — the same one-field
+        # pattern as the name (staged in _pending_home_city until
+        # Finish, persisted to the one canonical store: ConfigSpec
+        # home_city + QSettings home/city + .env VYUK_HOME_CITY).
+        # Optional and skippable: blank records nothing, and the
+        # Home weather shows the honest "set your city" prompt.
+        city_title = QLabel("Where is home?")
+        city_title.setObjectName("muted")
+        layout.addWidget(city_title)
+        self._home_city_edit = QLineEdit()
+        self._home_city_edit.setObjectName("wizardHomeCity")
+        self._home_city_edit.setPlaceholderText(
+            "Your home city (for the weather)")
+        self._home_city_edit.setAccessibleName("Your home city")
+        try:
+            stored_city = str(
+                getattr(config, "home_city", "") or "").strip()
+        except Exception:  # noqa: BLE001
+            stored_city = ""
+        if stored_city:
+            self._home_city_edit.setText(stored_city)
+            self._pending_home_city = stored_city
+        self._home_city_edit.textChanged.connect(
+            lambda text: setattr(
+                self, "_pending_home_city", str(text or "").strip()))
+        layout.addWidget(self._home_city_edit)
+        city_note = QLabel(
+            "Optional — the weather on Home uses it. Leave it blank "
+            "and you can set it any time from Home or Settings.")
+        city_note.setObjectName("muted")
+        city_note.setWordWrap(True)
+        layout.addWidget(city_note)
         layout.addStretch()
         return page
 

@@ -8,9 +8,11 @@ from .style import (
     OK,
     SURFACE_3,
     TEXT,
+    TEXT_FAINT,
     TEXT_MUTED,
     RADIUS_BTN,
 )
+from .design_system.palette import luminance
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -41,6 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 import hashlib
+import random
 import time
 
 from .memory_web_graph import GraphData
@@ -78,7 +81,11 @@ class MemoryWeb2DCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
-        self.setMinimumSize(320, 280)
+        # UI upgrade Phase 1 (r3ef202): 280 -> 480. The
+        # seed ring radius (~150-210) needs ~250 px of
+        # half-height; at 280 the bottom hubs and their
+        # labels fell off the canvas and were clipped.
+        self.setMinimumSize(320, 480)
         self._data = GraphData()
         # Stage 0 features batch 5 (larger text): the painted
         # node labels + badge + empty state scale with the
@@ -120,6 +127,16 @@ class MemoryWeb2DCanvas(QWidget):
         self._press_node: str | None = None
         self._panning = False
         self._last_mouse = QPointF()
+        # UI Phase 1 (M-15, M-21, M-25): the constellation (a fixed
+        # set of faint background dots, painted first), the resolved
+        # theme (label / edge / halo colours), and the private-mode
+        # flag (the one-hop highlight is disabled while private).
+        self._theme: dict | None = None
+        self._constellation_enabled = False
+        self._constellation_points: list[tuple[float, float]] = []
+        self._constellation_links: list[tuple[int, int]] = []
+        self._private = False
+        self._rebuild_constellation()
 
     # ------------------------------------------------------------ data
 
@@ -134,6 +151,136 @@ class MemoryWeb2DCanvas(QWidget):
         except (TypeError, ValueError):
             self._font_scale = 1.0
         self.update()
+
+    def set_theme(self, resolved: dict) -> None:
+        """Recolour the canvas from a resolved theme (M-21).
+
+        Label / edge / halo colours follow the theme (text,
+        text_muted, text_faint, bg) instead of the dark-only
+        module constants; the constellation's alpha drops on
+        Light. Called from the window's appearance pass.
+        """
+        try:
+            self._theme = dict(resolved or {})
+        except Exception:  # noqa: BLE001 — theme never breaks paint
+            self._theme = None
+        self._rebuild_constellation()
+        self.update()
+
+    def set_private_mode(self, on: bool) -> None:
+        """Private mode disables the one-hop highlight (M-25)."""
+        self._private = bool(on)
+        self.update()
+
+    def set_constellation_enabled(self, enabled: bool) -> None:
+        """Whether the Graph section may show the constellation.
+
+        Set by the window from the section + profile (Graph
+        section, profile not Minimal). The property below is
+        the honest "is it painting now" (search hides it).
+        """
+        self._constellation_enabled = bool(enabled)
+        self.update()
+
+    @property
+    def constellation_visible(self) -> bool:
+        """True while the constellation is actually painting.
+
+        The Graph section, a non-Minimal profile, and no search
+        live. Search hides it (M-15, while search_dimmed_ids
+        is non-empty — i.e. while a search string is set).
+        """
+        return self._constellation_enabled and not self._search
+
+    def one_hop_ids(self) -> set:
+        """The selected node's one-hop neighbours — exactly the
+        cross-links (M-25). NOT the hub membership edges: a fact
+        shares a hub with every fact in its category, and that
+        is not a link. Empty when nothing is selected."""
+        if not self._selected:
+            return set()
+        return {other for other, _label, _tokens
+                in self.cross_links(self._selected)}
+
+    def _theme_colour(self, key, default):
+        """A resolved-theme colour, or the dark default."""
+        if self._theme:
+            try:
+                return QColor(self._theme.get(key, default))
+            except Exception:  # noqa: BLE001 — fall back to default
+                pass
+        return QColor(default)
+
+    def _rebuild_constellation(self) -> None:
+        """Cache the constellation's dots + nearest-neighbour
+        links (M-15). A fixed set of faint dots at deterministic
+        seeded positions — NOT from facts — smaller than the
+        smallest fact node, with faint links between nearest
+        neighbours. Rebuilt only on resize / data change / theme
+        change; never animated, never on a timer."""
+        width, height = self.width(), self.height()
+        self._constellation_points = []
+        self._constellation_links = []
+        if width <= 40 or height <= 40:
+            return
+        rng = random.Random(20261123)
+        margin = 24
+        count = 48
+        points = []
+        for _ in range(count):
+            points.append((
+                margin + rng.random() * (width - 2 * margin),
+                margin + rng.random() * (height - 2 * margin)))
+        self._constellation_points = points
+        links = set()
+        for i, (x, y) in enumerate(points):
+            best, best_d = None, None
+            for j, (ox, oy) in enumerate(points):
+                if i == j:
+                    continue
+                d = (x - ox) ** 2 + (y - oy) ** 2
+                if best_d is None or d < best_d:
+                    best, best_d = j, d
+            if best is not None:
+                links.add((min(i, best), max(i, best)))
+        self._constellation_links = sorted(links)
+
+    def _paint_constellation(self, painter) -> None:
+        """The constellation, first in paintEvent (before edges)."""
+        if not self.constellation_visible:
+            return
+        if not self._constellation_points:
+            self._rebuild_constellation()
+        if not self._constellation_points:
+            return
+        # Light alpha drops (M-15): the dots are fainter on a
+        # light background so they stay background, not content.
+        light = False
+        if self._theme:
+            try:
+                light = luminance(self._theme.get("bg", BG)) > 0.5
+            except Exception:  # noqa: BLE001 — dark alpha then
+                light = False
+        dot_a = 45 if light else 70
+        link_a = 18 if light else 28
+        faint = self._theme_colour("text_faint", TEXT_FAINT)
+        link_col = QColor(faint)
+        link_col.setAlpha(link_a)
+        painter.setPen(QPen(link_col, 1.0))
+        for i, j in self._constellation_links:
+            ax, ay = self._constellation_points[i]
+            bx, by = self._constellation_points[j]
+            painter.drawLine(QPointF(ax, ay), QPointF(bx, by))
+        dot_col = QColor(faint)
+        dot_col.setAlpha(dot_a)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(dot_col)
+        for x, y in self._constellation_points:
+            painter.drawEllipse(QPointF(x, y), 2.0, 2.0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._rebuild_constellation()
 
     def set_facts(self, facts: list):
         """Rebuild the web from store rows, keeping every surviving
@@ -150,6 +297,7 @@ class MemoryWeb2DCanvas(QWidget):
             self._selected = None
         if self._hover and self._hover not in self._data.by_id:
             self._hover = None
+        self._rebuild_constellation()
         self._restart_settle(warm=bool(previous))
         self.update()
 
@@ -426,14 +574,49 @@ class MemoryWeb2DCanvas(QWidget):
 
     # ------------------------------------------------------------ transform
 
+    def _fit_scale(self) -> float:
+        """Shrink the graph to fit the canvas (UI Phase 1).
+
+        The seed layout's ring radius (~150–210 world units) was
+        sized for the old full-page web view; in Phase 1 the Graph
+        is a section whose canvas is 280 px tall (half-height
+        140), so the ring's bottom hubs and their labels fall
+        off the canvas and get clipped (r3ef202: "Sister's
+        birthday" at y=289 on a 280 canvas). The fit scale
+        shrinks the world→screen mapping just enough that the
+        farthest node + its label fit inside the canvas, with a
+        24 px margin. It never enlarges (≤ 1) and it multiplies
+        the user's zoom, so zoom/pan keep working — the fit is
+        a floor, not a replacement.
+        """
+        import math
+        if not getattr(self, "_pos", None):
+            return 1.0
+        try:
+            max_r = max(
+                math.hypot(float(xy[0]), float(xy[1]))
+                for xy in self._pos.values())
+        except Exception:  # noqa: BLE001 — no positions then
+            return 1.0
+        if max_r <= 0:
+            return 1.0
+        half = min(self.width(), self.height()) / 2.0 - 24.0
+        if half <= 0:
+            return 1.0
+        return min(1.0, half / max_r)
+
     def world_to_screen(self, x: float, y: float) -> QPointF:
         centre = QPointF(self.width() / 2.0, self.height() / 2.0)
-        return centre + self._pan + QPointF(x * self._zoom, y * self._zoom)
+        scale = self._zoom * self._fit_scale()
+        return centre + self._pan + QPointF(x * scale, y * scale)
 
     def _screen_to_world(self, point: QPointF) -> QPointF:
         centre = QPointF(self.width() / 2.0, self.height() / 2.0)
         rel = point - centre - self._pan
-        return QPointF(rel.x() / self._zoom, rel.y() / self._zoom)
+        scale = self._zoom * self._fit_scale()
+        if scale == 0:
+            return QPointF(0.0, 0.0)
+        return QPointF(rel.x() / scale, rel.y() / scale)
 
     def zoom_by(self, factor: float, anchor: QPointF | None = None):
         """Zoom about a screen anchor (the cursor, normally), so the
@@ -511,12 +694,28 @@ class MemoryWeb2DCanvas(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        # The constellation paints FIRST, before the edges — and
+        # before the empty-graph return, so the Graph section has
+        # its faint starfield even with no facts yet (M-15).
+        self._paint_constellation(painter)
         data = self._data
         if not data.nodes:
             return
         active = self._active_ids()
         focus = self._hover or self._selected
-        neighbours = self._neighbours(focus) if focus else set()
+        # M-25: a SELECTED node's neighbourhood is its one-hop
+        # cross-links only (never the hub membership — sharing a
+        # category is not a link). A hovered node keeps the old
+        # neighbourhood light. The linked ring is suppressed
+        # while searching and in private mode.
+        if focus and focus == self._selected:
+            neighbours = self.one_hop_ids() | {focus}
+            linked = (self.one_hop_ids()
+                      if not self._search and not self._private
+                      else set())
+        else:
+            neighbours = self._neighbours(focus) if focus else set()
+            linked = set()
         dimmed = self.search_dimmed_ids()
         matched = self.search_matched_ids()
 
@@ -544,7 +743,11 @@ class MemoryWeb2DCanvas(QWidget):
                     continue
                 pa, pb = screen(edge.a), screen(edge.b)
                 if kind == "cross":
-                    colour = QColor(_EDGE_CROSS)
+                    # M-21: the cross edge follows the theme's
+                    # text_faint (a hairline), not the dark-only
+                    # white constant.
+                    colour = self._theme_colour("text_faint", TEXT_FAINT)
+                    colour.setAlpha(40)
                     width = 1.0
                     if focus and (edge.a == focus or edge.b == focus):
                         colour = QColor(255, 255, 255, 160)
@@ -583,6 +786,16 @@ class MemoryWeb2DCanvas(QWidget):
                 ring = QColor(base)
                 ring.setAlpha(int(210 * alpha))
                 painter.setPen(QPen(ring, 1.6))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(centre, r + 3.5, r + 3.5)
+            if node.id in linked:
+                # M-25: the one-hop highlight — a faint ring on
+                # every fact one cross-link from the selection.
+                # Suppressed while searching / in private mode
+                # (see the `linked` set above).
+                link_ring = QColor(base)
+                link_ring.setAlpha(int(110 * alpha))
+                painter.setPen(QPen(link_ring, 1.2))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawEllipse(centre, r + 3.5, r + 3.5)
             if node.id in matched:
@@ -689,13 +902,29 @@ class MemoryWeb2DCanvas(QWidget):
                 "degree": node.degree, "rect": rect, "alt_rect": alt,
                 "force": force, "sticky": sticky,
             })
-            colour = QColor(_TEXT_MAIN if node.kind != "fact"
-                            else _TEXT_MUTED)
+            # M-21: label colours follow the resolved theme.
+            colour = self._theme_colour(
+                "text" if node.kind != "fact" else "text_muted",
+                TEXT if node.kind != "fact" else TEXT_MUTED)
             colour.setAlpha(int(255 * node_alpha(node)))
             label_info[node.id] = (label, font, colour)
-        for node_id, rect in _plan_label_rects(entries).items():
+        # Hunt fix (c) item 9: every node's sphere is an obstacle
+        # for every other node's label (a fact label ~3 px from a
+        # neighbouring hub's sphere reads as merged with it).
+        # The planner excludes each label's own sphere.
+        obstacles = [(screen(node.id), self._display_radius(node),
+                      node.id)
+                     for node in ordered if node.id in active]
+        for node_id, rect in _plan_label_rects(
+                entries, obstacles=obstacles).items():
             label, font, colour = label_info[node_id]
-            _draw_label(painter, rect, label, font, colour)
+            # M-21: the label halo follows the theme's bg (on
+            # Light a dark halo would read as a smudge).
+            halo = None
+            if self._theme:
+                halo = self._theme_colour("bg", BG)
+                halo.setAlpha(120)
+            _draw_label(painter, rect, label, font, colour, halo)
 
         if not any(n.kind == "fact" for n in data.nodes):
             painter.setPen(_TEXT_MUTED)

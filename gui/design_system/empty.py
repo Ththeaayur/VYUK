@@ -38,6 +38,11 @@ class EmptyState(QWidget):
         """True when the EXAMPLE tag is set to show (parent need not be shown)."""
         return not self._tag.isHidden()
 
+    def set_sentence(self, text: str) -> None:
+        """Replace the sentence (the catalogue's no-match state
+        reuses one EmptyState across searches)."""
+        self._sentence.setText(text or "")
+
     @property
     def sentence_text(self):
         """The empty-state sentence."""

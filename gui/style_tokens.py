@@ -132,6 +132,13 @@ CARD_GRADIENT_INDIGO = (
 INPUT_BG = "rgba(0, 0, 0, 96)"
 INPUT_BG_FOCUS = "rgba(53, 214, 255, 12)"
 INPUT_BG_DISABLED = "rgba(0, 0, 0, 48)"
+# Look-fix 2 (2026-11-24): the disabled input's border, as its own
+# token so a light theme can resolve it to a visible dark hairline.
+# The house value is the spelling the input rule used inline; the
+# themed builds override it from the resolved theme (see
+# _resolve_theme / build_stylesheet), so the house sheet is
+# byte-identical and dark themes are unchanged.
+INPUT_BORDER_DISABLED = "rgba(255, 255, 255, 10)"
 
 # Selection is the accent at ~38% with white text, everywhere.
 SELECTION_BG = "rgba(53, 214, 255, 96)"
@@ -189,7 +196,7 @@ _FONT_FILES = (
 # removed in the same batch — one stack, no dead weight.
 DISPLAY_FAMILY = "Orbitron"
 # B-R1-7: HUD words are Orbitron first — the display face IS the
-# HUD face now (the JARVIS-like futuristic face the HUD wants) —
+# HUD face now (the futuristic face the HUD wants) —
 # falling back to the system faces, so the stack renders correctly
 # before the OFL files are supplied (they are bundled by this
 # batch; the fallbacks stay for machines without the bundle).

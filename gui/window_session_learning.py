@@ -235,8 +235,10 @@ class SessionLearningMixin:
             self._goal_current = int(m.group(1))
             self._goal_total = int(m.group(2))
             action = m.group(3).split(" [")[0].rstrip()
+            # The pill carries the fraction with a slash (leg 60:
+            # "3/5"), not the words "3 of 5".
             self._set_goal_pill(
-                f"Plan step {self._goal_current} of "
+                f"Plan step {self._goal_current}/"
                 f"{self._goal_total} — {action}")
             return
         if text.startswith(("Goal complete", "Goal stopped",

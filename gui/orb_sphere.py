@@ -14,11 +14,13 @@ pattern re-implemented as VYUK's own QPainter code:
   orb core already reads (speaker level while VYUK speaks, mic
   level while listening, 0.0 muted — the _sync_audio_telemetry
   feed), and settling to a slow idle drift in silence;
-* Aura blue only — every colour comes from the caller's theme
-  triple (highlight/mid/edge), never a literal (the
-  test_commanddeck_guards colour rule);
-* no face, no Marvel marks (the fan-project disclaimer: the
-  J.A.R.V.I.S./Iron Man/Stark trademarks belong to Marvel).
+* Teal (ruling 2026-11-24) — every colour comes from the
+  caller's palette triple (highlight/mid/edge), never a literal
+  (the test_commanddeck_guards colour rule). The wireframe
+  geodesic mesh (icosphere, one subdivision) rides the same
+  yaw/pitch/swell as the particle lattice, so mesh and particles
+  turn together as one sphere;
+* no face, no Marvel marks.
 
 The math is pure (no Qt) so the lab can prove it without a
 window; ``paint_particle_sphere`` is the one QPainter entry.
@@ -174,8 +176,8 @@ def paint_particle_sphere(painter, cx: float, cy: float, radius: float,
     calls, not one per particle — so the sphere stays near the
     orb's own paint budget instead of doubling it.
     """
-    from PySide6.QtCore import QPointF, Qt
-    from PySide6.QtGui import QColor, QPen
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QBrush, QColor, QPen, QRadialGradient
 
     count = SPHERE_PARTICLE_COUNTS.get(int(lod),
                                        SPHERE_PARTICLE_COUNTS[0])
@@ -183,6 +185,23 @@ def paint_particle_sphere(painter, cx: float, cy: float, radius: float,
     projected = project_points(points, state.yaw, state.pitch,
                                state.swell)
     lift = 0.72 + 0.28 * _clamp01(energy)
+    # -- UI Phase 1 (R2): the core glow ---------------------------
+    # A soft radial glow at the sphere's heart, from the theme
+    # triple, transparent by ~60% of the radius — the light the
+    # particles orbit. Painted under the particles, so the shell
+    # still reads as a shell over a lit core.
+    glow_r = radius * 0.6
+    glow = QRadialGradient(cx, cy, glow_r)
+    glow.setColorAt(0.0, QColor(highlight.red(), highlight.green(),
+                                highlight.blue(),
+                                int(90 * lift * dimf)))
+    glow.setColorAt(0.6, QColor(mid.red(), mid.green(), mid.blue(),
+                                int(36 * lift * dimf)))
+    glow.setColorAt(1.0, QColor(mid.red(), mid.green(), mid.blue(), 0))
+    painter.setBrush(QBrush(glow))
+    painter.setPen(Qt.NoPen)
+    painter.drawEllipse(QRectF(cx - glow_r, cy - glow_r,
+                               glow_r * 2, glow_r * 2))
     # Bucket by (depth band, alpha level): far band first so near
     # particles land on top. Representative alpha per level is the
     # bucket midpoint (0-63 -> 32, 64-127 -> 96, 128-191 -> 160,
@@ -208,3 +227,134 @@ def paint_particle_sphere(painter, cx: float, cy: float, radius: float,
         painter.setPen(pen)
         painter.drawPoints(buckets[(band, level)])
     return count
+
+
+# -- the geodesic mesh (UI Phase 1 teal redesign) -------------------------
+# A wireframe icosphere: the logo's geodesic mesh, as own code.
+# One subdivision of an icosahedron (42 vertices, 80 faces,
+# 120 edges) — dense enough to read as a mesh at 250 px, light
+# enough for the orb's paint budget. The edges are cached per
+# subdivision count; the painter projects them with the SAME
+# yaw/pitch/swell as the particle lattice, so mesh and particles
+# turn together as one sphere.
+
+_ICOSPHERE_CACHE: dict[int, list[tuple[tuple[float, float, float],
+                                       tuple[float, float, float]]]] = {}
+
+
+def _unit(x: float, y: float, z: float) -> tuple[float, float, float]:
+    n = math.sqrt(x * x + y * y + z * z) or 1.0
+    return (x / n, y / n, z / n)
+
+
+def icosphere_edges(subdivisions: int = 1):
+    """Edge pairs on the unit sphere for a subdivided icosahedron.
+
+    Deterministic and cached. Subdivision 0 is the icosahedron
+    (30 edges); each subdivision quadruples the faces. One
+    subdivision (120 edges) is the mesh the teal orb wears.
+    """
+    subdivisions = max(0, int(subdivisions))
+    cached = _ICOSPHERE_CACHE.get(subdivisions)
+    if cached is not None:
+        return cached
+    t = (1.0 + math.sqrt(5.0)) / 2.0
+    verts = [_unit(*v) for v in (
+        (-1, t, 0), (1, t, 0), (-1, -t, 0), (1, -t, 0),
+        (0, -1, t), (0, 1, t), (0, -1, -t), (0, 1, -t),
+        (t, 0, -1), (t, 0, 1), (-t, 0, -1), (-t, 0, 1))]
+    faces = [
+        (0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11),
+        (1, 5, 9), (5, 11, 4), (11, 10, 2), (10, 7, 6), (7, 1, 8),
+        (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9),
+        (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1)]
+    for _ in range(subdivisions):
+        mid_cache: dict[tuple[int, int], int] = {}
+
+        def midpoint(a: int, b: int) -> int:
+            key = (a, b) if a < b else (b, a)
+            idx = mid_cache.get(key)
+            if idx is not None:
+                return idx
+            va, vb = verts[a], verts[b]
+            idx = len(verts)
+            verts.append(_unit((va[0] + vb[0]) / 2.0,
+                                (va[1] + vb[1]) / 2.0,
+                                (va[2] + vb[2]) / 2.0))
+            mid_cache[key] = idx
+            return idx
+
+        new_faces = []
+        for (a, b, c) in faces:
+            ab, bc, ca = midpoint(a, b), midpoint(b, c), midpoint(c, a)
+            new_faces += [(a, ab, ca), (b, bc, ab),
+                          (c, ca, bc), (ab, bc, ca)]
+        faces = new_faces
+    seen: set[tuple[int, int]] = set()
+    edges = []
+    for (a, b, c) in faces:
+        for (u, v) in ((a, b), (b, c), (c, a)):
+            key = (u, v) if u < v else (v, u)
+            if key not in seen:
+                seen.add(key)
+                edges.append((verts[u], verts[v]))
+    _ICOSPHERE_CACHE[subdivisions] = edges
+    return edges
+
+
+def paint_mesh_sphere(painter, cx: float, cy: float, radius: float,
+                      state: SphereState, highlight, mid,
+                      dimf: float, lod: int = 0) -> int:
+    """Paint the geodesic wireframe mesh over the particle sphere.
+
+    The mesh turns with the same yaw/pitch/swell as the particles
+    (one sphere, not two). Edges are bucketed far-to-near: back
+    edges faint (alpha ~28), front edges brighter (alpha ~110)
+    in the palette mid, with the nearest edges in the highlight.
+    Returns the edge count painted.
+    """
+    from PySide6.QtCore import QLineF, Qt
+    from PySide6.QtGui import QColor, QPen
+
+    if lod >= 2:
+        return 0
+    edges = icosphere_edges(1)
+    # Project the mesh through the SAME rotation as the particle
+    # lattice (yaw around Y, pitch around X — the project_points
+    # math, without its far-to-near sort, so the edge pairing
+    # survives). Depth is 0.0 at the far pole, 1.0 at the near.
+    radius = sphere_swell_radius(state.swell)
+    cy_, sy_ = math.cos(state.yaw), math.sin(state.yaw)
+    cp, sp = math.cos(state.pitch), math.sin(state.pitch)
+
+    def _project(p):
+        x, y, z = p
+        x1 = x * cy_ + z * sy_
+        z1 = -x * sy_ + z * cy_
+        y2 = y * cp - z1 * sp
+        z2 = y * sp + z1 * cp
+        return (x1 * radius, y2 * radius, (z2 + 1.0) / 2.0)
+
+    # Bucket edges by mean depth (far first, near last).
+    buckets: dict[int, list] = {}
+    for (pa, pb) in edges:
+        a, b = _project(pa), _project(pb)
+        depth = (a[2] + b[2]) / 2.0
+        band = 0 if depth >= 0.66 else 1 if depth >= 0.33 else 2
+        buckets.setdefault(band, []).append(
+            QLineF(cx + a[0] * radius, cy + a[1] * radius,
+                   cx + b[0] * radius, cy + b[1] * radius))
+    # Far band first (drawn under), near band last (on top).
+    alphas = (28, 58, 110)
+    bases = (mid, mid, highlight)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    for band in (2, 1, 0):
+        lines = buckets.get(band)
+        if not lines:
+            continue
+        base = bases[band]
+        pen = QPen(QColor(base.red(), base.green(), base.blue(),
+                          int(alphas[band] * dimf)), 0.7)
+        painter.setPen(pen)
+        painter.drawLines(lines)
+    return len(edges)

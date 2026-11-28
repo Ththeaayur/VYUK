@@ -26,7 +26,7 @@ bundle does not cover.
   (c) 2023 Phosphor Icons"). MIT is permissive and
   commercially shippable.
 
-## Bundled (19, semantic names — the names callers ask for)
+## Bundled (35, semantic names — the names callers ask for)
 
 The manifest key is the semantic name the product uses
 (`mic`, `search`, `send`, ...); the file is the exact
@@ -59,6 +59,86 @@ rendering it at 16 px — never a lookalike substitution
 
 Total bundle weight: 9,647 B of SVGs (+ 1,071 B LICENSE,
 + manifest + this record). 0 new pip dependency.
+
+## Phase 1 additions (2026-11-24 — UI Phase 1 rebuild)
+
+Same source, same pinned commit
+`2b75f3ad12b420c9504ef05df8d2564a28f8500e`, same fetch +
+verify (HTTP 200, parses as XML, `viewBox="0 0 256 256"`,
+root `fill="currentColor"`, exactly 2 paths, opacities
+`['0.2', '1']` — the second path carries no opacity
+attribute, i.e. full opacity, exactly as the original 19).
+Same MIT licence, already cleared — no new licence check
+needed. 12 entries, manifest 19 → 31:
+
+| semantic name | Phosphor stem | used for | SHA-256 |
+| --- | --- | --- | --- |
+| envelope | envelope | Home capability tile — Email | 8ae92e57426296fbd6a103ae896fd0ebcefc1c79bb31ff871eb88ef1e0fad308 |
+| calendar | calendar | Home capability tile — Calendar | e01b6303beb8d1d8a77b36087ab663bb3f6591fbc7256fda281406ed3bc9b5e1 |
+| note | note | Home capability tile — Notes | e95bd4c4c2144398c68cc9a60c30895e25411e741096925edec402b31221ef83 |
+| house | house | Home capability tile — Home | bd9f3502ab7d63c3cc8a3cf91657e5974188ede3bd1ac7249333d9ce5d0d932f |
+| currency-dollar | currency-circle-dollar | Home capability tile — Money | 3d4a7ff3c9af21f1790e7af0e40b83e4789b7584f5dfcede56e624029053994b |
+| sun | sun | Weather glance — clear | 6a180204ea92f2501de811908395e6dad15ddf2ca0a577f420fad8bef0b4c5ca |
+| cloud | cloud | Weather glance — cloudy | d1a4338eccb1f8ea3353303980f15859a0a1bbc6af9d1546613182705a9b5c16 |
+| cloud-sun | cloud-sun | Weather glance — partly cloudy | 5c3ca930a501926897d6c10acf5dc79c3c6ff9d32c0a292608e1b7df2313c633 |
+| cloud-rain | cloud-rain | Weather glance — rain | b96c8f795c1c4964cb5331fd2d89a2a4d3d6f3148de1541539c87f0f19a02f93 |
+| cloud-snow | cloud-snow | Weather glance — snow | 538d41a27d912d5a133d0b9b5073b807fe905f11cb51987b4baf4fb5a929df61 |
+| cloud-lightning | cloud-lightning | Weather glance — thunderstorm | fd71cd76fd067cc726614ca17508b0cf036ae63c5ac5d029bad74998d960904f |
+| cloud-fog | cloud-fog | Weather glance — fog | c8e52a845fdcc97e9b81eb5cdb43188dab1003828339c04eb782dd86381b44f1 |
+
+Bundle weight after Phase 1: 16,580 B of SVGs.
+`currency-dollar` is the same glyph as the `currency-circle-dollar`
+stem (a dollar sign in a circle) — the semantic name drops the
+"circle" because callers ask for the Money tile, not the stem.
+The Reminders tile reuses the bundled `bell` (no new stem).
+
+## Phase 2 additions (2026-11-24 — UI Phase 2 Discoverability)
+
+Same source, same pinned commit
+`2b75f3ad12b420c9504ef05df8d2564a28f8500e`, same fetch +
+verify (HTTP 200, parses as XML, `viewBox="0 0 256 256"`,
+root `fill="currentColor"`, exactly 2 paths, opacities
+`['0.2', '1']` — the second path carries no opacity
+attribute, i.e. full opacity, exactly as the original 19).
+Same MIT licence, already cleared — no new licence check
+needed. 4 entries, manifest 31 → 35:
+
+| semantic name | Phosphor stem | used for | SHA-256 |
+| --- | --- | --- | --- |
+| shapes | shapes | Sidebar — Skills (CAPABILITIES) | d8c9bbb8407539772fa655c0fba8d3a1d7a1572274916d64adf6bcf3f547db8f |
+| heartbeat | heartbeat | Sidebar — Doctor (was the `check` inline template) | 8d6d067a060af5d379c75a8b51227304aff9ed076b95761f0c9aa4db610da748 |
+| address-book | address-book | Sidebar — Contacts (was the `square` inline template) | 82423db30fcf53e8e7d076df824489b48ff13a72bde1a8997671512a79b64f34 |
+| phone-call | phone-call | Sidebar — Calls (was the `mic` inline template) | e1d36d525f21b8e3b9b2232e8f376f313886462ab8d8301c0a221dfc2534730a |
+
+Bundle weight after Phase 2: 20,021 B of SVGs. The four
+new glyphs are the same Phosphor stems under the same
+names (no renaming — callers ask for the stem name).
+The Calendar button keeps the bundled `grid` (no new stem);
+the Skills button is the only new nav button.
+
+## Phase 5 reuse (2026-11-27 — UI Phase 5 workspaces)
+
+No new glyphs. The three Phase 5 nav buttons reuse glyphs
+already bundled in Phase 1 — same files, same pinned commit
+`2b75f3ad12b420c9504ef05df8d2564a28f8500e`, same MIT licence,
+already cleared. The brief's "35 → 38" assumed all three were
+new; they are not. Bundle stays 35, weight stays 20,021 B:
+
+| semantic name | Phosphor stem | used for | SHA-256 |
+| --- | --- | --- | --- |
+| note | note | Sidebar — Notes (WORKSPACES) | e95bd4c4c2144398c68cc9a60c30895e25411e741096925edec402b31221ef83 |
+| currency-dollar | currency-circle-dollar | Sidebar — Finance (WORKSPACES) | 3d4a7ff3c9af21f1790e7af0e40b83e4789b7584f5dfcede56e624029053994b |
+| house | house | Sidebar — Devices (WORKSPACES) | bd9f3502ab7d63c3cc8a3cf91657e5974188ede3bd1ac7249333d9ce5d0d932f |
+
+The `currency-dollar` mapping is the intentional one recorded
+in Phase 1: the semantic name drops the "circle" and the file
+is `currency-circle-dollar-duotone.svg`. It was already a call
+site before Phase 5 (the Home Money tile), as `house` was
+already used by the appearance mapping — Phase 5 only adds
+the sidebar call sites. No `currency-inr` glyph was fetched:
+the tree's established money glyph is reused rather than
+adding a second money concept (the pages format money with ₹
+in text; the glyph is the coin, not the currency).
 
 ## Honestly missing (template fallback preserved — NOT substituted)
 

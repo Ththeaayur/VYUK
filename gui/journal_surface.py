@@ -411,6 +411,57 @@ def _corrupt_journal_row_widget(list_widget, item, error):
         list_widget, item, text, details=True)
 
 
+def _journal_attention_row_widget(row):
+    """One attention row as a severity-coded card (Phase 1, A-06/A-16).
+
+    Severity is the journal class, carried by the edge + the
+    StatusPill glyph — never a tinted fill, never coloured row
+    text. Unknown (dispatched without an outcome) = high / amber
+    edge + warning pill; retryable with declared compensations =
+    medium / LINE_STRONG edge + neutral pill. The evidence text
+    is the same verbatim journal_row_text lines, split across
+    labels; the head line re-elides like every other row.
+    """
+    from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
+
+    from .design_system.pills import StatusPill
+    from .style import AMBER, LINE_STRONG
+    from .task_state import (
+        instrument_row,
+        instrument_row_title,
+    )
+
+    unknown = row.get("class") == "unknown"
+    wrap = instrument_row()
+    wrap.setObjectName("activityRow")
+    edge = AMBER if unknown else LINE_STRONG
+    wrap.setStyleSheet(f"border: 1px solid {edge};")
+    outer = QVBoxLayout(wrap)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(2)
+    lines = journal_row_text(row).split("\n")
+    head = QLabel(lines[0] if lines else "")
+    head.setObjectName("activityRowValue")
+    head.setWordWrap(False)
+    instrument_row_title(wrap, head, lines[0] if lines else "")
+    top = QHBoxLayout()
+    top.setContentsMargins(0, 0, 0, 0)
+    top.setSpacing(8)
+    pill = StatusPill(text="Unknown" if unknown else "Retryable",
+                      severity="warning" if unknown else "neutral")
+    top.addWidget(pill)
+    top.addWidget(head, stretch=1)
+    outer.addLayout(top)
+    for line in lines[1:]:
+        if not line:
+            continue
+        lbl = QLabel(line)
+        lbl.setObjectName("muted")
+        lbl.setWordWrap(True)
+        outer.addWidget(lbl)
+    return wrap
+
+
 def refresh_journal_list(list_widget, *, label_widget=None,
                          store_path=None):
     """Fill a QListWidget with attention rows (Activity fill).
@@ -483,17 +534,34 @@ def refresh_journal_list(list_widget, *, label_widget=None,
             label_widget.setText("Journal — unreadable")
         return result
     rows = result.get("rows") or []
-    counts = result.get("counts") or {}
-    if label_widget is not None:
-        label_widget.setText(
-            f"Journal — needs attention ({counts.get('unknown', 0)})")
-    if not rows:
-        list_widget.addItem("No journal entries need attention.")
+    # Phase 1 (A-06): the section shows attention rows only —
+    # unknown first, then retryable with declared compensations.
+    # Done rows leave the section (they live in History / Mission
+    # Log); the reconciled count is the footer, set by the
+    # Activity refresh from counts (which cover ALL entries).
+    # The header count is owned by the Activity refresh too
+    # (attention rows + pending approvals, one read) — this
+    # function no longer writes the counted header.
+    attention = [row for row in rows
+                 if row.get("class") == "unknown"
+                 or row.get("compensation_status") == "declared"]
+    result["rows"] = attention
+    if not attention:
+        # Activity empty-state fix (2026-11-26): no empty
+        # sentence here. "Nothing needs attention right now."
+        # was the fifth "nothing" on the Activity page (headline
+        # + "No active mission" + the rail's line + the "(0)"
+        # count + this one); the journal header + footer carry
+        # the state instead, and the list simply stays empty
+        # (the Activity refresh hides it while it has no rows).
         return result
-    for row in rows:
-        item = QListWidgetItem(journal_row_text(row))
+    for row in attention:
+        item = QListWidgetItem()
         item.setData(Qt.ItemDataRole.UserRole, row)
         list_widget.addItem(item)
+        widget = _journal_attention_row_widget(row)
+        item.setSizeHint(list_item_size_hint(widget))
+        list_widget.setItemWidget(item, widget)
     return result
 
 

@@ -102,14 +102,28 @@ class ChatNavMixin:
         # `index` is a STACK page index. Nav buttons map through
         # _nav_page_indices when present; without it the mapping
         # is identity, as before. Every stack page has a button
-        # except Skills (stack 3, palette-only since the chat
-        # pass); the four views (stack 8–11) have buttons since
-        # Stage 0 features batch 1.
+        # since UI Phase 2 (Skills, stack 3, gained its
+        # CAPABILITIES button); the four views (stack 8–11)
+        # have buttons since Stage 0 features batch 1.
         _pages = getattr(self, "_nav_page_indices", None)
         for i, btn in enumerate(self.nav_buttons):
             _page = _pages[i] if _pages and i < len(_pages) else i
             btn.setChecked(_page == index)
         self._refresh_nav_icons(index)
+        # UI Phase 5: fifteen buttons overflow the sidebar at
+        # short heights — the checked button must be fully
+        # visible, not half-cut below the fold (the scroll area
+        # never scrolls on its own; the D5 scroll only moves
+        # when the user drags it). A no-op when the button is
+        # already fully visible; navigation never breaks on it.
+        try:
+            _scroll = getattr(self, "_sidebar_scroll", None)
+            _checked = next(
+                (b for b in self.nav_buttons if b.isChecked()), None)
+            if _scroll is not None and _checked is not None:
+                _scroll.ensureWidgetVisible(_checked)
+        except Exception:  # noqa: BLE001 — navigation never breaks
+            pass
         # Chat UI (2026-11-16): the composer's draft comes back
         # when the chat page is shown — a half-typed message
         # survives a page switch or a restart.
@@ -125,6 +139,14 @@ class ChatNavMixin:
         self._refresh_world_status()
         # Same for the Browser-control state (cheap local check).
         self._refresh_browser_enable_status()
+        # UI Phase 2 (D-P2-12): the sidebar badges refresh on
+        # every page show — Activity from the shared pending
+        # count, Inbox from the cached unread count. No network
+        # read from the sidebar; a failed read hides that badge.
+        try:
+            self._refresh_sidebar_badges()
+        except Exception:  # noqa: BLE001 — badges never
+            pass  # break navigation.
         if index == 1:
             # Activity page: rebuild the scheduled-routines rows
             # too (they live in the Scheduled tab since S1).
@@ -133,6 +155,14 @@ class ChatNavMixin:
             self._refresh_plans()
             # S1: and the In progress / History task tabs.
             self._refresh_activity_tabs()
+            # UI Phase 2: the Activity refresh may have resolved
+            # an approval — re-read the badge now that the page
+            # count changed (the _show_page refresh above ran
+            # before this refresh).
+            try:
+                self._refresh_sidebar_badges()
+            except Exception:  # noqa: BLE001 — badges never
+                pass  # break navigation.
         if index == 2:
             # Memory page: rebuild the learned-fact rows — and having
             # seen them, nothing on the page counts as New next time.
@@ -147,6 +177,34 @@ class ChatNavMixin:
             # open appear in the web too (hash-gated, so a no-change
             # visit costs nothing).
             self._refresh_memory_web()
+        if index == 3:
+            # UI Phase 2: Skills page — rebuild the Centre
+            # (count line, catalogue rows, Pinned section) from
+            # the live registry, preserving the open view, the
+            # filter text and the scroll position (Phase 1 H-12
+            # pattern); the galaxy rebuilds lazily as before.
+            try:
+                self._refresh_skills_page()
+            except Exception:  # noqa: BLE001
+                pass
+        if index == 4:
+            # UI Phase 4 (D-P4-08, R-P4-E + D-P4-31/33): the
+            # Settings page re-syncs its appearance controls
+            # (theme, font, HUD, Pulse cadence mirror) and its
+            # card value/effect lines each time it opens, so a
+            # change made elsewhere never shows stale.
+            try:
+                self._sync_appearance_controls()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._refresh_settings_card_values()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._refresh_brain_truth()
+            except Exception:  # noqa: BLE001
+                pass
         if index == 7:
             # v5.57 (redo): Doctor page — first visit runs the
             # checks; later visits show the last result until
@@ -168,6 +226,13 @@ class ChatNavMixin:
                 self._refresh_inbox_page()
             except Exception:  # noqa: BLE001
                 pass
+            # UI Phase 2: the Inbox refresh cached a fresh unread
+            # count — re-read the badge now that it changed (the
+            # _show_page refresh above ran before this refresh).
+            try:
+                self._refresh_sidebar_badges()
+            except Exception:  # noqa: BLE001 — badges never
+                pass  # break navigation.
         if index == 10:
             # Stage 0 features batch 1 (Group D): Contacts list —
             # re-read the contact cards each time it opens.
@@ -180,6 +245,27 @@ class ChatNavMixin:
             # re-read the call ledger each time it opens.
             try:
                 self._refresh_calls_page()
+            except Exception:  # noqa: BLE001
+                pass
+        if index == 12:
+            # UI Phase 5: Notes — re-read the note list each time
+            # it opens (the list is the store; no cache).
+            try:
+                self._refresh_notes_page()
+            except Exception:  # noqa: BLE001
+                pass
+        if index == 13:
+            # UI Phase 5: Finance — re-read every local money store
+            # each time it opens.
+            try:
+                self._refresh_finance_page()
+            except Exception:  # noqa: BLE001
+                pass
+        if index == 14:
+            # UI Phase 5: Devices — re-read the hub each time it
+            # opens (live health() + areas/devices/states; no timer).
+            try:
+                self._refresh_devices_page()
             except Exception:  # noqa: BLE001
                 pass
         if index == 0:
@@ -199,6 +285,14 @@ class ChatNavMixin:
             # moment Home shows again.
             try:
                 self._refresh_setup_cards()
+            except Exception:  # noqa: BLE001
+                pass
+            # UI Phase 1: and the whole Home HUD (all surfaces from
+            # live reads — greeting, weather, alerts, attention,
+            # Now Doing, vitals, banner, previews, pills).
+            try:
+                if hasattr(self, "_refresh_home"):
+                    self._refresh_home()
             except Exception:  # noqa: BLE001
                 pass
         # Premium Wave 2 + SENSES v5.16: incoming page fades/slides in
@@ -261,6 +355,22 @@ class ChatNavMixin:
             self._palette.open_centered()
         except Exception:  # noqa: BLE001
             pass
+
+    def _open_palette_with(self, query: str):
+        """UI Phase 5: open the command palette with a query
+        already typed (the Finance calculator launchers). The
+        palette rebuilds its commands and CLEARS the input on
+        open_centered(), so the query is set AFTER the open."""
+        try:
+            if self._palette is None:
+                self._palette = CommandPalette(self)
+            self._palette.open_centered()
+            input_widget = getattr(self._palette, "input", None)
+            if input_widget is not None:
+                input_widget.setText(query or "")
+        except Exception:  # noqa: BLE001
+            pass
+
     def _show_shortcuts_sheet(self):
         """v5.57 (redo, A9.2): the "?" sheet — cached like the
         palette, centred over the window on every open."""

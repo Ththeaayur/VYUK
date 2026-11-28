@@ -273,6 +273,7 @@ RESOLVED_KEYS = (
     "bg", "surface_1", "surface_2",
     "text", "text_muted", "text_faint", "focus_border",
     "selection_bg", "text_disabled",
+    "input_bg", "input_bg_disabled", "input_border_disabled",
 )
 
 
@@ -369,7 +370,16 @@ def build_python_tokens(theme_name: str) -> dict:
     # for the white selection text) and a disabled-text colour
     # that follows the theme text (the house near-white at 45%
     # would vanish on light). Mirrors the shipped resolver.
+    # Look-fix 2 (2026-11-24): the input wells need the same
+    # treatment — the house black-at-38% well is a mid-grey slab
+    # on light (measured 148–154), so on light the well follows
+    # the theme surface_2, the disabled well sits halfway between
+    # surface_2 and the bg, and the disabled border follows the
+    # theme text at a visible alpha (the house white-at-10 border
+    # is invisible on light). Dark themes keep the house values.
     light = _luminance(bg) > 0.5
+    _surface_2 = (_theme_value(theme_name, "surface_2")
+                  or chrome["surface_2"]["$value"])
     return {
         "accent": accent,
         "accent_2": accent_2,
@@ -390,8 +400,7 @@ def build_python_tokens(theme_name: str) -> dict:
         "bg": bg,
         "surface_1": _theme_value(theme_name, "surface_1")
         or chrome["surface_1"]["$value"],
-        "surface_2": _theme_value(theme_name, "surface_2")
-        or chrome["surface_2"]["$value"],
+        "surface_2": _surface_2,
         "text": text,
         "text_muted": _theme_value(theme_name, "text_muted")
         or chrome["text_muted"]["$value"],
@@ -405,6 +414,17 @@ def build_python_tokens(theme_name: str) -> dict:
         "text_disabled": (
             "rgba({}, 115)".format(_triplet(text)) if light
             else "rgba({}, 115)".format(_triplet(chrome["text"]["$value"]))
+        ),
+        "input_bg": (
+            _surface_2 if light else "rgba(0, 0, 0, 96)"
+        ),
+        "input_bg_disabled": (
+            _mix(_surface_2, bg, 0.5) if light
+            else "rgba(0, 0, 0, 48)"
+        ),
+        "input_border_disabled": (
+            "rgba({}, 32)".format(_triplet(text)) if light
+            else "rgba(255, 255, 255, 10)"
         ),
     }
 

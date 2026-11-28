@@ -147,6 +147,25 @@ def append_event(kind: str, message: str, ts=None,
         pass
 
 
+def timeline_line_count() -> int:
+    """The timeline file's line count (non-empty lines), capped at
+    _MAX_LINES — the "M" in the Senses page's "N of M shown" (UI
+    Phase 4, D-P4-15). A missing file reads as 0. Never raises:
+    an unreadable file reads as 0, never a crash."""
+    try:
+        path = _log_path()
+        if not path.exists():
+            return 0
+        count = 0
+        for line in path.read_text(
+                encoding="utf-8", errors="replace").splitlines():
+            if line.strip():
+                count += 1
+        return min(count, _MAX_LINES)
+    except Exception:  # noqa: BLE001 — the count says 0
+        return 0
+
+
 def read_events(limit: int = 100, kind: str | None = None,
                 since_hours: float | None = None) -> list[dict]:
     """Up to `limit` events, newest first. Corrupt lines are

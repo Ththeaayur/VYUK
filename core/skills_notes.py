@@ -96,9 +96,13 @@ def _by_index(entries: list, index, what: str):
 
 
 def _load_notes() -> tuple[list, int]:
-    """(entries, broken_count): {id, key, title, text, added}
-    dicts parsed from the notes facts; unparseable ones counted.
-    Newest first (the key is the timestamp)."""
+    """(entries, broken_count): {id, key, title, text, added,
+    pinned, edited} dicts parsed from the notes facts;
+    unparseable ones counted. Newest first (the key is the
+    timestamp). `pinned` / `edited` are optional JSON fields
+    (UI Phase 5, D-P5-04): an old-shape note without them loads
+    with pinned False and edited "" — back-compat, never a
+    broken count for a missing field."""
     entries = []
     broken = 0
     for fact in _facts(_NOTES_CATEGORY):
@@ -115,6 +119,8 @@ def _load_notes() -> tuple[list, int]:
                 "title": str(stored.get("title") or ""),
                 "text": text,
                 "added": str(stored.get("added") or ""),
+                "pinned": bool(stored.get("pinned")),
+                "edited": str(stored.get("edited") or ""),
             })
         except Exception:  # noqa: BLE001
             broken += 1
@@ -211,6 +217,153 @@ def notes(action: str = "", text: str = "", title: str = "",
         return ("I tried to take that note but couldn't confirm "
                 "it stuck — nothing was claimed.")
     return f"Noted: '{head}'."
+
+
+# ---------------------------------------------------------------------------
+# NOTES — key-based operations for the GUI (UI Phase 5)
+#
+# The funnel above works by displayed NUMBER; the GUI works by KEY
+# (D-P5-02/03): the drawer holds the key, so a list change between
+# open and confirm cannot remove or edit the wrong note. Every
+# helper re-reads before claiming (A1-store), and every save
+# carries ALL stored fields (S-P5-02: an edit or a pin toggle can
+# never drop the pin).
+# ---------------------------------------------------------------------------
+
+
+def _note_stored_json(entry: dict) -> str:
+    """The stored JSON for one note entry — every field, in the
+    loader's shape. Old-shape notes gain the two new fields with
+    their defaults when they are next saved."""
+    return json.dumps({
+        "title": entry.get("title", ""),
+        "text": entry.get("text", ""),
+        "added": entry.get("added", ""),
+        "pinned": bool(entry.get("pinned")),
+        "edited": entry.get("edited", ""),
+    })
+
+
+def _save_note_entry(entry: dict) -> bool:
+    """Persist one note entry under its own key. The store upserts
+    by (category, key) and save_fact's read-back proves it landed;
+    False when the save neither raised nor landed."""
+    try:
+        return bool(_store().save_fact(
+            _NOTES_CATEGORY, entry["key"],
+            _note_stored_json(entry)))
+    except Exception:  # noqa: BLE001 — a failed save reads as False
+        return False
+
+
+def _find_note_by_key(entries: list, key: str):
+    for entry in entries:
+        if entry["key"] == key:
+            return entry
+    return None
+
+
+def _remove_note_by_key(key: str) -> tuple[bool, str]:
+    """Remove the note with this key (D-P5-03). (ok, message):
+    the re-read proves the key is gone before anything is
+    claimed; a missing key reads as already gone, never an
+    error that invites a retry on the wrong note."""
+    try:
+        entries, _b = _load_notes()
+    except Exception as e:  # noqa: BLE001
+        return False, f"Couldn't read the notes: {e}"
+    entry = _find_note_by_key(entries, key)
+    if entry is None:
+        return False, "That note is already gone."
+    try:
+        _store().delete_fact(entry["id"])
+    except Exception as e:  # noqa: BLE001
+        return False, f"Couldn't remove the note: {e}"
+    try:
+        after, _b = _load_notes()
+        gone = _find_note_by_key(after, key) is None
+    except Exception:  # noqa: BLE001
+        gone = False
+    if not gone:
+        return False, ("I tried to remove that note but it's still "
+                       "there — nothing was claimed.")
+    return True, (f"Removed "
+                   f"'{entry['title'] or entry['text'][:40]}'.")
+
+
+def _edit_note_by_key(key: str, title: str,
+                      text: str) -> tuple[bool, str]:
+    """Edit the note with this key (D-P5-04/08, S-P5-02):
+    save-new-then-delete-old with the key preserved and `edited`
+    stamped with today's date. The store upserts by (category,
+    key), so the save-new step replaces the old JSON atomically —
+    the old content is gone exactly when the new one lands — and
+    the re-read below proves the new version (pin copied over,
+    edited stamped) before anything is claimed. A failed save
+    leaves the old note untouched. Caps mirror the funnel's add
+    (title 100, text 2000, whitespace collapsed the same way)."""
+    try:
+        entries, _b = _load_notes()
+    except Exception as e:  # noqa: BLE001
+        return False, f"Couldn't read the notes: {e}"
+    entry = _find_note_by_key(entries, key)
+    if entry is None:
+        return False, "That note is already gone."
+    clean = " ".join(str(text or "").split())
+    if not clean:
+        return False, "That needs the note's text."
+    if len(clean) > _MAX_TEXT_CHARS:
+        return False, (f"That note is {len(clean)} characters — "
+                       f"notes are capped at {_MAX_TEXT_CHARS}.")
+    head = " ".join(str(title or "").split())[:_MAX_TITLE_CHARS]
+    if not head:
+        head = clean.splitlines()[0][:60]
+    payload = dict(entry)
+    payload["title"] = head
+    payload["text"] = clean
+    payload["edited"] = _today_iso()
+    if not _save_note_entry(payload):
+        return False, ("I tried to save that edit but couldn't "
+                       "confirm it stuck — the old note is untouched.")
+    try:
+        after, _b = _load_notes()
+        saved = _find_note_by_key(after, key)
+    except Exception:  # noqa: BLE001
+        saved = None
+    if (saved is None or saved["text"] != clean
+            or saved["edited"] != payload["edited"]
+            or saved["pinned"] != bool(entry.get("pinned"))):
+        return False, ("I tried to save that edit but couldn't "
+                       "confirm it stuck — the old note is untouched.")
+    return True, f"Saved '{head}'."
+
+
+def _set_note_pinned(key: str, pinned: bool) -> tuple[bool, str]:
+    """Pin or unpin the note with this key. Copies every stored
+    field (the pin toggle never drops the edited stamp, S-P5-02)
+    and re-reads before claiming. Pinning is not an edit: the
+    `edited` stamp is left exactly as it was."""
+    try:
+        entries, _b = _load_notes()
+    except Exception as e:  # noqa: BLE001
+        return False, f"Couldn't read the notes: {e}"
+    entry = _find_note_by_key(entries, key)
+    if entry is None:
+        return False, "That note is already gone."
+    payload = dict(entry)
+    payload["pinned"] = bool(pinned)
+    if not _save_note_entry(payload):
+        return False, ("I tried to change that pin but couldn't "
+                       "confirm it stuck.")
+    try:
+        after, _b = _load_notes()
+        saved = _find_note_by_key(after, key)
+    except Exception:  # noqa: BLE001
+        saved = None
+    if saved is None or saved["pinned"] != bool(pinned):
+        return False, ("I tried to change that pin but couldn't "
+                       "confirm it stuck.")
+    return True, ("Pinned." if pinned else "Unpinned.")
 
 
 # ---------------------------------------------------------------------------

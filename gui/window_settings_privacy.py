@@ -450,15 +450,37 @@ class SettingsPrivacyMixin:
                 from voice_assistant.core.gui_facade import VERSION as _v
 
                 return f"Version {_v}"
+            if title == "Home hub":
+                # UI Phase 5 (D-P5-15): the host is an address, not
+                # a secret — it reads on the card. The token never
+                # reads anywhere (presence only, via has_token).
+                try:
+                    from voice_assistant.core.gui_facade import (
+                        home_assistant_config as _hac)
+                except Exception:  # noqa: BLE001 — no value, hidden
+                    return None
+                cfg = _hac.load_ha_config()
+                if not cfg["host"]:
+                    return "Not configured"
+                allowed = len(cfg["allowlist"])
+                tail = (f", {allowed} device{'s' if allowed != 1 else ''} "
+                        "allowed to be controlled" if allowed else
+                        ", nothing allowed to be controlled yet")
+                if not cfg["has_token"]:
+                    return (f"{cfg['host']} — no token stored" + tail)
+                return f"{cfg['host']}" + tail
             return None
         except Exception:  # noqa: BLE001 — no value, line hidden
             return None
 
     def _refresh_settings_card_values(self):
         """Settings redesign §4b: refresh every card's value
-        line (current value in words) and voice line (whether
-        voice can change it, from the registry). Best-effort —
-        a card that can't be read keeps its lines hidden."""
+        line (current value in words), voice line (whether
+        voice can change it, from the registry) and effect
+        line (when a change takes effect, from the registry;
+        a card whose timing is not established keeps the line
+        hidden). Best-effort — a card that can't be read keeps
+        its lines hidden."""
         try:
             from voice_assistant.core.gui_facade import (
                 settings_search as _ss)
@@ -480,5 +502,16 @@ class SettingsPrivacyMixin:
             try:
                 label.setText(_ss.card_voice_line(title))
                 label.setVisible(True)
+            except Exception:  # noqa: BLE001 — one card never breaks all
+                continue
+        for title, label in getattr(
+                self, "_settings_card_effect_labels", {}).items():
+            try:
+                effect = _ss.card_effect_line(title)
+                if effect:
+                    label.setText(effect)
+                    label.setVisible(True)
+                else:
+                    label.setVisible(False)
             except Exception:  # noqa: BLE001 — one card never breaks all
                 continue

@@ -1439,6 +1439,39 @@ class VoiceAgentStore:
                           "agent", "started", "ended", "outcome"), r))
                 for r in rows]
 
+    @_locked
+    def get_call(self, call_id):
+        """One call WITH its recorded flow transcript, or None
+        (UI Phase 3, D-P3-09 — the Calls detail drawer).
+
+        ``list_calls`` deliberately omits the transcript; this is
+        the one accessor that reads it. The transcript is the
+        recorded agent-flow steps (``{step, kind, detail}``), parsed
+        to a list — an unparsable or non-list value reads as no
+        transcript, never as a fabricated one.
+        """
+        try:
+            cid = int(call_id)
+        except (TypeError, ValueError):
+            return None
+        row = self.conn.execute(
+            "SELECT c.id, c.direction, c.number, c.agent_id, a.name, "
+            "c.started, c.ended, c.outcome, c.transcript_json "
+            "FROM calls c LEFT JOIN agents a ON a.id = c.agent_id "
+            "WHERE c.id = ?",
+            (cid,)).fetchone()
+        if row is None:
+            return None
+        call = dict(zip(
+            ("id", "direction", "number", "agent_id", "agent",
+             "started", "ended", "outcome", "transcript_json"), row))
+        try:
+            transcript = json.loads(call.pop("transcript_json") or "[]")
+        except Exception:  # noqa: BLE001 — a broken transcript
+            transcript = []  # reads as no transcript, never invented.
+        call["transcript"] = transcript if isinstance(transcript, list) else []
+        return call
+
     # -- ledger ---------------------------------------------------------
     @_locked
     def append_event(self, kind, payload):

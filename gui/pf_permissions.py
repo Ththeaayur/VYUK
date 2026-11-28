@@ -696,6 +696,12 @@ class PermissionsWidget(QWidget):
         self.result_label = _muted("")
         self.result_label.setVisible(False)
         card_layout.addWidget(self.result_label)
+        # Phase 4 (D-P4-31): the effect line, like the other
+        # cards' — the hint already says changes take effect
+        # immediately, and this line says it in the one place
+        # the eye looks for it.
+        self.effect_label = _muted("Applies instantly.")
+        card_layout.addWidget(self.effect_label)
         # Folders VYUK may use (D9): immediate add/remove
         # through the Settings-only folder API.
         folders_card, folders_layout = _card(

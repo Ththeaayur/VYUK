@@ -21,6 +21,11 @@ actually shows (see gui/window_settings*.py):
   C secrets & connections — voice opens the Connect screen,
   the key goes in by typing; D destructive / reference —
   Settings only, no voice path at all.
+* ``CARD_EFFECT`` — when a change on a card takes effect
+  (Phase 4, D-P4-31): "Applies instantly." or "Takes effect
+  the next time you connect." A card whose timing the build
+  cannot establish is absent from the table and carries no
+  line, never a guessed one.
 
 ``TOP_TASKS`` is the Settings-home row, in order: the five
 things people actually change, each one tap to its card.
@@ -118,6 +123,12 @@ CARD_SYNONYMS: dict[str, tuple[str, ...]] = {
     ),
     "Browser control": (
         "browser", "browser control", "chrome", "web",
+    ),
+    # Phase 4: the Your world card was missing from the
+    # registry — search could not find it.
+    "Your world": (
+        "your world", "world", "world connection",
+        "connect to my world",
     ),
     "Audit": (
         "audit", "audit log", "what did she do", "history",
@@ -222,6 +233,11 @@ CARD_VOICE: dict[str, tuple[str, str]] = {
         CLASS_A, "Change this here — voice can't flip it, for safety. "
         "Voice can't grant it either — grants are made on screen "
         "only."),
+    # Phase 4: the Your world card was missing from the
+    # registry — search could not find it.
+    "Your world": (
+        CLASS_C, "Voice opens this screen — the connection codes "
+        "go in by typing, never spoken."),
     "Audit": (
         CLASS_D, "Settings only — voice can't touch this."),
     "Remembered approvals": (
@@ -279,6 +295,72 @@ def card_voice_line(title: str) -> str:
     if entry:
         return entry[1]
     return _CLASS_DEFAULT_LINE[CLASS_D]
+
+
+# Phase 4 (D-P4-31): when a change on a card takes effect.
+# Two honest timings only — "Applies instantly." and "Takes
+# effect the next time you connect." A card whose timing the
+# build cannot establish is NOT in this table, and
+# card_effect_line returns "" for it: the line stays hidden
+# and the card is named as owed in the build report, never
+# guessed. (Presence: autostart/connect-on-launch are
+# launch-time while the rest of the card is live — one line
+# cannot cover both. Your settings file: Export is one-shot
+# immediate while Import applies per-setting.)
+_EFFECT_INSTANT = "Applies instantly."
+_EFFECT_NEXT_CONNECT = "Takes effect the next time you connect."
+
+CARD_EFFECT: dict[str, str] = {
+    # Next connect (3): the brain pick, the cloud provider pick
+    # and the keys on How VYUK thinks, the voice pick on Voice,
+    # and the engine/tool-profile/transcription knobs on Local
+    # brain are all read at connect / brain load, not live.
+    "How VYUK thinks": _EFFECT_NEXT_CONNECT,
+    "Voice": _EFFECT_NEXT_CONNECT,
+    "Local brain": _EFFECT_NEXT_CONNECT,
+    # Applies instantly (30): the switch, the save, the
+    # connect/disconnect or the control acts at once — the
+    # card's own hint or label already says so where it
+    # matters (Microphone's wake phrase is the restart
+    # exception, labelled inline on the card itself).
+    "A choice about watching what you do": _EFFECT_INSTANT,
+    "About": _EFFECT_INSTANT,
+    "Appearance": _EFFECT_INSTANT,
+    "Audit": _EFFECT_INSTANT,
+    "Backup passphrase": _EFFECT_INSTANT,
+    "Briefing voice": _EFFECT_INSTANT,
+    "Browser control": _EFFECT_INSTANT,
+    "Data portability": _EFFECT_INSTANT,
+    "Doctor": _EFFECT_INSTANT,
+    "Feedback & crash reports": _EFFECT_INSTANT,
+    "Home hub": _EFFECT_INSTANT,
+    "Keyboard shortcuts": _EFFECT_INSTANT,
+    "Microphone": _EFFECT_INSTANT,
+    "Models & storage": _EFFECT_INSTANT,
+    "Notices": _EFFECT_INSTANT,
+    "Permissions": _EFFECT_INSTANT,
+    "Power & network": _EFFECT_INSTANT,
+    "Privacy & security": _EFFECT_INSTANT,
+    "Quiet hours": _EFFECT_INSTANT,
+    "Remembered approvals": _EFFECT_INSTANT,
+    "Report a problem": _EFFECT_INSTANT,
+    "Screen watching": _EFFECT_INSTANT,
+    "Settings store": _EFFECT_INSTANT,
+    "Sounds": _EFFECT_INSTANT,
+    "Suggestions": _EFFECT_INSTANT,
+    "System status": _EFFECT_INSTANT,
+    "Theme packs": _EFFECT_INSTANT,
+    "Voice bridge": _EFFECT_INSTANT,
+    "What's new": _EFFECT_INSTANT,
+    "Whisper hours": _EFFECT_INSTANT,
+    "Your world": _EFFECT_INSTANT,
+}
+
+
+def card_effect_line(title: str) -> str:
+    """The effect line a card carries ("" when the timing is
+    not established — the line stays hidden, never guessed)."""
+    return CARD_EFFECT.get(str(title or ""), "")
 
 
 def card_synonyms(title: str) -> tuple[str, ...]:

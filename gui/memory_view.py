@@ -65,21 +65,30 @@ def memory_facts_view(query: str = "", category: str = ALL_CATEGORIES,
             "shown": len(shown)}
 
 
-def memory_header_text(shown: int, total: int, learned: int = 0) -> str:
-    """The Memory header count line (E-F204): the header names the
-    facts actually on the page — the list rows shown/total PLUS
-    the Learned-card rows. The card renders the learned facts a
-    second time (once in the card, once in the list) and is never
-    filtered by the search/category controls, so its rows count in
-    both the shown and the total. With no learned facts this is
-    exactly the old line (``total`` facts remembered / ``shown``
-    of ``total`` facts shown)."""
-    shown_all = shown + learned
-    total_all = total + learned
+def memory_header_text(shown: int, total: int) -> str:
+    """The Memory header count line: the header counts UNIQUE
+    facts — the list rows shown/total, nothing else (parent
+    ruling, hunt fix (c) header round, 2026-11-26). The
+    Learned card renders the same facts a second time (once in
+    the card, once in the list) and is never filtered by the
+    search/category controls, but its rows are the SAME facts,
+    so they do not add to the count: with N stored user facts
+    the header reads "N facts remembered", and the "X of Y"
+    form counts unique facts on both sides.
+
+    This supersedes the E-F204 rule (header == list rows + card
+    rows). That rule was right while the card rendered a
+    disjoint set, but the item-6 widening made the card render
+    every user fact — the same facts already in the list — so
+    the old rule counted every fact twice ("10 facts
+    remembered" for 5 facts, "2" for 1). The `learned`
+    parameter is gone with the rule: there is no second count
+    to add, and no caller may reintroduce the doubling by
+    passing one."""
     if shown == total:
-        return (f"{total_all} fact{'s' if total_all != 1 else ''} "
+        return (f"{total} fact{'s' if total != 1 else ''} "
                 f"remembered")
-    return f"{shown_all} of {total_all} facts shown"
+    return f"{shown} of {total} facts shown"
 
 
 def memory_web_header_text(fact_nodes: int) -> str:

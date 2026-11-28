@@ -40,6 +40,28 @@ class HudToast(QWidget):
         self._animate = animate
         self._animation = None
 
+    def set_theme(self, resolved: dict) -> None:
+        """Rebuild the toast sheet from a resolved theme (Phase 0).
+
+        The toast is a ToolTip window, so the window sheet cannot
+        reach it: without this seam it stays house-dark on Light.
+        The fill follows the theme surface_1, the text the theme
+        text; the attention edge stays amber (a semantic role
+        colour shared across themes), the calm edge the house
+        hairline. Called from the window's appearance pass; under
+        Cyan the values are the house tokens, so nothing changes.
+        """
+        try:
+            self.setStyleSheet(
+                "background-color: %s; border: 1px solid %s; color: %s;"
+                " padding: 10px 14px;"
+                % (resolved.get("surface_1", SURFACE_1),
+                   AMBER if self._attention else LINE_STRONG,
+                   resolved.get("text", TEXT))
+            )
+        except Exception:  # noqa: BLE001 — theme never breaks paint
+            pass
+
     @property
     def attention(self):
         """True when this toast needs attention (amber edge)."""

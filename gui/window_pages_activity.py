@@ -6,12 +6,11 @@ _page_shell + reminders + activity + mission-log handlers.
 
 import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
     QButtonGroup,
-    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -26,6 +25,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from .design_system.backdrop import HudBackdrop, glass_tile
+from .design_system.flowlayout import FlowLayout
+from .design_system.mission import ActionTrace, MissionRail
+from .design_system.panels import HudPanel
+from .design_system.switches import HudSwitch, toggle_row
+from .design_system.tabs import HudTabs
 
 from .style import (
     ACCENT,
@@ -36,6 +41,37 @@ from .style import (
     TEXT_MUTED,
     TYPE_CARD_TITLE,
 )
+
+
+class _BackdropFitter(QObject):
+    """Keep a HudBackdrop sized to its page (resize events).
+
+    The backdrop is a plain child of the page, lowered behind
+    the content; the page's layout never sizes it, so the
+    fitter re-sizes it on every page resize. It never consumes
+    the event — it only mirrors the geometry. ``on_resize``
+    (optional) runs after the mirror — the Activity page uses
+    it to re-fit the tab pane, whose fill height follows the
+    window height.
+    """
+
+    def __init__(self, backdrop, on_resize=None):
+        super().__init__(backdrop)
+        self._backdrop = backdrop
+        self._on_resize = on_resize
+
+    def eventFilter(self, watched, event):  # noqa: N802 (Qt naming)
+        if event.type() == QEvent.Type.Resize:
+            try:
+                self._backdrop.setGeometry(watched.rect())
+            except Exception:  # noqa: BLE001 — cosmetic
+                pass
+            if self._on_resize is not None:
+                try:
+                    self._on_resize()
+                except Exception:  # noqa: BLE001 — cosmetic
+                    pass
+        return super().eventFilter(watched, event)
 
 
 class _PaddedSpinBox(QSpinBox):
@@ -52,13 +88,16 @@ class _PaddedSpinBox(QSpinBox):
 
 class PagesActivityMixin:
     def _page_shell(self, title: str, subtitle: str,
-                    kicker: bool = False) -> tuple[QWidget, QVBoxLayout]:
+                    kicker: bool = True) -> tuple[QWidget, QVBoxLayout]:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(28, 20, 28, 20)
         layout.setSpacing(10)
         t = QLabel(title.upper() if kicker else title)
         if kicker:
+            # Phase 0: kicker=True is the standard now (the
+            # decided header style) — the default is True,
+            # every caller passes it explicitly too.
             # v5.57 (redo): the mockups' page headers are small
             # letter-spaced capitals, not the big Settings title.
             # Qt stylesheets have no letter-spacing, so the kicker
@@ -204,16 +243,51 @@ class PagesActivityMixin:
             self._remove_selected_reminder)
         _reminders_head.addWidget(self._reminders_remove_btn)
         layout.addLayout(_reminders_head)
+        # Phase 1: the Reminders list becomes a TIMELINE — the
+        # spine + day-grouped rows live in the card below, built
+        # by _rebuild_scheduled_timeline(). The old QListWidget
+        # stays, hidden, as the selection backing store for
+        # _remove_selected_reminder (gui/window_shell_memoryio.py,
+        # outside this build's ownership): it holds one item per
+        # reminder with the label on UserRole, and a timeline
+        # row's click syncs its current item — so Remove selected
+        # and Del keep working against the same identities.
+        # The timeline's own Del shortcut rides on the timeline
+        # widget (WidgetShortcut: it fires while a timeline row
+        # holds focus, never from anywhere else on the window).
+        self.reminders_list = QListWidget(content)
+        self.reminders_list.setObjectName("activityList")
+        self.reminders_list.setVisible(False)
+        self.reminders_list.itemSelectionChanged.connect(
+            self._update_reminder_remove_btn)
+        self._timeline_selected_label = None
         card = QFrame()
         card.setObjectName("card")
         c_layout = QVBoxLayout(card)
         c_layout.setContentsMargins(16, 12, 16, 12)
-        self.reminders_list = QListWidget()
-        self.reminders_list.setObjectName("activityList")
-        self.reminders_list.itemSelectionChanged.connect(
-            self._update_reminder_remove_btn)
-        c_layout.addWidget(self.reminders_list)
+        self._scheduled_timeline = QWidget()
+        self._scheduled_timeline.setObjectName("scheduledTimeline")
+        _tl_layout = QHBoxLayout(self._scheduled_timeline)
+        _tl_layout.setContentsMargins(0, 0, 0, 0)
+        _tl_layout.setSpacing(8)
+        from .design_system.timeline import TimelineSpine
+        self._scheduled_timeline_spine = TimelineSpine(
+            self._scheduled_timeline)
+        _tl_layout.addWidget(self._scheduled_timeline_spine, 0)
+        self._scheduled_timeline_body = QWidget()
+        self._scheduled_timeline_layout = QVBoxLayout(
+            self._scheduled_timeline_body)
+        self._scheduled_timeline_layout.setContentsMargins(0, 0, 0, 0)
+        self._scheduled_timeline_layout.setSpacing(6)
+        _tl_layout.addWidget(self._scheduled_timeline_body, 1)
+        c_layout.addWidget(self._scheduled_timeline)
         layout.addWidget(card, stretch=1)
+        self._del_timeline_sc = QShortcut(
+            QKeySequence("Del"), self._scheduled_timeline)
+        self._del_timeline_sc.setContext(
+            Qt.ShortcutContext.WidgetShortcut)
+        self._del_timeline_sc.activated.connect(
+            self._remove_selected_reminder)
 
         row = QHBoxLayout()
         self.input_reminder_msg = QLineEdit()
@@ -239,7 +313,7 @@ class PagesActivityMixin:
         # S12 (R3): or fire at a set clock time, like the
         # set_reminder skill already can.
         row_at = QHBoxLayout()
-        self.chk_reminder_at = QCheckBox("Fire at a set time instead")
+        self.chk_reminder_at = HudSwitch(text="Fire at a set time instead")
         # Two spin boxes, not a QTimeEdit: the stylesheet dresses
         # spin boxes, and a time edit renders as a pale native
         # box on this theme (seen in the S12 render check).
@@ -263,7 +337,12 @@ class PagesActivityMixin:
             self.input_reminder_h.setEnabled)
         self.chk_reminder_at.toggled.connect(
             self.input_reminder_m.setEnabled)
-        row_at.addWidget(self.chk_reminder_at)
+        # Phase 0: the toggle row is kept as an attribute — the
+        # switch itself sits inside it, so geometry assertions
+        # (the row sits under the add row) read the row, not the
+        # switch's position inside its own row.
+        self._reminder_at_row = toggle_row(self.chk_reminder_at)
+        row_at.addWidget(self._reminder_at_row)
         _clock = QHBoxLayout()
         _clock.setContentsMargins(0, 0, 0, 0)
         _clock.setSpacing(2)
@@ -357,23 +436,17 @@ class PagesActivityMixin:
             self, titles.get(section, "Activity"), text)
 
     def _update_reminder_remove_btn(self):
-        """Remove selected appears only when a reminder is
+        """Remove selected appears only when a timeline row is
         selected (Build 2 — same rule as the journal actions):
-        never a button that can never be pressed. Guarded
-        no-op until the Scheduled tab exists."""
+        never a button that can never be pressed. The selection
+        is the timeline's (_timeline_selected_label); the hidden
+        reminders_list mirrors it for _remove_selected_reminder.
+        Guarded no-op until the Scheduled tab exists."""
         btn = getattr(self, "_reminders_remove_btn", None)
-        lst = getattr(self, "reminders_list", None)
-        if btn is None or lst is None:
+        if btn is None:
             return
-        show = False
-        try:
-            for item in lst.selectedItems():
-                if item.data(Qt.ItemDataRole.UserRole):
-                    show = True
-                    break
-        except Exception:  # noqa: BLE001 — a broken selection
-            show = False  # never shows the button.
-        btn.setVisible(show)
+        btn.setVisible(bool(
+            getattr(self, "_timeline_selected_label", None)))
 
     def _refresh_activity_theme(self, resolved: dict) -> None:
         """Re-apply the Activity tab + mission-log sheets (batch 5).
@@ -390,21 +463,60 @@ class PagesActivityMixin:
         try:
             surface_2 = resolved.get("surface_2", SURFACE_2)
             line = resolved.get("line_subtle", LINE_SUBTLE)
-            muted = resolved.get("text_muted", TEXT_MUTED)
             text = resolved.get("text", TEXT)
-            accent = resolved.get("accent", ACCENT)
+            # Phase 1 (B-A08): the resolved theme is kept for the
+            # glass tiles (rail host + approval cards); the
+            # backdrop re-resolves from it too.
+            try:
+                self._activity_theme_resolved = dict(resolved)
+            except Exception:  # noqa: BLE001 — cosmetic
+                pass
+            backdrop = getattr(self, "_activity_backdrop", None)
+            if backdrop is not None:
+                try:
+                    backdrop.set_theme(resolved)
+                except Exception:  # noqa: BLE001 — cosmetic
+                    pass
+            host = getattr(self, "_mission_rail_host", None)
+            if host is not None:
+                try:
+                    # Look-fix 2026-11-24: the glass tile IS the
+                    # backdrop's grid, blurred — it only belongs
+                    # where the backdrop actually shows a grid.
+                    # Memory + Activity are vignette now (no grid),
+                    # so the tile painted a checkerboard inside the
+                    # rail card on a flat page. Gate it on the
+                    # backdrop's effective layers; without a grid
+                    # the panel paints its translucent fill alone.
+                    bd = getattr(self, "_activity_backdrop", None)
+                    grid_on = (bd is not None
+                               and bd.effective_layers()[0])
+                    host.set_glass_tile(
+                        glass_tile(resolved) if grid_on else None)
+                except Exception:  # noqa: BLE001 — cosmetic
+                    pass
             tabs = getattr(self, "_activity_tabs", None)
             if tabs is not None:
+                # Phase 1 (B-A08): the pane is transparent — the
+                # page is transparent over the shell and the lists
+                # are transparent over the backdrop behind it. An
+                # opaque pane would hide the backdrop entirely.
+                # The detail pane keeps its own opaque fill (below).
                 tabs.setStyleSheet(
-                    f"QTabWidget::pane {{ background: {surface_2};"
+                    "QTabWidget::pane { background: transparent;"
                     f" border: 1px solid {line};"
-                    f" border-radius: {RADIUS_CARD}px; }}"
-                    f"QTabBar::tab {{ background: transparent;"
-                    f" color: {muted}; padding: 8px 16px; border: none;"
-                    f" border-bottom: 2px solid transparent; }}"
-                    f"QTabBar::tab:selected {{ color: {text};"
-                    f" border-bottom: 2px solid {accent}; }}"
-                    f"QTabBar::tab:hover {{ color: {text}; }}")
+                    f" border-radius: {RADIUS_CARD}px; }}")
+                # Phase 0: the tab rules live on the HudTabs bar
+                # itself (gui/design_system/tabs.py) — the pane
+                # rule stays here, the bar re-resolves from the
+                # same theme. (Before Phase 0 the QTabBar::tab
+                # rules lived in this sheet; moving them to the
+                # component is the adoption — test_commanddeck_
+                # phaseE's tab-rules test moved with them.)
+                bar = tabs.tabBar()
+                setter = getattr(bar, "set_theme", None)
+                if setter is not None:
+                    setter(resolved)
             detail = getattr(self, "_mission_log_detail", None)
             if detail is not None:
                 detail.setStyleSheet(
@@ -425,8 +537,31 @@ class PagesActivityMixin:
         # Reminders still lands here; the "Go to Reminders"
         # palette alias selects the Scheduled tab explicitly.
         page, layout = self._page_shell("Activity", "What VYUK is doing, what's scheduled, and what's done.", kicker=True)
+        # Phase 1 (B-A08 + §10): the page is transparent over the
+        # shell so the backdrop shows through; the lists are
+        # transparent over the backdrop (their viewports are
+        # reset below); the detail pane keeps its opaque fill.
+        # Backdrop intensity is vignette (flat bg + vignette, no
+        # grid, no scanlines) — look-fix 2026-11-24, the checkered
+        # grid read as a checkerboard and the owner rejected it.
+        page.setAutoFillBackground(False)
+        self._activity_backdrop = HudBackdrop(page, intensity="vignette")
+        self._activity_backdrop.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._activity_backdrop.lower()
+        self._activity_backdrop_fitter = _BackdropFitter(
+            self._activity_backdrop,
+            on_resize=self._fit_activity_tabs_height)
+        page.installEventFilter(self._activity_backdrop_fitter)
+        self._activity_backdrop.setGeometry(page.rect())
         self._activity_tabs = QTabWidget()
         self._activity_tabs.setObjectName("activityTabs")
+        self._activity_tabs.setTabBar(HudTabs())
+        # Phase 0: the tab bar is a HudTabs (the shared component)
+        # — set before any addTab call, so every tab is a HudTabs
+        # tab from the start. The tab rules live on the bar itself
+        # (tabs.py); _refresh_activity_theme keeps only the pane
+        # rule and re-resolves the bar from the theme.
         # Command Deck Phase E (render-found): the app's only
         # tab widget rendered with the default light palette —
         # a white pane on the dark UI with near-invisible tabs.
@@ -444,13 +579,55 @@ class PagesActivityMixin:
             "surface_2": SURFACE_2, "line_subtle": LINE_SUBTLE,
             "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         _in_progress = QWidget()
+        _in_progress.setAutoFillBackground(False)
         _ip_layout = QVBoxLayout(_in_progress)
         _ip_layout.setContentsMargins(0, 0, 0, 0)
         self._activity_headlines = {}
+        # Activity empty-state fix (2026-11-26): the two idle
+        # stretches. They take factor 1 only while the In
+        # progress tab is idle (set by _refresh_activity_tabs);
+        # with live work they are 0 and the layout is exactly
+        # as before. The first centres the rail in the filled
+        # pane; the second anchors the journal + footer at the
+        # pane's bottom. Without them the filled pane would
+        # hold its short content at the top and the same void
+        # below it, just inside the border.
+        self._activity_in_progress_layout = _ip_layout
+        self._activity_idle_stretch_top = None
+        self._activity_idle_stretch_mid = None
         # Screen 3 Activity: the headline figure sits above the
         # pending row, so the five-second check survives the
         # scroll below it.
         _ip_layout.addWidget(self._activity_headline("in_progress"))
+        self._activity_idle_stretch_top = _ip_layout.count()
+        _ip_layout.addStretch(0)
+        # Phase 1 (§3): the MissionRail at the top of In progress,
+        # inside a HudPanel host — one of the page's only two
+        # raised surfaces (the other is the inline approval
+        # card). The rail is fed by the producer bridge in
+        # _refresh_activity_tabs (ledger's newest live record);
+        # Stop goes to the coordinator's cancel path, Pause to
+        # its pause path (the seam exists — pause_task).
+        self._mission_rail_host = HudPanel(glass=True)
+        self._mission_rail = MissionRail()
+        # Look-fix 2 (2026-11-24): theme the rail's SegmentBar
+        # from the stored resolved theme now (the page builds
+        # before the first appearance pass); the appearance pass
+        # re-drives it on every theme change.
+        try:
+            _resolved = getattr(self, "_resolved_theme", None)
+            if isinstance(_resolved, dict):
+                self._mission_rail.set_theme(_resolved)
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
+        self._mission_rail_host.content_layout().addWidget(
+            self._mission_rail)
+        _ip_layout.addWidget(self._mission_rail_host)
+        self._mission_rail_task_id = None
+        self._mission_rail.stop_requested.connect(
+            self._on_mission_rail_stop)
+        self._mission_rail.pause_requested.connect(
+            self._on_mission_rail_pause)
         # §7 consumers batch 7: the recovery offer for paused
         # tasks awaiting approval. Hidden while none is pending
         # (its visibility + count are refreshed by
@@ -459,9 +636,11 @@ class PagesActivityMixin:
         # in turn, then resolves on a worker thread. No dialog
         # pops at startup on its own — the offer lives here,
         # in the recovery surface, until the user takes it.
-        _pending_row = QHBoxLayout()
-        _pending_row.setContentsMargins(0, 0, 0, 0)
-        _pending_row.setSpacing(6)
+        # Phase 1 (A-07): the pending row wraps whole at narrow
+        # widths (FlowLayout, the shared component) instead of
+        # overflowing — the four buttons never clip mid-glyph.
+        _pending_wrap = QWidget()
+        _pending_row = FlowLayout(_pending_wrap, spacing=6)
         self._activity_pending_btn = QPushButton(
             "Review pending approvals")
         self._activity_pending_btn.setObjectName("chipBtn")
@@ -517,16 +696,19 @@ class PagesActivityMixin:
         self._activity_recovery_btn.clicked.connect(
             self._review_recovery)
         _pending_row.addWidget(self._activity_recovery_btn)
-        _pending_row.addStretch()
-        _ip_layout.addLayout(_pending_row)
+        _ip_layout.addWidget(_pending_wrap)
         self._activity_in_progress_list = QListWidget()
         self._activity_in_progress_list.setObjectName("activityList")
+        self._activity_in_progress_list.viewport().setAutoFillBackground(
+            False)
         # Build 2: the list sizes to its rows (capped in the
         # refresh) instead of stretching to fill the pane — the
         # pane hugs the content, and below it is plain background.
         self._activity_in_progress_list.setSizeAdjustPolicy(
             QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         _ip_layout.addWidget(self._activity_in_progress_list)
+        self._activity_idle_stretch_mid = _ip_layout.count()
+        _ip_layout.addStretch(0)
         # §7 consumers batch 9: the journal reconcile surface,
         # on the Activity page (no Home change, no new page).
         # The list fills from the receipt store on every
@@ -538,9 +720,12 @@ class PagesActivityMixin:
         # one loud row, never a fake list.
         self._activity_journal_label = QLabel(
             "Journal — needs attention")
+        self._activity_journal_label.setObjectName("needsAttentionHeader")
         _ip_layout.addWidget(self._activity_journal_label)
         self._activity_journal_list = QListWidget()
         self._activity_journal_list.setObjectName("activityList")
+        self._activity_journal_list.viewport().setAutoFillBackground(
+            False)
         self._activity_journal_list.setMaximumHeight(220)
         self._activity_journal_list.setSizeAdjustPolicy(
             QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
@@ -582,20 +767,82 @@ class PagesActivityMixin:
         self._activity_journal_hint.setWordWrap(True)
         self._activity_journal_hint.setVisible(False)
         _ip_layout.addWidget(self._activity_journal_hint)
+        # Phase 1 (A-06): the journal footer names the reconciled
+        # count, so a cleared row reads as progress, not loss.
+        self._activity_journal_footer = QLabel("")
+        self._activity_journal_footer.setObjectName("muted")
+        self._activity_journal_footer.setWordWrap(True)
+        self._activity_journal_footer.setVisible(False)
+        _ip_layout.addWidget(self._activity_journal_footer)
         self._activity_journal_list.itemSelectionChanged.connect(
             self._update_journal_reconcile_btn)
         self._activity_journal_list.itemSelectionChanged.connect(
             self._update_journal_compensate_btn)
         self._activity_journal_list.itemDoubleClicked.connect(
             self._show_journal_row_details)
-        self._activity_tabs.addTab(_in_progress, "In progress")
+        # The in-progress tab's content (hero + list + journal)
+        # is taller than the window when an approval card is
+        # present (~738 px vs ~557 px available), so the
+        # QVBoxLayout compressed the list and the journal painted
+        # over the approval card's lower half (parent by-eye fix,
+        # 2026-11-24). The tab scrolls instead: the content keeps
+        # its full height and the journal sits below the card,
+        # reachable by scrolling. Golden-fix D6: setWidget()
+        # flips the content widget's autoFillBackground on — an
+        # opaque light fill that would wash out the tab — so both
+        # the content and the viewport are reset AFTER setWidget,
+        # exactly as the Scheduled tab does.
+        _ip_scroll = QScrollArea()
+        _ip_scroll.setObjectName("activityInProgressScroll")
+        _ip_scroll.setWidgetResizable(True)
+        _ip_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        _ip_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _ip_scroll.setWidget(_in_progress)
+        _in_progress.setAutoFillBackground(False)
+        _ip_scroll.viewport().setAutoFillBackground(False)
+        self._activity_tabs.addTab(_ip_scroll, "In progress")
         self._activity_tabs.addTab(self._build_reminders_page(), "Scheduled")
         _history = QWidget()
+        _history.setAutoFillBackground(False)
         _h_layout = QVBoxLayout(_history)
         _h_layout.setContentsMargins(0, 0, 0, 0)
         _h_layout.addWidget(self._activity_headline("history"))
+        # Phase 1 (§3, A-11): History's OWN filter set — All /
+        # Done / Failed / Partial / Cancelled, with counts from
+        # the same ledger read. No Running segment: History holds
+        # terminal tasks only. A time window sits beside them,
+        # same as the Mission Log.
+        _hist_filter_row = QHBoxLayout()
+        _hist_filter_row.setContentsMargins(0, 0, 0, 0)
+        _hist_filter_row.setSpacing(6)
+        self._history_state = "All"
+        self._history_days = 0  # 0 = all time
+        _hist_state_group = QButtonGroup(_history)
+        for _state in ("All", "Done", "Failed", "Partial", "Cancelled"):
+            _btn = QPushButton(_state)
+            _btn.setObjectName(f"historyFilter-{_state}")
+            _btn.setCheckable(True)
+            _btn.setChecked(_state == "All")
+            _btn.clicked.connect(
+                lambda _=False, s=_state: self._set_history_filter(s))
+            _hist_state_group.addButton(_btn)
+            _hist_filter_row.addWidget(_btn)
+        _hist_filter_row.addStretch()
+        _hist_time_label = QLabel("Time")
+        _hist_time_label.setObjectName("muted")
+        _hist_filter_row.addWidget(_hist_time_label)
+        self._history_time = QComboBox()
+        self._history_time.addItems(
+            ["All time", "Last 7 days", "Last 30 days"])
+        self._history_time.currentTextChanged.connect(
+            self._set_history_time_filter)
+        _hist_filter_row.addWidget(self._history_time)
+        _h_layout.addLayout(_hist_filter_row)
         self._activity_history_list = QListWidget()
         self._activity_history_list.setObjectName("activityList")
+        self._activity_history_list.viewport().setAutoFillBackground(
+            False)
         self._activity_history_list.setSizeAdjustPolicy(
             QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         _h_layout.addWidget(self._activity_history_list)
@@ -619,6 +866,7 @@ class PagesActivityMixin:
         # running missions already appear in the ledger, so the
         # log covers them without new wiring.
         _mission_log = QWidget()
+        _mission_log.setAutoFillBackground(False)
         _ml_layout = QVBoxLayout(_mission_log)
         _ml_layout.setContentsMargins(0, 0, 0, 0)
         _ml_layout.addWidget(self._activity_headline("mission_log"))
@@ -650,11 +898,25 @@ class PagesActivityMixin:
         _ml_layout.addLayout(_ml_filter_row)
         self._mission_log_list = QListWidget()
         self._mission_log_list.setObjectName("activityList")
+        self._mission_log_list.viewport().setAutoFillBackground(False)
         self._mission_log_list.setSizeAdjustPolicy(
             QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self._mission_log_list.currentItemChanged.connect(
             self._on_mission_log_selected)
         _ml_layout.addWidget(self._mission_log_list)
+        # Phase 1 (§3, A-13): the detail pane gains an ActionTrace
+        # ABOVE the evidence text — the record's steps mapped to
+        # trace rows (plan / action / outcome / verification), with
+        # absolute paths stripped. The evidence text stays below;
+        # the detail pane keeps its opaque fill (B-A08) — only
+        # the lists are transparent.
+        _detail_wrap = QWidget()
+        _detail_layout = QVBoxLayout(_detail_wrap)
+        _detail_layout.setContentsMargins(0, 0, 0, 0)
+        _detail_layout.setSpacing(6)
+        self._mission_log_trace = ActionTrace()
+        self._mission_log_trace.setObjectName("missionLogTrace")
+        _detail_layout.addWidget(self._mission_log_trace)
         self._mission_log_detail = QTextEdit()
         self._mission_log_detail.setReadOnly(True)
         self._mission_log_detail.setObjectName("missionLogDetail")
@@ -669,14 +931,22 @@ class PagesActivityMixin:
             "text_muted": TEXT_MUTED, "text": TEXT, "accent": ACCENT})
         self._mission_log_detail.setPlaceholderText(
             "Select a mission to see its evidence trace.")
-        _ml_layout.addWidget(self._mission_log_detail, stretch=1)
+        _detail_layout.addWidget(self._mission_log_detail, stretch=1)
+        _ml_layout.addWidget(_detail_wrap, stretch=1)
         self._activity_tabs.addTab(_mission_log, "Mission Log")
         # UI rethink Build 2: the pane hugs the current tab's
         # content — the tabs do not stretch to the bottom of the
         # window, and below them is plain background. The height
         # follows the current tab (see _fit_activity_tabs_height).
+        # Activity empty-state fix (2026-11-26): the fit owns
+        # who takes the leftover space — the bottom spacer by
+        # default (the hug), the tabs widget while the In
+        # progress tab is idle (the fill). The spacer's index
+        # is recorded so the fit can toggle its factor.
         layout.addWidget(self._activity_tabs)
+        self._activity_bottom_spacer_index = layout.count()
         layout.addStretch(1)
+        self._activity_tabs_filled = False
         self._activity_tabs.currentChanged.connect(
             self._on_activity_tab_changed)
         self._refresh_activity_tabs()
@@ -717,6 +987,22 @@ class PagesActivityMixin:
         the widget below the cap when the window is short — the
         lists scroll inside their own caps then. Guarded no-op
         until the tabs exist.
+
+        Activity empty-state fix (2026-11-26): when the In
+        progress tab is idle (no live rows, no attention rows)
+        the pane FILLS the window instead of hugging its short
+        content — which is what left the page ~70% empty black
+        space. The fill is done with stretch factors, not with
+        a computed height: the tabs widget takes factor 1 and
+        the bottom spacer factor 0, with the cap lifted, so the
+        layout gives the tabs the whole available height and a
+        window resize re-fills on its own (no height arithmetic
+        to go stale). Other tabs, and In progress with live
+        work, keep the hug exactly as before: the tabs take
+        factor 0, the spacer factor 1, and the cap binds them
+        to the content. The factors are only toggled when the
+        idle state changes, so a resize-driven re-fit is a
+        no-op instead of a layout loop.
         """
         tabs = getattr(self, "_activity_tabs", None)
         if tabs is None:
@@ -728,7 +1014,30 @@ class PagesActivityMixin:
             page_hints = [tabs.widget(i).sizeHint().height()
                           for i in range(tabs.count())]
             delta = tabs.sizeHint().height() - max(page_hints)
-            tabs.setMaximumHeight(page.sizeHint().height() + delta)
+            cap = page.sizeHint().height() + delta
+            _idle = False
+            if tabs.currentIndex() == 0:
+                _ip = getattr(self, "_activity_in_progress_list",
+                              None)
+                _jl = getattr(self, "_activity_journal_list", None)
+                _idle = (_ip is not None and _jl is not None
+                         and _ip.count() == 0 and _jl.count() == 0)
+            if _idle:
+                if tabs.maximumHeight() != 16777215:
+                    tabs.setMaximumHeight(16777215)
+            elif tabs.maximumHeight() != cap:
+                tabs.setMaximumHeight(cap)
+            if getattr(self, "_activity_tabs_filled", False) != _idle:
+                _page_layout = tabs.parentWidget().layout()
+                if _page_layout is not None:
+                    _page_layout.setStretchFactor(
+                        tabs, 1 if _idle else 0)
+                    _spacer = getattr(
+                        self, "_activity_bottom_spacer_index", None)
+                    if _spacer is not None:
+                        _page_layout.setStretch(
+                            _spacer, 0 if _idle else 1)
+                self._activity_tabs_filled = _idle
         except Exception:  # noqa: BLE001 — a broken hint never
             pass  # breaks the page; the pane just stretches.
 
@@ -745,6 +1054,17 @@ class PagesActivityMixin:
                 tabs.setCurrentIndex(i)
                 return
 
+    def _set_history_filter(self, state: str) -> None:
+        # History state segment: refill from the same ledger
+        # read _refresh_activity_tabs already performs.
+        self._history_state = state
+        self._refresh_activity_tabs()
+
+    def _set_history_time_filter(self, text: str) -> None:
+        self._history_days = {"Last 7 days": 7,
+                              "Last 30 days": 30}.get(text, 0)
+        self._refresh_activity_tabs()
+
     def _set_mission_log_filter(self, state: str) -> None:
         # Mission Log state segment: refill from the same ledger
         # read _refresh_activity_tabs already performs.
@@ -756,14 +1076,74 @@ class PagesActivityMixin:
                                   "Last 30 days": 30}.get(text, 0)
         self._refresh_activity_tabs()
 
+    def _fill_mission_log_trace(self, trace, rendered) -> None:
+        """Build the Mission Log detail trace from one record's
+        steps (Phase 1, §3/A-13).
+
+        Plan step → "plan", tool run → "action", outcome →
+        "outcome", verification → "verification". A step without
+        an outcome renders as running (for a live record) or not
+        run (for a finished one) — honestly, never as success.
+        Absolute paths are stripped, as the ledger error lines
+        already do. ``rendered`` is the stored dict: the render
+        plus the record's steps / outcomes / verification.
+        """
+        try:
+            from .room_activity import strip_absolute_paths
+        except Exception:  # noqa: BLE001 — paths stay raw then
+            strip_absolute_paths = lambda s: s
+        trace.clear()
+        steps = rendered.get("steps") or []
+        outcomes = rendered.get("outcomes") or []
+        verification = rendered.get("verification") or []
+        live = (rendered.get("state") in
+                ("Running", "Needs approval", "Verifying"))
+        for i, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            label = (str(step.get("label") or "")
+                     or str(step.get("tool") or "")
+                     or f"step {i + 1}")
+            tool = str(step.get("tool") or "")
+            trace.append_step("plan", strip_absolute_paths(label))
+            outcome = (outcomes[i] if i < len(outcomes)
+                       and isinstance(outcomes[i], dict) else None)
+            if outcome is not None:
+                trace.append_step(
+                    "action", strip_absolute_paths(tool or label))
+                status = str(outcome.get("status") or "")
+                message = str(outcome.get("message") or "")
+                text = f"{label} — {status}"
+                if message:
+                    text += f": {message}"
+                trace.append_step("outcome",
+                                  strip_absolute_paths(text))
+            else:
+                trace.append_step(
+                    "outcome",
+                    strip_absolute_paths(
+                        f"{label} — "
+                        f"{'running' if live else 'not run'}"))
+        for verdict in verification:
+            if not isinstance(verdict, dict):
+                continue
+            vlabel = (str(verdict.get("label") or "")
+                      or str(verdict.get("tool") or ""))
+            vtext = f"{vlabel} — {verdict.get('verdict', '')}"
+            vreason = str(verdict.get("reason") or "")
+            if vreason:
+                vtext += f": {vreason}"
+            trace.append_step("verification",
+                              strip_absolute_paths(vtext))
+
     def _on_mission_log_selected(self, current, previous) -> None:
         # Selection shows the mission's evidence trace (the
-        # task-state details_text) in the detail pane. Rows
-        # without a stored rendering (empty / unavailable rows)
-        # clear the pane instead of showing a stale trace.
+        # task-state details_text) in the detail pane, with the
+        # ActionTrace above it built from the record's steps.
+        # Rows without a stored rendering (empty / unavailable
+        # rows) clear the pane instead of showing a stale trace.
         detail = getattr(self, "_mission_log_detail", None)
-        if detail is None:
-            return
+        trace = getattr(self, "_mission_log_trace", None)
         rendered = None
         if current is not None:
             try:
@@ -771,6 +1151,12 @@ class PagesActivityMixin:
             except Exception:  # noqa: BLE001 — no rendering: clear
                 rendered = None
         if isinstance(rendered, dict):
-            detail.setPlainText(rendered.get("details_text", ""))
+            if trace is not None:
+                self._fill_mission_log_trace(trace, rendered)
+            if detail is not None:
+                detail.setPlainText(rendered.get("details_text", ""))
         else:
-            detail.clear()
+            if trace is not None:
+                trace.clear()
+            if detail is not None:
+                detail.clear()

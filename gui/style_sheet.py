@@ -130,7 +130,7 @@ QLabel#muted { color: ${TEXT_MUTED}; }
 QLabel#smallMuted { color: ${TEXT_FAINT}; font-size: 11px; }
 /* Sci-fi Home: the state line steps down to quiet Sora body text —
    it names the state in words; the orb carries the light. */
-QLabel#stateLabel { font-size: ${TYPE_BODY}px; font-weight: 400; color: ${TEXT_MUTED}; }
+QLabel#homeStateLine { font-size: ${TYPE_BODY}px; font-weight: 400; color: ${TEXT_MUTED}; }
 QLabel#captionLabel { color: ${TEXT_MUTED}; font-size: 13px; }
 /* Sci-fi Home: the vitals readout is a mono data line — the
    Share Tech Mono face, muted, one tonal step below the caption. */
@@ -370,7 +370,7 @@ QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled,
 QDateTimeEdit:disabled, QTimeEdit:disabled, QDateEdit:disabled {
     color: ${TEXT_DISABLED};
     background-color: ${INPUT_BG_DISABLED};
-    border: 1px solid rgba(255, 255, 255, 10);
+    border: 1px solid ${INPUT_BORDER_DISABLED};
 }
 #dockInput {
     background-color: rgba(255, 255, 255, 7);
@@ -460,7 +460,7 @@ QLabel#bubbleText { font-size: ${TYPE_BODY}px; }
    hairline on the left, so it reads as attached to the message,
    not floating. */
 QPushButton#bubbleQuote { text-align: left; padding-left: 8px; border-left: 1px solid ${LINE_SUBTLE}; }
-QLabel#bubbleTime { color: ${TEXT_FAINT}; font-size: ${TYPE_MICRO}px; }
+QLabel#chatMsgTime { color: ${TEXT_FAINT}; font-size: ${TYPE_MICRO}px; font-family: ${MONO_FONT_STACK}; }
 QLabel#systemLine { color: ${TEXT_FAINT}; font-size: 12px; }
 QFrame#codeBlock {
     background: ${CODE_BG};
@@ -535,13 +535,19 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
 QSlider::groove:horizontal {
     height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 26);
 }
+/* Look-fix 2 (2026-11-24): the knob is solid white, not the theme
+   text — the text colour is near-black on Light, so a text-coloured
+   knob read as a black square (the Knowledge Graph timeline thumb).
+   White reads as a knob on the dark groove and on the light groove
+   alike (the dark border defines it on light); on dark it is one
+   step from the old near-white text colour, imperceptible. */
 QSlider::handle:horizontal {
     width: 16px; height: 16px; margin: -6px 0;
     border-radius: ${RADIUS_SM}px;
-    background: ${TEXT}; border: 1px solid rgba(0, 0, 0, 90);
+    background: #FFFFFF; border: 1px solid rgba(0, 0, 0, 90);
 }
 QSlider::handle:horizontal:hover {
-    background: ${TEXT}; border: 1px solid rgba(0, 0, 0, 130);
+    background: #FFFFFF; border: 1px solid rgba(0, 0, 0, 130);
 }
 QSlider::handle:horizontal:pressed { background: ${ACCENT}; }
 QSlider::sub-page:horizontal { background: ${ACCENT}; border-radius: 2px; }

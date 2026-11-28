@@ -627,8 +627,22 @@ if _GL_AVAILABLE:
                 font.setPixelSize(max(1, round(
                     (_LABEL_HUB_PX if node.kind == "hub"
                      else _LABEL_STAR_PX) * self._font_scale)))
-                text_w = float(
-                    QFontMetrics(font).horizontalAdvance(label))
+                # Galaxy looks round fix 2 (2026-11-25): measure
+                # the DRAWN ink, not the advance — the Memory Web
+                # canvas's E-F202 lesson. drawText clips to the
+                # rect, and the ink overhangs the advance by ~1 px,
+                # so an advance-wide rect cuts the edge glyphs
+                # ("I", "l"). boundingRect is the ink box; +8 px
+                # (4 each side) leaves the ink clear of the clip
+                # edge however drawText centres the advance. +4
+                # was tried first and restored the "I" but NOT the
+                # "l" on the 2D canvas — the mech probe's green
+                # control copy paints a full "l" bar just past the
+                # 93-wide rect's right edge, so the LCD fringe
+                # needs the extra room.
+                ink_w = float(
+                    QFontMetrics(font).boundingRect(label).width())
+                text_w = ink_w + 8.0
                 rect = QRectF(centre.x() - text_w / 2.0,
                               centre.y() + r + 3.0, text_w, 16.0)
                 alt = QRectF(centre.x() - text_w / 2.0,

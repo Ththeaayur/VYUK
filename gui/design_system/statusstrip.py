@@ -120,6 +120,41 @@ class StatusStrip(QWidget):
 
         self._tokens.append(
             self._bus.subscribe(AppState, self._on_app_state))
+        # D-01 (Phase 6): closeEvent never fires for a child widget
+        # when its parent window is deleted — the subscription would
+        # outlive the strip and _drain would call _on_app_state on a
+        # deleted QLabel (the scifi_home RuntimeError, 6+ per run).
+        # Unsubscribe on destroyed too: the closure captures only
+        # the bus and the token list, never the strip, so it cannot
+        # keep the strip alive. unsubscribe() is idempotent, so the
+        # closeEvent path below and this one never double-remove.
+        _bus = self._bus
+        _tokens = self._tokens
+        self.destroyed.connect(
+            lambda: [_bus.unsubscribe(t) for t in list(_tokens)])
+
+    def set_theme(self, resolved: dict) -> None:
+        """Recolour the resting state word from a resolved theme.
+
+        Look-fix 2 (2026-11-24): the state word's resting sheet is
+        the house NEUTRAL (#7E9AA6, ~2.5:1 on Light), so the
+        initial "Offline" word — and any state _set_pill leaves in
+        the neutral role — was faint on Light. The word follows
+        the theme text_muted; the chips keep their role colours
+        (their dark pill backgrounds read on both themes). _set_pill
+        still owns the word's text + role colour on every status
+        change — this only re-resolves the resting sheet, and
+        _set_pill substitutes the same muted value when the role
+        colour is neutral. Under Cyan the resolved text_muted
+        (#B0C1CD) is a touch brighter than the house NEUTRAL
+        (#7E9AA6) — the word reads the same, marginally clearer.
+        """
+        try:
+            muted = (resolved or {}).get("text_muted", NEUTRAL)
+            self.status_label.setStyleSheet(
+                f"color: {muted}; font-size: 12px;")
+        except Exception:  # noqa: BLE001 — theme never breaks the strip
+            pass
 
     def heightForWidth(self, width):  # noqa: N802 (Qt naming)
         """Wrapped height for the given width (flow layout)."""

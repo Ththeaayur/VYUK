@@ -131,3 +131,89 @@ def default_window_size(avail_w: int, avail_h: int) -> tuple[int, int]:
     both measured compact work areas."""
     return (min(DEFAULT_SIZE[0], avail_w - DEFAULT_MARGIN),
             min(DEFAULT_SIZE[1], avail_h - DEFAULT_MARGIN))
+
+
+# ---------------------------------------------------------------- UI P1 §5
+# Screenshot sizes (ruling 2026-11-24, Aayur — supersedes the
+# 2026-11-23 "don't increase the orb" ruling and the old §5
+# budgets). The orb grows to 19.5% of the window width at every
+# tier, funded by the chat (400 -> ~230 at 1280), the sidebar
+# (200 -> ~170) and the right rail (180 -> ~150); the left rail
+# grows (180 -> ~224). The 1024/900/640 rows are unchanged from
+# the old §5. Tier boundaries are the midpoints between the
+# table's window widths, so a resize to exactly 1280 / 1920 /
+# 1024 / 900 / 640 lands on its own tier.
+ORB_DIAMETER_FRACTION = 0.195
+
+# (window width, sidebar, chat, rail, centre, right); rail None
+# means the left rail collapses into the header cluster + an
+# overlay toggle (1024/900); right 0 at 640 means the single
+# column of the orientation switch. Widths are the §5 table,
+# verbatim.
+_HUD_TIERS: tuple[tuple[int, int, int, int | None, int, int], ...] = (
+    (1920, 255, 345, 335, 740, 225),
+    (1280, 170, 230, 224, 494, 150),
+    (1024, 200, 400, None, 260, 164),
+    (900, 64, 400, None, 272, 164),
+    (640, 64, 400, None, 176, 0),
+)
+
+
+def _hud_tier(width: int) -> tuple[int, int, int, int | None, int, int]:
+    """The §5 row for this window width. Boundaries are the
+    midpoints between the table's window widths, so a resize
+    to exactly 1280 / 1920 / 1024 / 900 / 640 lands on its
+    own tier."""
+    if width >= 1600:
+        return _HUD_TIERS[0]
+    if width >= 1152:
+        return _HUD_TIERS[1]
+    if width >= 962:
+        return _HUD_TIERS[2]
+    if width >= 770:
+        return _HUD_TIERS[3]
+    return _HUD_TIERS[4]
+
+
+def hud_sidebar_for(width: int) -> int:
+    """Sidebar width at this window width (§5)."""
+    return _hud_tier(width)[1]
+
+
+def hud_chat_for(width: int) -> int:
+    """Chat-panel target width at this window width (§5)."""
+    return _hud_tier(width)[2]
+
+
+def hud_columns_for(width: int) -> tuple[int | None, int, int]:
+    """(rail, centre, right) column widths at this window width
+    (§5). Rail None means the left rail is collapsed."""
+    row = _hud_tier(width)
+    return (row[3], row[4], row[5])
+
+
+def hud_stage_min_for(width: int) -> int:
+    """Stage minimum width at this window width (§5): the column
+    budgets summed (the 8 px column gaps are internal insets,
+    so the stage is exactly the sum)."""
+    rail, centre, right = hud_columns_for(width)
+    return (rail or 0) + centre + right
+
+
+def hud_orb_diameter_for(width: int) -> int:
+    """Orb body diameter at this window width (§5): 19.5% of the
+    window width. H-02/H-18: the orb never exceeds this size,
+    even when columns collapse and the centre takes the full
+    width — it is a max, not a target to fill."""
+    return round(width * ORB_DIAMETER_FRACTION)
+
+
+def hud_visualizer_height_for(width: int) -> int:
+    """Visualizer widget height at this window width: tall
+    enough for the §5 orb + its gold / faint rings at rest
+    (outermost ring 1.22 x the body radius) with a small
+    margin. The listening swell may clip the faint rings
+    slightly at peak voice energy — a transient, noted in
+    the Phase 1 report, not a layout defect."""
+    diameter = hud_orb_diameter_for(width)
+    return int(diameter * 1.22) + 8

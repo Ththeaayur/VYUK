@@ -9,7 +9,7 @@ WIRING_VERSION = "conversion-w8"
 # --- Owed decisions, stated in code so they cannot drift -----------
 # Teach trigger decision 2026-11-03 (code-rulings delegation):
 # the VOICE trigger exists and is the Live router path — the
-# route_mind domain router carries all three teach tools, and
+# route_intelligence domain router carries all three teach tools, and
 # use_toolbox keyword ranking surfaces them for canonical
 # phrases ("record a sequence" ranks teach_record_sequence
 # first). The Skills catalogue lists them (discovery-only, as

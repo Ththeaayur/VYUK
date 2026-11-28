@@ -119,6 +119,44 @@ def interrupted_pending_approvals(summaries):
     return out
 
 
+def pending_approvals_count(ledger=None):
+    """The ONE pending-approvals count (UI Phase 2, D-P2-02).
+
+    The Activity badge, the Activity page's "Review pending
+    approvals (N)" button, the Home headline's "N approvals
+    waiting", and the Review queue itself all read this
+    function — never their own count — so the badge, the page,
+    and the queue can never disagree again.
+
+    The count is the Review queue's length:
+    ``interrupted_pending_approvals(list_interrupted())`` —
+    interrupted (running / paused / verifying), non-goal
+    records whose pending_approval is a dict carrying a tool.
+    Before Phase 2 the three surfaces each counted
+    differently: the page counted paused live records from
+    all_records() (which INCLUDED paused goal records and
+    EXCLUDED verifying records), the Home headline counted
+    every record with any truthy pending_approval (goals,
+    stale dicts without a tool, terminal records included),
+    and only the Review queue used this formula. A verifying
+    record with a pending approval counted in the queue but
+    showed no card anywhere — the badge and the page
+    disagreed in both directions. Never raises: a broken
+    ledger reads as zero (the badge hides; the page shows
+    its own unavailable row) — a count must never break a
+    page.
+    """
+    try:
+        from voice_assistant.core.gui_facade import TaskLedger
+
+        if ledger is None:
+            ledger = TaskLedger()
+        return len(interrupted_pending_approvals(
+            ledger.list_interrupted()))
+    except Exception:  # noqa: BLE001 — a count never breaks a page.
+        return 0
+
+
 def present_pending_dialog(window, pending, *, timeout_s=None):
     """Show the EXISTING confirm dialog for one pending record.
 

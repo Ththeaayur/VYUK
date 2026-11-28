@@ -86,6 +86,72 @@ from .room_home import RoomLight
 from .window_shell_assistant_widgets import _ChipFlowLayout, _ChipRow, _ChipScrollArea, _ChipStripWheelFilter, _HeroWidget, _DotsSplitterHandle, _DotsSplitter
 
 
+class _HeightForWidthWidget(QWidget):
+    """A QWidget whose sizeHint honours height-for-width.
+
+    Hunt fix (c) §7: the briefing details' height depends on the
+    width they are laid out at (the kicker wraps to 2 lines and
+    the schedule to 3–5 at the 96 px card interior, but the plain
+    layout sizeHint is computed at the preferred 171 px, where
+    they need 1–2 lines) — so the layout under-allocates and the
+    children squeeze. The sizePolicy flag alone does not move the
+    allocation (the layouts distribute by sizeHint, not by
+    heightForWidth); this widget reports the height its layout
+    needs at the parent's laid-out width, so the card / body /
+    panel hints — and therefore the allocation — follow the real
+    width. Falls back to the plain hint before the parent has a
+    width (first layout pass).
+    """
+
+    def _hfw_width(self) -> int:
+        parent = self.parentWidget()
+        if parent is None or parent.width() <= 0:
+            return 0
+        lay = parent.layout()
+        if lay is None:
+            return parent.width()
+        margins = lay.contentsMargins()
+        return max(0, parent.width() - margins.left()
+                   - margins.right())
+
+    def sizeHint(self):  # noqa: N802 - Qt naming
+        hint = super().sizeHint()
+        width = self._hfw_width()
+        if width > 0:
+            # Report the laid-out width as the preferred width as
+            # well: a QBoxLayout sizes a height-for-width item by
+            # heightForWidth(sizeHint.width()), so reporting the
+            # preferred 171 px makes the layout ask for the height
+            # at 171 px (121) instead of at the real 96 px (155).
+            return QSize(width, self.heightForWidth(width))
+        return hint
+
+    def minimumSizeHint(self):  # noqa: N802 - Qt naming
+        hint = super().minimumSizeHint()
+        width = self._hfw_width()
+        if width > 0:
+            return QSize(width, self.heightForWidth(width))
+        return hint
+
+    def showEvent(self, event):  # noqa: N802 - Qt naming
+        # The hint depends on the parent's width, which is only
+        # known once the card is laid out — the layout caches the
+        # hint computed before that (when the width was 0), so the
+        # card stays at the stale 207 px. Re-asking on show (the
+        # expand tap) invalidates the chain and the card grows to
+        # the width-correct height.
+        super().showEvent(event)
+        self.updateGeometry()
+
+    def resizeEvent(self, event):  # noqa: N802 - Qt naming
+        # Same invalidation when the width moves (a tier change):
+        # only when the width actually changed, so a resize cannot
+        # feed its own layout loop.
+        super().resizeEvent(event)
+        if event.oldSize().width() != event.size().width():
+            self.updateGeometry()
+
+
 class ShellAssistantMixin:
 
 
@@ -532,27 +598,46 @@ class ShellAssistantMixin:
         self.briefing_card.setObjectName("settingsCard")
         _b_layout = QVBoxLayout(self.briefing_card)
         _b_layout.setContentsMargins(16, 12, 16, 12)
-        _b_layout.setSpacing(4)
+        # Spacing 2 (was 4): the vertical header already costs
+        # ~21 px over the one-line header, and Home must stay
+        # scroll-free at 1280 (688 px budget) — see the HUD's
+        # accordion margin tightening for the same reclaim.
+        _b_layout.setSpacing(2)
         # Sci-fi Home: the card collapses to one line — the day's
-        # summary — with the five rows behind one tap. The header
-        # row holds the summary, the Play briefing button (moved
-        # here from the retired home strip), and the chevron that
-        # expands the same five rows in place.
-        _b_head = QHBoxLayout()
+        # summary — with the five rows behind one tap.
+        # UI upgrade Phase 1: the card lives in the right
+        # accordion column (~150 px at 1280), so a one-line
+        # header [summary + Play + chevron] squeezes the summary
+        # to ~20 px ("C…"). The header is vertical now: the
+        # summary takes the full card width on its own line
+        # (elided), and Play + the chevron sit in a row below.
+        _b_head = QVBoxLayout()
         _b_head.setContentsMargins(0, 0, 0, 0)
-        _b_head.setSpacing(8)
+        _b_head.setSpacing(2)
         self.briefing_summary = QLabel("")
         self.briefing_summary.setObjectName("briefingSummary")
         self.briefing_summary.setWordWrap(False)
+        # The summary must never squeeze to 0 height (parent
+        # by-eye fix, 2026-11-24): in the 07:32 render the
+        # "Calendar..." text painted over the Play row below it
+        # because the accordion layout compressed the card and
+        # the label's height collapsed to 0. One line at 13 px
+        # is 17 px; the minimum holds it open so the text can
+        # never overlap the row beneath.
+        self.briefing_summary.setMinimumHeight(17)
         self.briefing_summary.setAccessibleDescription(
             "Today's briefing in one line — tap the arrow to see "
             "the full briefing.")
-        _b_head.addWidget(self.briefing_summary, stretch=1)
+        _b_head.addWidget(self.briefing_summary)
+        _b_btns = QHBoxLayout()
+        _b_btns.setContentsMargins(0, 0, 0, 0)
+        _b_btns.setSpacing(8)
+        _b_btns.addStretch(1)
         self.btn_briefing = QPushButton("Play briefing")
         self.btn_briefing.setObjectName("chipBtn")
         self.btn_briefing.setIcon(make_icon("play", TEXT, 13))
         self.btn_briefing.clicked.connect(self._play_briefing)
-        _b_head.addWidget(self.btn_briefing)
+        _b_btns.addWidget(self.btn_briefing)
         self.btn_briefing_expand = QPushButton("▾")
         self.btn_briefing_expand.setObjectName("chipBtn")
         self.btn_briefing_expand.setAccessibleName(
@@ -560,9 +645,23 @@ class ShellAssistantMixin:
         self.btn_briefing_expand.setToolTip("Show the full day briefing")
         self.btn_briefing_expand.clicked.connect(
             self._toggle_briefing_card)
-        _b_head.addWidget(self.btn_briefing_expand)
+        _b_btns.addWidget(self.btn_briefing_expand)
+        _b_head.addLayout(_b_btns)
         _b_layout.addLayout(_b_head)
-        self._briefing_details = QWidget()
+        self._briefing_details = _HeightForWidthWidget()
+        # Hunt fix (c) §7: the details' height depends on its width
+        # (the kicker wraps to 2 lines and the schedule to 3–5 at
+        # the 96 px interior, but the layout's sizeHint is computed
+        # at the preferred 171 px, where they need 1–2 lines) —
+        # without height-for-width the layout under-allocates and
+        # the children squeeze to ~7 px. The card carries the same
+        # policy so the chain reaches the accordion body.
+        from PySide6.QtWidgets import QSizePolicy as _QSizePolicy
+        _hfw = _QSizePolicy(_QSizePolicy.Policy.Preferred,
+                            _QSizePolicy.Policy.Preferred)
+        _hfw.setHeightForWidth(True)
+        self._briefing_details.setSizePolicy(_hfw)
+        self.briefing_card.setSizePolicy(_hfw)
         _b_details = QVBoxLayout(self._briefing_details)
         _b_details.setContentsMargins(0, 0, 0, 0)
         _b_details.setSpacing(4)
@@ -571,7 +670,12 @@ class ShellAssistantMixin:
         # schedule line itself stays one short sentence. Visible
         # only while the calendar is not connected (see
         # _render_briefing_schedule).
-        self.btn_connect_calendar = QPushButton("Connect calendar")
+        # Hunt fix (c) §7d: two lines — "Connect calendar" needs
+        # ~109 px at the chipBtn 12 px, but the card interior is
+        # 96 px, so one line clipped to "…nnect calen…". Two lines
+        # read whole; the accessible name still says the full
+        # "Connect the calendar".
+        self.btn_connect_calendar = QPushButton("Connect\ncalendar")
         self.btn_connect_calendar.setObjectName("chipBtn")
         self.btn_connect_calendar.setAccessibleName(
             "Connect the calendar")
@@ -582,9 +686,21 @@ class ShellAssistantMixin:
         self.btn_connect_calendar.setVisible(False)
         _b_details.addWidget(self.btn_connect_calendar)
         self.briefing_kicker = QLabel("")
+        # Hunt fix (c) §7a: the kicker wraps — "GOOD MORNING" needs
+        # 116 px at 13 px but the card interior is 96 px, so a
+        # one-line kicker clipped to "GOOD MOR…". Two lines read
+        # whole; the colour is re-applied per theme by
+        # _retheme_home_labels (the inline dark TEXT was the Light
+        # washout, §7f).
+        self.briefing_kicker.setWordWrap(True)
         self.briefing_kicker.setStyleSheet(
             f"font-size: {TYPE_CARD_TITLE}px; font-weight: 600; color: {TEXT};")
         _b_details.addWidget(self.briefing_kicker)
+        # Hunt fix (c) §7e: the kicker/schedule gap returns to the
+        # Step 0 8 px — the details spacing is 4 px, so a fixed
+        # 4 px spacer sits between the two labels (other gaps in
+        # the details stay at 4 px).
+        _b_details.addSpacing(4)
         self.briefing_schedule = QLabel("")
         self.briefing_schedule.setObjectName("muted")
         self.briefing_schedule.setWordWrap(True)
@@ -1078,7 +1194,7 @@ class ShellAssistantMixin:
         self.btn_send = QPushButton()
         self.btn_send.setObjectName("sendBtn")
         self.btn_send.setFixedSize(44, 44)
-        self.btn_send.setIcon(make_icon("send", BG, 20))
+        self.btn_send.setIcon(make_icon("send", TEXT, 20))
         self.btn_send.setIconSize(QSize(20, 20))
         self.btn_send.setToolTip("Send (Enter)")
         self.btn_send.setAccessibleName("Send message")
@@ -1136,7 +1252,7 @@ class ShellAssistantMixin:
         self.btn_mic = QPushButton()
         self.btn_mic.setObjectName("micBtn")
         self.btn_mic.setFixedSize(56, 56)
-        self.btn_mic.setIcon(make_icon("mic", BG, 26))
+        self.btn_mic.setIcon(make_icon("mic", TEXT, 26))
         self.btn_mic.setIconSize(QSize(26, 26))
         self.btn_mic.setToolTip("Hold to talk (or hold Space)")
         self.btn_mic.setAccessibleName("Hold to talk")

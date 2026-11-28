@@ -40,6 +40,7 @@ from ..style import (
     TEXT_DISABLED,
     TEXT_MUTED,
 )
+from .palette import qcolor
 from .motion import CHAMFER_PX, TICK_PX
 from .panels import chamfered_path
 
@@ -187,9 +188,9 @@ class HudDialog(QDialog):
         edge = DANGER if self._destructive else _SEVERITY_EDGE.get(
             self._severity, LINE_STRONG
         )
-        painter.setPen(QPen(QColor(edge), 1))
+        painter.setPen(QPen(qcolor(edge), 1))
         painter.drawPath(chamfered_path(rect, CHAMFER_PX))
-        painter.setPen(QPen(QColor(ACCENT), 2))
+        painter.setPen(QPen(qcolor(ACCENT), 2))
         x, y, w, h = rect.x(), rect.y(), rect.width(), rect.height()
         painter.drawPolyline(
             [QPoint(x, y + TICK_PX), QPoint(x, y), QPoint(x + TICK_PX, y)]

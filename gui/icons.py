@@ -71,6 +71,68 @@ _TEMPLATES: dict[str, str] = {
 _cache: dict[tuple[str, str, int], QIcon] = {}
 
 
+def _bundled_svg_path(name: str):
+    """Resolve a bundled Phosphor SVG by reading the shipped
+    manifest directly (no w9_wiring import).
+
+    The bundle path in make_icon goes through w9_wiring, whose
+    module import chain pulls in core.memory — and the test
+    harness stubs that module, so the import fails and every
+    bundled name falls through to the inline templates (which
+    only carry the original few names). Reading the manifest
+    JSON directly avoids the chain: the manifest is data, and
+    its entries map name -> relative SVG path. Returns the
+    absolute Path, or None when the name is not bundled."""
+    try:
+        from pathlib import Path as _Path
+        import json as _json
+        manifest = (_Path(__file__).resolve().parent / "assets"
+                    / "icons" / "phosphor" / "manifest.json")
+        if not manifest.is_file():
+            return None
+        data = _json.loads(manifest.read_text(encoding="utf-8"))
+        entries = data.get("entries", [])
+        wanted = name
+        if "_" in wanted:
+            wanted = wanted.replace("_", "-")
+        for entry in entries:
+            if entry.get("name") == wanted:
+                rel = entry.get("path", "")
+                if not rel:
+                    return None
+                return manifest.parent / rel
+        return None
+    except Exception:  # noqa: BLE001 — no bundle, templates below
+        return None
+
+
+def _render_bundled_svg(path, color: str, size: int) -> QIcon:
+    """Render a bundled Phosphor duotone SVG to a QIcon."""
+    from pathlib import Path as _Path
+    from PySide6.QtCore import QByteArray as _BA
+    from PySide6.QtGui import QPixmap as _PM
+    from PySide6.QtSvg import QSvgRenderer as _SR
+    from PySide6.QtGui import QPainter as _QP
+    _svg = _Path(path).read_text(encoding="utf-8")
+    _svg = _svg.replace("currentColor", color)
+    _renderer = _SR(_BA(_svg.encode("utf-8")))
+    # Look-fix 2026-11-24: the old `_pix.fill(0x00000000)` int
+    # fill is read as a GlobalColor enum (color0 = opaque black),
+    # so the pixmap never got an alpha channel and every bundled
+    # icon rendered as a glyph on a solid black square tile
+    # (sidebar, composer send/mic, window controls). Render
+    # exactly like the template path below: transparent fill at
+    # 2x with devicePixelRatio, so the glyph is transparent
+    # outside its strokes.
+    _pix = _PM(size * 2, size * 2)
+    _pix.fill(Qt.GlobalColor.transparent)
+    _painter = _QP(_pix)
+    _renderer.render(_painter)
+    _painter.end()
+    _pix.setDevicePixelRatio(2)
+    return QIcon(_pix)
+
+
 def make_icon(name: str, color: str = None, size: int = 20) -> QIcon:
     """Render the named line icon in the given colour as a QIcon.
 
@@ -89,28 +151,16 @@ def make_icon(name: str, color: str = None, size: int = 20) -> QIcon:
         from voice_assistant.core.gui_facade import w9_wiring as _w9
         _ref = _w9.resolve_icon(name)
         if _ref.available and _ref.path:
-            from pathlib import Path as _Path
-            _p = _Path(_ref.path)
-            if _p.is_file():
-                from PySide6.QtCore import QByteArray as _BA
-                from PySide6.QtGui import QPixmap as _PM
-                from PySide6.QtSvg import QSvgRenderer as _SR
-                _svg = _p.read_text(encoding="utf-8")
-                # Phosphor duotone SVGs use currentColor; substitute
-                # the requested colour so a bundled icon matches the
-                # UI instead of rendering black. The secondary path
-                # carries opacity="0.2", so it becomes the secondary
-                # tone automatically — the duotone needs no
-                # loader change.
-                _svg = _svg.replace("currentColor", color)
-                _renderer = _SR(_BA(_svg.encode("utf-8")))
-                _pix = _PM(size, size)
-                _pix.fill(0x00000000)
-                from PySide6.QtGui import QPainter as _QP
-                _painter = _QP(_pix)
-                _renderer.render(_painter)
-                _painter.end()
-                return QIcon(_pix)
+            return _render_bundled_svg(_ref.path, color, size)
+    except Exception:  # noqa: BLE001 — direct manifest below
+        pass
+    # The w9_wiring import chain pulls in core.memory, which the
+    # test harness stubs — so in the harness the bundle lookup
+    # above always fails. Read the shipped manifest directly.
+    try:
+        _direct = _bundled_svg_path(name)
+        if _direct is not None and _direct.is_file():
+            return _render_bundled_svg(_direct, color, size)
     except Exception:  # noqa: BLE001 — templates are the fallback
         pass
     key = (name, color, size)

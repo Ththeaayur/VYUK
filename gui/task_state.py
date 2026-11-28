@@ -133,6 +133,44 @@ def _counts(outcomes):
     return success, failed, skipped
 
 
+def mission_state_for_record(record, live_count=1):
+    """One ledger record -> the MissionRail's state (UI Phase 1).
+
+    Live only: a running / paused / verifying record maps to
+    {"goal", "step", "steps_total", "phase", "permission",
+    "live_count"}; a finished record (completed / failed /
+    cancelled) maps to None — the rail shows its honest idle
+    state instead. ``step`` is the advance index (the count of
+    leading success outcomes, capped at the step total) — the
+    same number the rail's SegmentBar labels "Step n of m".
+    ``permission`` is "required" while the record carries a
+    pending approval, "none" otherwise. ``live_count`` is the
+    number of live missions in the same read: when it is above
+    one, the rail shows the newest record and names the count
+    ("2 missions running — showing the newest"); the mapper
+    still returns this record.
+    """
+    if not isinstance(record, dict):
+        return None
+    state = _as_str(record.get("state", "")).strip().lower()
+    if state not in ("running", "paused", "verifying"):
+        return None
+    steps = record.get("steps") or []
+    outcomes = record.get("outcomes") or []
+    total = len(steps)
+    step = _advance(outcomes, total)
+    pending = record.get("pending_approval")
+    return {
+        "goal": _as_str(record.get("title")
+                        or record.get("task_id") or "Mission"),
+        "step": step,
+        "steps_total": total,
+        "phase": state,
+        "permission": "required" if pending else "none",
+        "live_count": int(live_count or 0),
+    }
+
+
 def _args_summary(args) -> str:
     """One short line for a step's (already sanitized) args."""
     if not isinstance(args, dict) or not args:
@@ -253,9 +291,16 @@ def render_task(record, *, pending_tool=None, pending_summary=None):
     # pending approval renders Needs approval from its stored
     # record alone (the pause wrote it to the ledger) — no live
     # gate request needed, and no positional match: the record
-    # names its own pending step.
+    # names its own pending step. UI Phase 2 (P2-02): a
+    # VERIFYING record carries one too (the task resumed after
+    # a crash and died mid-verification with its pending step
+    # still open) — the Review queue offers it, so the row
+    # must render Needs approval as well, or the badge and the
+    # page disagree. A running record is excluded on purpose:
+    # its approval surface is the live gate hint, not the
+    # stored record.
     coord_pending = None
-    if state_raw == "paused":
+    if state_raw in ("paused", "verifying"):
         _pend = record.get("pending_approval")
         if isinstance(_pend, dict) and _as_str(_pend.get("tool", "")):
             coord_pending = _pend
@@ -311,7 +356,15 @@ def render_task(record, *, pending_tool=None, pending_summary=None):
         # writes this stored state while it runs, so Verifying
         # displays — the phase is the real producer D9 requires.
         # (The legacy boolean marker below is still ignored.)
-        state = "Verifying"
+        # UI Phase 2 (P2-02): a verifying record carrying a
+        # coordinator pending approval is waiting on the human,
+        # not on the verification — it renders Needs approval
+        # like a paused one, so the row, the card, the Review
+        # queue, and the badge all name the same thing.
+        if coord_pending is not None:
+            state = "Needs approval"
+        else:
+            state = "Verifying"
     elif state_raw == "running":
         # Phase D: the legacy verifying marker is ignored — a
         # record cannot claim Verifying from the marker alone,

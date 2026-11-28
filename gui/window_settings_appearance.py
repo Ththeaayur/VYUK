@@ -1,6 +1,7 @@
 # Refactor Phase 1 step 5: SettingsMixin card-group mixin, moved verbatim from gui/window_settings.py.
 from voice_assistant.core.gui_facade import (
-    config, gate_custom_accent, migrate_theme_name, normalize_verbosity)
+    config, gate_custom_accent, migrate_theme_name, normalize_verbosity,
+    os_motion)
 from .style import THEMES as STYLE_THEMES
 from .visualizer import (
     THEMES,
@@ -14,6 +15,7 @@ from .style import (
     # its own — every value below is a style token.
     ACCENT,
     TEXT,
+    TEXT_MUTED,
     INPUT_BG,
     INPUT_BG_FOCUS,
     LINE_SUBTLE,
@@ -283,6 +285,12 @@ class SettingsAppearanceMixin:
                 self._apply_theme_to_painted_pages(theme_arg)
             except Exception:  # noqa: BLE001 — appearance never breaks boot
                 pass
+            # Look-fix 2026-11-24: QIcons do not follow the QSS
+            # either — re-make them from the resolved theme.
+            try:
+                self._apply_theme_to_icons()
+            except Exception:  # noqa: BLE001 — appearance never breaks boot
+                pass
             # Stage 0 features batch 5: the shell paints its own
             # fill (AppShell.paintEvent), so the QSS cannot reach
             # it — drive it from the same resolved theme.
@@ -294,6 +302,27 @@ class SettingsAppearanceMixin:
             # explicit-font text scales with the same value.
             try:
                 self._apply_font_scale_to_painted_pages(scale)
+            except Exception:  # noqa: BLE001 — appearance never breaks boot
+                pass
+            # UI Phase 2 look-fix (2026-11-25, defect 2): the
+            # page HudBackdrops are only re-themed by
+            # _apply_profile_backdrops, which runs on a page
+            # switch — a theme change left every already-built
+            # page's backdrop on the OLD theme (Light theme: the
+            # Skills page stayed dark behind light headers)
+            # until the user navigated away and back. Re-apply
+            # the backdrops here, from the same resolved theme
+            # the rest of the pass just took (via _home_theme),
+            # so the backdrop follows the theme on the change
+            # itself. Idempotent: _apply_profile_backdrops reuses
+            # the existing backdrop, never stacks two.
+            try:
+                profile = getattr(self, "_hud_profile_name",
+                                  "Cinematic")
+                apply_backdrops = getattr(
+                    self, "_apply_profile_backdrops", None)
+                if apply_backdrops is not None:
+                    apply_backdrops(profile)
             except Exception:  # noqa: BLE001 — appearance never breaks boot
                 pass
         except Exception:  # noqa: BLE001 — appearance must never break boot
@@ -344,6 +373,14 @@ class SettingsAppearanceMixin:
                     or "accent_2" not in theme):
                 theme = STYLE_THEMES["Cyan"]
             resolved = _resolve_theme(theme)
+            # Phase 0: remember the resolved theme — components
+            # created AFTER this pass (a StatusPill per Calls
+            # refresh, a HudToast per show_toast) never see it
+            # through findChildren, so they theme themselves
+            # from here at creation instead of painting house
+            # colours on Light (proven: pill words invisible on
+            # the Light 640 Calls render).
+            self._resolved_theme = resolved
             accent = resolved["accent"]
             accent_2 = resolved["accent_2"]
             highlight = resolved["highlight"]
@@ -371,6 +408,66 @@ class SettingsAppearanceMixin:
                     panel.set_theme(resolved)
             except Exception:  # noqa: BLE001 — panels are a nicety
                 pass
+            # Phase 0: the wired painting components carry the
+            # same seam (HudPanel precedent) — the switch track,
+            # the tab bar sheet, the toast sheet and the pill
+            # text all re-resolve from the theme, or they stay
+            # house-dark on Light. Defensive throughout: pages
+            # are lazily built and may not exist yet.
+            try:
+                from .design_system import (
+                    HudSwitch, HudTabs, HudToast, StatusPill)
+                for switch in self.findChildren(HudSwitch):
+                    switch.set_theme(resolved)
+                for tabs in self.findChildren(HudTabs):
+                    tabs.set_theme(resolved)
+                for toast in self.findChildren(HudToast):
+                    toast.set_theme(resolved)
+                for pill in self.findChildren(StatusPill):
+                    pill.set_theme(resolved)
+            except Exception:  # noqa: BLE001 — components are a nicety
+                pass
+            # Look-fix 2 (2026-11-24): the round-2 themed surfaces
+            # — every one paints from a house colour the QSS never
+            # reaches, so each carries a set_theme the pass drives
+            # from the same resolved theme. Defensive throughout:
+            # pages are lazily built and may not exist yet.
+            try:
+                from .design_system.progress import SegmentBar
+                for bar in self.findChildren(SegmentBar):
+                    bar.set_theme(resolved)
+            except Exception:  # noqa: BLE001 — components are a nicety
+                pass
+            try:
+                from .design_system.statusstrip import StatusStrip
+                for strip in self.findChildren(StatusStrip):
+                    strip.set_theme(resolved)
+            except Exception:  # noqa: BLE001 — components are a nicety
+                pass
+            try:
+                from .status_strip import StatusStrip as _DockedStrip
+                strip = getattr(self, "vitals_strip", None)
+                if strip is not None and isinstance(strip, _DockedStrip):
+                    strip.set_theme(resolved)
+            except Exception:  # noqa: BLE001 — components are a nicety
+                pass
+            try:
+                catalog = getattr(self, "skills_catalog", None)
+                if catalog is not None:
+                    catalog.set_theme(resolved)
+            except Exception:  # noqa: BLE001 — components are a nicety
+                pass
+            try:
+                for hdr in getattr(self, "_settings_group_headers", {}):
+                    hdr.setStyleSheet(
+                        f"font-size: {TYPE_CARD_TITLE}px;"
+                        f" font-weight: 600; color: {text};")
+            except Exception:  # noqa: BLE001 — components are a nicety
+                pass
+            try:
+                self._refresh_plain_text_inputs(resolved)
+            except Exception:  # noqa: BLE001 — components are a nicety
+                pass
             refresh_activity = getattr(self, "_refresh_activity_theme",
                                        None)
             if refresh_activity is not None:
@@ -378,6 +475,47 @@ class SettingsAppearanceMixin:
             refresh_views = getattr(self, "_refresh_views_theme", None)
             if refresh_views is not None:
                 refresh_views(resolved)
+            # UI Phase 1: the Home HUD's non-panel stylesheets
+            # (labels, pills, hairlines, mini-bars) re-resolve from
+            # the same theme — the Light-contrast path.
+            apply_home = getattr(self, "_apply_home_theme", None)
+            if apply_home is not None:
+                apply_home(resolved)
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
+
+    def _refresh_plain_text_inputs(self, resolved: dict) -> None:
+        """Re-apply the hand-built QPlainTextEdit wells (look-fix 2).
+
+        The app sheet styles the QLineEdit family only, so the two
+        plain-text wells (the theme-pack JSON box in Settings and
+        the pronunciations box in Voice) carry the input rule by
+        hand — built once from the house tokens. On Light the house
+        well is a mid-grey slab, so the appearance pass re-applies
+        both from the resolved theme: the well + focus fill, the
+        text, the selection, the focus ring. The border stays the
+        house hairline, like every other hairline on the page.
+        Called from _apply_theme_to_painted_pages; the build sites
+        keep the house values as the default.
+        """
+        try:
+            text = (resolved or {}).get("text", TEXT)
+            well = (resolved or {}).get("input_bg", INPUT_BG)
+            focus = (resolved or {}).get("focus_border") or FOCUS_BORDER
+            selection = (resolved or {}).get("selection_bg", SELECTION_BG)
+            sheet = (
+                f"QPlainTextEdit {{ background-color: {well};"
+                f" border: 1px solid {LINE_SUBTLE};"
+                f" border-radius: {RADIUS_BTN}px; padding: 8px 12px;"
+                f" color: {text};"
+                f" selection-background-color: {selection};"
+                f" selection-color: {text}; }}"
+                f"QPlainTextEdit:focus {{ border: {focus};"
+                f" background-color: {INPUT_BG_FOCUS}; }}")
+            for widget in (getattr(self, "_w9_pack_input", None),
+                           getattr(self, "input_pronunciations", None)):
+                if widget is not None:
+                    widget.setStyleSheet(sheet)
         except Exception:  # noqa: BLE001 — appearance never breaks boot
             pass
 
@@ -426,9 +564,6 @@ class SettingsAppearanceMixin:
             galaxy = getattr(self, "skills_galaxy", None)
             if galaxy is not None:
                 galaxy.set_font_scale(scale)
-            card = getattr(self, "skills_detail_card", None)
-            if card is not None:
-                card.set_font_scale(scale)
             catalog = getattr(self, "skills_catalog", None)
             if catalog is not None:
                 catalog.set_font_scale(scale)
@@ -439,6 +574,107 @@ class SettingsAppearanceMixin:
                     setter = getattr(row, "set_font_scale", None)
                     if setter is not None:
                         setter(scale)
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
+
+    def _apply_theme_to_icons(self):
+        """Re-make the Phosphor icons from the resolved theme.
+
+        Look-fix 2026-11-24: every icon was painted once at build
+        from the house TEXT / TEXT_MUTED constants (near-white), so
+        on Light the composer send/mic and the briefing play glyph
+        were near-invisible on the light pill, and the sidebar /
+        window-control glyphs were faint. QIcons do not follow the
+        QSS, so this pass re-makes them from the same resolved
+        theme the painted pages use — the mapping stays the build
+        mapping (text for the primary actions, text_muted for the
+        rest), only the colours resolve. Under Cyan the resolved
+        values are the house tokens, so nothing changes. Runs from
+        _apply_appearance, after _apply_theme_to_painted_pages
+        stores _resolved_theme. Defensive throughout: the dock,
+        sidebar and title bar are lazily built and may not exist
+        yet when the theme loads.
+        """
+        try:
+            resolved = getattr(self, "_resolved_theme", None)
+            if not isinstance(resolved, dict):
+                return
+            text = resolved.get("text", TEXT)
+            muted = resolved.get("text_muted", TEXT_MUTED)
+            from .icons import make_icon
+            # Dock + briefing (built in window_shell_assistant).
+            # The mute button shows volume_off while checked
+            # (muted) — the theme pass keeps the state, only the
+            # colour resolves.
+            for attr, name, colour, size in (
+                    ("btn_send", "send", text, 20),
+                    ("btn_mic", "mic", text, 26),
+                    ("_btn_dictate", "pencil", muted, 16),
+                    ("btn_screen", "monitor", muted, 19),
+                    ("btn_briefing", "play", text, 13)):
+                btn = getattr(self, attr, None)
+                if btn is not None:
+                    try:
+                        btn.setIcon(make_icon(name, colour, size))
+                    except Exception:  # noqa: BLE001 — one icon never breaks boot
+                        pass
+            mute_btn = getattr(self, "btn_mute", None)
+            if mute_btn is not None:
+                try:
+                    mute_btn.setIcon(make_icon(
+                        "volume_off" if mute_btn.isChecked() else "volume",
+                        muted, 16))
+                except Exception:  # noqa: BLE001 — one icon never breaks boot
+                    pass
+            # Title bar (built in window_shell_frame).
+            for attr, name, size in (
+                    ("btn_cmd_pill", "search", 14),
+                    ("btn_win_min", "minus", 13),
+                    ("btn_win_max", "square", 12),
+                    ("btn_win_close", "x", 13)):
+                btn = getattr(self, attr, None)
+                if btn is not None:
+                    try:
+                        btn.setIcon(make_icon(name, muted, size))
+                    except Exception:  # noqa: BLE001 — one icon never breaks boot
+                        pass
+            # Sidebar nav (built in window_shell_sidebar): the
+            # icons are owned by _refresh_nav_icons, which keeps
+            # the active-page highlight — the theme pass re-runs
+            # it for the page that is currently active, so a
+            # navigation afterwards does not undo the theme.
+            try:
+                pages = getattr(self, "pages", None)
+                current = (pages.currentIndex()
+                           if pages is not None else 0)
+                self._refresh_nav_icons(current)
+            except Exception:  # noqa: BLE001 — one icon never breaks boot
+                pass
+            wake = getattr(self, "btn_wake", None)
+            if wake is not None:
+                try:
+                    wake.setIcon(make_icon("mic", muted))
+                except Exception:  # noqa: BLE001 — one icon never breaks boot
+                    pass
+            # Home quick-action tiles (built in window_home_hud):
+            # the icon name follows the tile's objectName suffix.
+            tile_icons = {"reminders": "bell", "email": "envelope",
+                          "calendar": "calendar", "notes": "note",
+                          "home": "house", "money": "currency-dollar"}
+            for btn in self.findChildren(QPushButton):
+                try:
+                    obj = btn.objectName() or ""
+                except Exception:  # noqa: BLE001 — defensive
+                    continue
+                if not obj.startswith("homeTile-"):
+                    continue
+                icon_name = tile_icons.get(obj[len("homeTile-"):])
+                if icon_name is None:
+                    continue
+                try:
+                    btn.setIcon(make_icon(icon_name, muted, 18))
+                except Exception:  # noqa: BLE001 — one icon never breaks boot
+                    pass
         except Exception:  # noqa: BLE001 — appearance never breaks boot
             pass
 
@@ -506,6 +742,53 @@ class SettingsAppearanceMixin:
             density = str(qsettings_get("appearance/density", settings=self.settings))
             for d, btn in getattr(self, "density_buttons", {}).items():
                 btn.setChecked(d == density)
+            # UI Phase 1: the HUD profile buttons + the home-city
+            # input follow the one canonical store. During a
+            # Phase 4 preview the buttons follow the previewed
+            # profile instead — the stores still hold the old
+            # value until Apply.
+            try:
+                if getattr(self, "_hud_preview_before", None) \
+                        is not None:
+                    profile = str(getattr(
+                        self, "_hud_preview_current", None)
+                        or "Cinematic")
+                else:
+                    profile = str(qsettings_get(
+                        "appearance/hud_profile", settings=self.settings)
+                        or "Cinematic")
+                for p, btn in getattr(
+                        self, "hud_profile_buttons", {}).items():
+                    btn.setChecked(p == profile)
+            except Exception:  # noqa: BLE001
+                pass
+            # Phase 4 (D-P4-08, R-P4-E): the Pulse cadence mirror
+            # follows the one shared key — the Pulse header may
+            # have changed it while Settings was hidden.
+            try:
+                ms = int(qsettings_get(
+                    "pulse/refresh_ms", settings=self.settings) or 1000)
+            except (TypeError, ValueError):
+                ms = 1000
+            try:
+                combo = getattr(self, "pulse_cadence_combo", None)
+                if combo is not None:
+                    idx = combo.findData(
+                        ms if ms in (1000, 2000, 5000) else 1000)
+                    if idx >= 0:
+                        combo.blockSignals(True)
+                        combo.setCurrentIndex(idx)
+                        combo.blockSignals(False)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                city = str(qsettings_get("home/city",
+                                         settings=self.settings) or "")
+                edit = getattr(self, "home_city_edit", None)
+                if edit is not None and edit.text() != city:
+                    edit.setText(city)
+            except Exception:  # noqa: BLE001
+                pass
             self._sync_motion_controls()
         except Exception:  # noqa: BLE001
             pass
@@ -529,6 +812,154 @@ class SettingsAppearanceMixin:
     def _on_font_scale_selected(self, scale: float):
         qsettings_set("appearance/font_scale", float(scale), settings=self.settings)
         self._apply_appearance()
+
+    def _on_hud_profile_selected(self, profile_name: str):
+        """Phase 4 (D-P4-32): the HUD profile PREVIEWS — the
+        pick shows at once at the one call site but writes
+        nothing; Apply keeps it, Cancel puts the previous
+        profile back. The pre-preview value is read once per
+        preview session (later clicks during preview must not
+        overwrite it). The buttons' checked states are set
+        here by hand — _sync_appearance_controls reads the
+        stored value and would revert them."""
+        try:
+            if getattr(self, "_hud_preview_before", None) is None:
+                before = ""
+                try:
+                    from voice_assistant.core.gui_facade import (
+                        config as _cfg)
+
+                    before = str(getattr(_cfg, "hud_profile", "") or "")
+                except Exception:  # noqa: BLE001
+                    before = ""
+                if not before:
+                    try:
+                        before = str(qsettings_get(
+                            "appearance/hud_profile",
+                            settings=self.settings) or "")
+                    except Exception:  # noqa: BLE001
+                        before = ""
+                self._hud_preview_before = before or "Cinematic"
+            self._hud_preview_current = profile_name
+            if hasattr(self, "_apply_hud_profile"):
+                self._apply_hud_profile(profile_name)
+            for p, btn in getattr(
+                    self, "hud_profile_buttons", {}).items():
+                btn.setChecked(p == profile_name)
+            for widget in (getattr(self, "hud_preview_label", None),
+                           getattr(self, "hud_apply_btn", None),
+                           getattr(self, "hud_cancel_btn", None)):
+                if widget is not None:
+                    widget.setVisible(True)
+        except Exception:  # noqa: BLE001 — preview never breaks Settings
+            pass
+
+    def _on_hud_profile_apply(self):
+        """Phase 4 (D-P4-32): keep the previewed profile — the
+        persist step the old handler did on every click, now
+        only on Apply. ConfigSpec + QSettings + .env, the one
+        canonical store."""
+        try:
+            profile_name = getattr(self, "_hud_preview_current", None)
+            if not profile_name:
+                return
+            try:
+                from voice_assistant.core.gui_facade import (
+                    config as _cfg)
+
+                _cfg.hud_profile = profile_name
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                qsettings_set("appearance/hud_profile", profile_name,
+                              settings=self.settings)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._persist_config_setting(
+                    "VYUK_HUD_PROFILE", profile_name)
+            except Exception:  # noqa: BLE001
+                pass
+            self._hud_preview_before = None
+            self._hud_preview_current = None
+            for widget in (getattr(self, "hud_preview_label", None),
+                           getattr(self, "hud_apply_btn", None),
+                           getattr(self, "hud_cancel_btn", None)):
+                if widget is not None:
+                    widget.setVisible(False)
+            self._sync_appearance_controls()
+        except Exception:  # noqa: BLE001 — apply never breaks Settings
+            pass
+
+    def _on_hud_profile_cancel(self):
+        """Phase 4 (D-P4-32): drop the preview — restore the
+        pre-preview profile through the one call site. The
+        stores were never written during preview, so nothing
+        needs un-writing."""
+        try:
+            before = getattr(self, "_hud_preview_before", None) \
+                or "Cinematic"
+            if hasattr(self, "_apply_hud_profile"):
+                self._apply_hud_profile(before)
+            for p, btn in getattr(
+                    self, "hud_profile_buttons", {}).items():
+                btn.setChecked(p == before)
+            self._hud_preview_before = None
+            self._hud_preview_current = None
+            for widget in (getattr(self, "hud_preview_label", None),
+                           getattr(self, "hud_cancel_btn", None),
+                           getattr(self, "hud_apply_btn", None)):
+                if widget is not None:
+                    widget.setVisible(False)
+        except Exception:  # noqa: BLE001 — cancel never breaks Settings
+            pass
+
+    def _on_pulse_cadence_selected(self, index: int):
+        """Phase 4 (D-P4-08, R-P4-E): the Appearance mirror of
+        the Pulse cadence — writes the one shared
+        pulse/refresh_ms key; the Pulse page re-reads it on
+        show, and this combo re-syncs from the key in
+        _sync_appearance_controls."""
+        try:
+            combo = getattr(self, "pulse_cadence_combo", None)
+            if combo is None:
+                return
+            ms = int(combo.itemData(index))
+            if ms not in (1000, 2000, 5000):
+                return
+            qsettings_set("pulse/refresh_ms", ms,
+                          settings=self.settings)
+        except Exception:  # noqa: BLE001 — cadence never breaks Settings
+            pass
+
+    def _on_home_city_edit_finished(self):
+        """UI Phase 1 (H-11): the home city, one canonical store
+        (ConfigSpec home_city + QSettings home/city + .env)."""
+        edit = getattr(self, "home_city_edit", None)
+        if edit is None:
+            return
+        city = edit.text().strip()
+        if not city:
+            return
+        try:
+            from voice_assistant.core.gui_facade import config as _cfg
+
+            _cfg.home_city = city
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            qsettings_set("home/city", city, settings=self.settings)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            self._persist_config_setting("VYUK_HOME_CITY", city)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            if hasattr(self, "_refresh_home_weather"):
+                self._refresh_home_weather()
+        except Exception:  # noqa: BLE001
+            pass
 
     def _on_verbosity_selected(self, level: str):
         """Stage 0 features batch 5, item 11: reply verbosity.
@@ -599,6 +1030,16 @@ class SettingsAppearanceMixin:
                 return level
             if reduced_flag:
                 level = "off"
+            elif os_motion.os_prefers_reduced_motion():
+                # D-P6-12: no level stored and no legacy flag —
+                # the OS preference is the default. Deliberately
+                # NOT written back: the OS toggle is a live
+                # default, not a user choice; persisting it would
+                # go stale when the OS flips and would masquerade
+                # as an explicit choice. The user's first explicit
+                # pick (Settings → Motion) writes the key and wins
+                # from then on.
+                return "off"
             else:
                 level = "full"
             try:

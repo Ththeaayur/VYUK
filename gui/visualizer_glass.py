@@ -55,7 +55,7 @@ call. No code, no assets, no shader taken. Aura blue only: the
 glass reads its colours from the orb's own theme triple
 (highlight/mid/edge), so it stays Aura blue in the default theme
 and follows the user's chosen theme exactly like the rest of the
-orb — abstract, non-face, premium, exactly like JARVIS.
+orb — abstract, non-face, premium.
 
 LOPHOLE FAMILY — "the orb lies, or the orb freezes"
 ----------------------------------------------------

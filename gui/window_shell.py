@@ -114,6 +114,7 @@ from .window_shell_assistant_widgets import _CHIP_PAD_X  # refactor P1 step 5 (m
 from .window_shell_assistant_widgets import _CHIP_BORDER  # refactor P1 step 5 (moved verbatim)
 from .window_shell_frame import _DOCK_NARROW_WIDTH  # refactor P1 step 5 (moved verbatim)
 
+from .window_home_hud import HomeHudMixin
 from .window_shell_frame import ShellFrameMixin
 from .window_shell_tray import ShellTrayMixin
 from .window_shell_settingsio import ShellSettingsIOMixin
@@ -125,6 +126,10 @@ from .window_shell_assistant import ShellAssistantMixin
 from .window_shell_briefing import ShellBriefingMixin
 
 
-class ShellMixin(ShellFrameMixin, ShellTrayMixin, ShellSettingsIOMixin, ShellMemoryIOMixin, ShellActivityMixin, ShellOnboardingMixin, ShellSidebarMixin, ShellAssistantMixin, ShellBriefingMixin):
+class ShellMixin(HomeHudMixin, ShellFrameMixin, ShellTrayMixin, ShellSettingsIOMixin, ShellMemoryIOMixin, ShellActivityMixin, ShellOnboardingMixin, ShellSidebarMixin, ShellAssistantMixin, ShellBriefingMixin):
     # Refactor Phase 1 step 5: panel methods moved verbatim to window_shell_* mixins.
+    # UI Phase 1: HomeHudMixin is FIRST so its _build_assistant_page,
+    # _apply_breakpoint_tier, _fix_chat_width and
+    # _apply_dock_narrow_rule overrides win. The override is
+    # deliberate (no test pins the no-duplicate-method invariant).
     pass

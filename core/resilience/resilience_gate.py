@@ -282,8 +282,10 @@ def resilience_status() -> dict:
                 "no auto-resume without explicit human re-arm",
                 "durability outside the executor, never in assistant.db",
             ],
-            "field_proof": "NOT claimed: a kill drill on the owner's "
-                           "machine, his run, his verdict, is still owed",
+            # Fix round (F-04, parent wording 2026-11-26): plain
+            # words for the same owed drill.
+            "field_proof": "Still owed on your machine: a kill drill "
+                           "— your run, your verdict",
         }
     status = _WIRING.status()
     status["configured"] = True

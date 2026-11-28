@@ -28,6 +28,115 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 _counts = {"PASS": 0, "WARN": 0, "FAIL": 0}
 
+# Fix round (F-P4-02, parent ruling 2026-11-26): per-check
+# outcomes — each check contributes exactly one outcome, its
+# worst verdict (FAIL > WARN > PASS). The hero counts CHECKS
+# (37), not verdict lines (68): _counts above is the verdict
+# tally the CLI SUMMARY prints; _check_outcomes is the
+# per-check tally the CHECK_SUMMARY line prints.
+_CHECK_SEVERITY = {"PASS": 0, "WARN": 1, "FAIL": 2}
+_check_outcomes: dict[str, str] = {}
+
+
+def _check_summary_counts() -> dict:
+    """Per-check outcome counts from _check_outcomes."""
+    out = {"PASS": 0, "WARN": 0, "FAIL": 0}
+    for status in _check_outcomes.values():
+        out[status] += 1
+    return out
+
+
+# UI Phase 4 (D-P4-17): every check declares one of six
+# categories — the page groups findings by category inside
+# severity, and the suite asserts this table covers _CHECKS
+# exactly (a check with no category is a build failure).
+_CATEGORIES = ("connectivity", "permissions", "installation",
+               "model/provider", "runtime", "recovery")
+_CHECK_CATEGORIES = {
+    # connectivity — reaching something outside this machine.
+    "check_cloud_doors": "connectivity",
+    "check_mcp_servers": "connectivity",
+    "check_home_assistant": "connectivity",
+    "check_world": "connectivity",
+    # permissions — who can read or take what.
+    "check_secrets_storage": "permissions",
+    "check_data_egress": "permissions",
+    # installation — the shipped tree and its dependencies.
+    "check_python": "installation",
+    "check_layout": "installation",
+    "check_compile": "installation",
+    "check_deps": "installation",
+    "check_module_imports": "installation",
+    "check_integrity": "installation",
+    "check_assets": "installation",
+    # model/provider — the brain, its keys, its voices.
+    "check_brain": "model/provider",
+    "check_config": "model/provider",
+    "check_gemini_key_tier": "model/provider",
+    "check_piper_voice": "model/provider",
+    # runtime — the running app and its capabilities.
+    "check_process_load": "runtime",
+    "check_tool_registry": "runtime",
+    "check_pack_registrations": "runtime",
+    "check_memory_profile": "runtime",
+    "check_data": "runtime",
+    "check_presence": "runtime",
+    "check_watchers": "runtime",
+    "check_tool_payload": "runtime",
+    "check_tool_router": "runtime",
+    "check_ocr_engine": "runtime",
+    "check_capability_probes": "runtime",
+    "check_real_chrome": "runtime",
+    "check_microphone": "runtime",
+    "check_mic_drops": "runtime",
+    "check_platform_backend": "runtime",
+    "check_learning": "runtime",
+    # recovery — state the app can rebuild or lose.
+    "check_state_files": "recovery",
+    "check_receipt_store": "recovery",
+    "check_write_proof": "recovery",
+    "check_failure_clusters": "recovery",
+}
+# The check currently running, by name — set by main() (and by
+# the Doctor page's in-process fallback) before each check, so
+# report() can print the finding's category marker. None
+# outside a run.
+_CURRENT_CHECK_NAME = None
+
+
+# UI Phase 4 (D-P4-16, R-P4-A): the ONLY packages a Doctor
+# repair may pip-install — the declared dependency set,
+# licence-cleared, keyed by the import name the finding's
+# label carries. The pytesseract spec is requirements.txt's
+# `pytesseract>=0.3.10`, NOT the doctor fix text (which names
+# no version — it would install an unpinned package). A fix
+# naming a package outside this table gets "No automatic
+# repair", never a pip install of an undeclared package.
+_PIP_REPAIR_SPECS = {
+    "google.genai": "google-genai>=2.0.0",
+    "PySide6": "PySide6>=6.6.0",
+    "sounddevice": "sounddevice>=0.5.0",
+    "numpy": "numpy>=1.26.0",
+    "PIL": "pillow>=10.0.0",
+    "websockets": "websockets>=13.0",
+    # No "dotenv" entry, deliberately (R-P4-A): the product
+    # never imports dotenv — core/config_env.py carries its
+    # own .env loader — and python-dotenv is deliberately
+    # absent from requirements.txt/lock (see
+    # test_dependencies_declared.py, test_gaps30.py). A
+    # repair must never install an undeclared package, so a
+    # "Dependency: dotenv" FAIL gets no repair and the card
+    # says why. (The _DEPS row below still FAILs on a missing
+    # dotenv — pre-existing, flagged for a parent ruling.)
+    "psutil": "psutil>=5.9.0",
+    "pyperclip": "pyperclip>=1.8.2",
+    "cv2": "opencv-python-headless>=4.9.0",
+    "pytesseract": "pytesseract>=0.3.10",
+    "llama_cpp": "llama-cpp-python",
+    "faster_whisper": "faster-whisper",
+    "kokoro_onnx": "kokoro-onnx",
+}
+
 
 def _make_output_encoding_safe():
     """Best-effort UTF-8 output for the real console run.
@@ -66,9 +175,26 @@ def _emit(text):
 
 def report(status, label, detail="", fix=""):
     _counts[status] += 1
+    # Fix round (F-P4-02): the running check's worst verdict —
+    # a check that reports several lines still counts once.
+    _name = _CURRENT_CHECK_NAME or ""
+    if _name:
+        _prev = _check_outcomes.get(_name)
+        if (_prev is None
+                or _CHECK_SEVERITY[status] > _CHECK_SEVERITY[_prev]):
+            _check_outcomes[_name] = status
     _emit(f"[{status}] {label}" + (f" — {detail}" if detail else ""))
     if fix and status != "PASS":
         _emit(f"       fix: {fix}")
+    # UI Phase 4 (D-P4-17): the finding's category, as a marker
+    # line the Doctor page's parser attaches to the finding
+    # above it. Findings only — PASS lines carry no card, and a
+    # missing marker (an old cached report) reads as no
+    # category on the page, never as a wrong one.
+    if status != "PASS":
+        _cat = _CHECK_CATEGORIES.get(_CURRENT_CHECK_NAME or "")
+        if _cat:
+            _emit(f"       category: {_cat}")
 
 
 def check_python():
@@ -2185,8 +2311,38 @@ def main() -> int:
     # output; report() itself falls back to replace-on-error
     # (see _emit), so no console encoding can kill a check.
     _make_output_encoding_safe()
+    # UI Phase 4 (D-P4-18): selected runs — `--only a,b` runs
+    # the checks in those categories (comma-separated, one of
+    # the six in _CATEGORIES); `--check <name>` runs one check
+    # by function name (the Doctor page's repair verification).
+    # No flag means every check, as before.
+    _only = None
+    _only_check = None
+    _args = list(sys.argv[1:])
+    _i = 0
+    while _i < len(_args):
+        if _args[_i] == "--only" and _i + 1 < len(_args):
+            _only = [c.strip().lower() for c in _args[_i + 1].split(",")
+                     if c.strip()]
+            _i += 2
+        elif _args[_i] == "--check" and _i + 1 < len(_args):
+            _only_check = _args[_i + 1]
+            _i += 2
+        else:
+            _i += 1
+    if _only_check:
+        _run_checks = [c for c in _CHECKS
+                       if c.__name__ == _only_check]
+    elif _only:
+        _run_checks = [c for c in _CHECKS
+                       if _CHECK_CATEGORIES.get(c.__name__) in _only]
+    else:
+        _run_checks = list(_CHECKS)
     print(f"VYUK doctor — checking the package at {ROOT}\n")
-    for check in _CHECKS:
+    global _CURRENT_CHECK_NAME
+    _check_outcomes.clear()
+    for check in _run_checks:
+        _CURRENT_CHECK_NAME = check.__name__
         try:
             check()
         except Exception as e:  # noqa: BLE001 — a broken check is a FAIL, never a crash
@@ -2203,6 +2359,13 @@ def main() -> int:
                    f"({type(e).__name__}: {e})",
                    "this is a problem in doctor.py itself — please report it with this line")
     print(f"\nSUMMARY: {_counts['PASS']} PASS · {_counts['WARN']} WARN · {_counts['FAIL']} FAIL")
+    # Fix round (F-P4-02): the per-check summary the Doctor page
+    # hero reads — one outcome per check, so the three numbers sum
+    # to the number of checks run. The SUMMARY line above stays
+    # exactly as-is (verdict-line counts — the CLI contract does
+    # not change).
+    _cc = _check_summary_counts()
+    print(f"CHECK_SUMMARY: {_cc['PASS']} PASS · {_cc['WARN']} WARN · {_cc['FAIL']} FAIL")
     if _counts["FAIL"]:
         print("Result: FAIL — fix the [FAIL] lines above (each one names its file).")
         return 1

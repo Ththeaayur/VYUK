@@ -175,8 +175,9 @@ class FallbackPlotWidget(QWidget):
     def paintEvent(self, _event):  # noqa: N802 — Qt naming
         painter = QPainter(self)
         painter.fillRect(self.rect(), QColor(getattr(self, "_bg", BG)))
+        muted = QColor(getattr(self, "_text_muted", TEXT_MUTED))
         if not self.series:
-            painter.setPen(QPen(QColor(getattr(self, "_text_muted", TEXT_MUTED))))
+            painter.setPen(QPen(muted))
             painter.drawText(self.rect(), Qt.AlignCenter,
                              "No data — pyqtgraph unavailable, fallback idle")
             return
@@ -190,7 +191,21 @@ class FallbackPlotWidget(QWidget):
             x1 = x0 + 1
         if y1 == y0:
             y1 = y0 + 1
-        w, h = max(self.width() - 16, 1), max(self.height() - 16, 1)
+        # Look-fix 2 (2026-11-24): orientation. The fallback IS
+        # what ships (pyqtgraph is a known-optional dependency,
+        # not in requirements and not bundled), so the plot must
+        # say what the line is — the pyqtgraph path carries a
+        # title ("Activity") and a legend, the fallback carried
+        # neither and read as a bare panel with one unexplained
+        # line. The title + series legend + y min/max + event
+        # count are the same facts the pyqtgraph path shows; the
+        # line itself is unchanged. A title strip, a bottom strip
+        # and a left gutter reserve room so the labels never sit
+        # on the line.
+        _top, _bottom, _side, _gutter = 22, 18, 8, 28
+        _x0 = _side + _gutter
+        w = max(self.width() - _x0 - _side, 1)
+        h = max(self.height() - _top - _bottom, 1)
         colors = [self._series_color, AMBER, OK]
         for i, s in enumerate(self.series):
             if len(s.xs) < 2:
@@ -200,11 +215,40 @@ class FallbackPlotWidget(QWidget):
             painter.setPen(pen)
             pts = []
             for x, y in zip(s.xs, s.ys):
-                px = 8 + (x - x0) / (x1 - x0) * w
-                py = 8 + h - (y - y0) / (y1 - y0) * h
+                px = _x0 + (x - x0) / (x1 - x0) * w
+                py = _top + h - (y - y0) / (y1 - y0) * h
                 pts.append((px, py))
             for (ax, ay), (bx, by) in zip(pts, pts[1:]):
                 painter.drawLine(int(ax), int(ay), int(bx), int(by))
+        # Orientation labels, in the theme's muted text.
+        painter.setPen(QPen(muted))
+        _font = painter.font()
+        _base = _font.pointSizeF()
+        if _base <= 0:
+            _base = 13.0
+        _font.setPointSizeF(max(10.0, _base * self._font_scale))
+        painter.setFont(_font)
+        _fm = painter.fontMetrics()
+        _ascent = _fm.ascent()
+        painter.drawText(_side, 4 + _ascent, "Activity")
+        _first = self.series[0]
+        _label = _first.label or "Activity"
+        _swatch = QColor(colors[0])
+        _label_w = _fm.horizontalAdvance(_label)
+        _lx = self.width() - _side - _label_w - 18
+        painter.fillRect(_lx, 6, 12, 12, _swatch)
+        painter.drawText(_lx + 18, 4 + _ascent, _label)
+
+        def _fmt(value):
+            return (str(int(value)) if float(value) == int(value)
+                    else f"{value:.1f}")
+
+        painter.drawText(_side, _top + _ascent, _fmt(y1))
+        painter.drawText(_side, _top + h, _fmt(y0))
+        _count = f"{len(_first.xs)} events"
+        painter.drawText(self.width() - _side
+                         - _fm.horizontalAdvance(_count),
+                         self.height() - 4, _count)
 
 
 def make_plot_widget(series: list[PlotSeries]):
@@ -307,6 +351,12 @@ class OverviewPanel(QWidget):
         self._layout = QVBoxLayout(self)
         self.title = QLabel("Overview")
         self._layout.addWidget(self.title)
+        # UI Phase 4 (D-P4-09): the window label — "last 100 log
+        # lines · as of HH:MM:SS", kept current by
+        # w9_wiring_proof.refresh_overview_panel on the Pulse tick.
+        self._w9_stamp_label = QLabel("last 100 log lines")
+        self._w9_stamp_label.setObjectName("muted")
+        self._layout.addWidget(self._w9_stamp_label)
         self.plot_widget, self.engine = make_plot_widget([])
         self._layout.addWidget(self.plot_widget)
         self.duration_strip = DurationStrip()

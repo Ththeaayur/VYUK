@@ -973,3 +973,31 @@ class ChatBubblesMixin:
         """Friendly inline notice — replaces popup dialogs."""
         self._show_page(0)
         self._add_system(text)
+
+    def show_toast(self, text: str, attention: bool = False):
+        """Phase 0: one in-app toast at the window's top-right.
+
+        The shared HudToast, for confirmations that have no other
+        surface — it announces and auto-dismisses; it never
+        carries an action (the undo bar / button on the page does
+        that). Any previous toast is replaced, so toasts never
+        stack. _notify stays the chat-line notice; this is the
+        toast for call sites that must not yank the user to Home.
+        """
+        from .design_system import HudToast
+        old = getattr(self, "_active_toast", None)
+        if old is not None:
+            try:
+                old.hide()
+                old.deleteLater()
+            except Exception:  # noqa: BLE001 — a dead toast is gone
+                pass
+        toast = HudToast(self, text, attention=attention, animate=True)
+        self._active_toast = toast
+        # Phase 0: a toast is born on demand, after the
+        # appearance pass — theme it from the window's stored
+        # resolved theme, or it paints house colours on Light.
+        _resolved = getattr(self, "_resolved_theme", None)
+        if _resolved:
+            toast.set_theme(_resolved)
+        toast.show_at_parent_corner()

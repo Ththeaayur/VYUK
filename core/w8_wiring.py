@@ -31,7 +31,7 @@ keeps the staged module's own safety shape:
 * Teach mode: replay() through the funnel executor, verified
   before each next step, with a file-backed stored-sequence
   store under data/ (runtime-created; data/ ships empty).
-  Voice trigger is the Live router path (route_mind domain
+  Voice trigger is the Live router path (route_intelligence domain
   router + use_toolbox ranking; see TEACH_LIVE_CAPTURE_GATE).
   Live demonstration capture is GATED, not built — the gate
   names the missing observer, mapper, and field validation;

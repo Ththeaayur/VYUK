@@ -300,6 +300,28 @@ class StatusStrip(QWidget):
         self._timer.setInterval(_SAMPLE_MS)
         self._timer.timeout.connect(self._tick)
 
+    def set_theme(self, resolved: dict) -> None:
+        """Recolour the status word from a resolved theme.
+
+        Look-fix 2 (2026-11-24): the word button carried the house
+        TEXT (near-white) from build, so on Light "Memory high"
+        was near-white on white — invisible. The dot keeps its
+        semantic colour (OK / AMBER / DANGER); only the word
+        follows the theme text. Under Cyan the resolved text is
+        the house TEXT, so nothing changes. Called from the
+        window's appearance pass; the build site self-themes from
+        the stored resolved theme when it exists.
+        """
+        try:
+            text = (resolved or {}).get("text", TEXT)
+            self.word_button.setStyleSheet(
+                f"QPushButton#statusStripWord {{ border: none;"
+                f" background: transparent; color: {text};"
+                f" font-size: {TYPE_BODY}px; text-align: left;"
+                f" padding: 0; }}")
+        except Exception:  # noqa: BLE001 — theme never breaks the strip
+            pass
+
         self._bus = bus if bus is not None else get_state_bus()
         self._tokens = []
         try:
@@ -307,6 +329,16 @@ class StatusStrip(QWidget):
                 self._bus.subscribe(AppState, self._on_app_state))
         except Exception:  # noqa: BLE001 — no bus, no session word
             self._bus = None
+        # D-01 (Phase 6): closeEvent never fires for a child widget
+        # when its parent window is deleted — the subscription would
+        # outlive the strip and _drain would call _on_app_state on a
+        # deleted QLabel. Unsubscribe on destroyed too: the closure
+        # captures only the bus and the token list, never the strip.
+        if self._bus is not None:
+            _bus = self._bus
+            _tokens = self._tokens
+            self.destroyed.connect(
+                lambda: [_bus.unsubscribe(t) for t in list(_tokens)])
 
     # ------------------------------------------------------------ sampling
     def _tick(self) -> None:

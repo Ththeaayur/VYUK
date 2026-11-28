@@ -14,10 +14,19 @@ show their detail and point at the full report; nothing is invented.
 """
 import datetime
 import os
+import re
+import shutil
+import subprocess
+import sys
+import time
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QThread, Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -52,30 +61,164 @@ _ATTENTION = AMBER
 _BROKEN = DANGER
 
 
+# UI Phase 4 (D-P4-17): the six finding categories, in the
+# order the page renders them inside each severity. The
+# checkbox labels are the same words, title-cased for the
+# picker ("Model / provider" reads better than the bare
+# "model/provider" key).
+_CATEGORY_ORDER = ("connectivity", "permissions", "installation",
+                   "model/provider", "runtime", "recovery")
+_CATEGORY_LABELS = {
+    "connectivity": "Connectivity",
+    "permissions": "Permissions",
+    "installation": "Installation",
+    "model/provider": "Model / provider",
+    "runtime": "Runtime",
+    "recovery": "Recovery",
+}
+_RUN_SELECTION_KEY = "doctor/run_selection"
+
+
+def _category_check_counts() -> dict:
+    """Checks per category, from doctor._CHECK_CATEGORIES.
+
+    Fix round (F-P4-03, 2026-11-26): the category tiles carry
+    their count. Read from the same table the suite asserts
+    covers _CHECKS exactly, so the counts cannot drift from the
+    checks. An unimportable doctor module reads as no counts —
+    the tiles fall back to plain labels, never a wrong number.
+    """
+    try:
+        from voice_assistant import doctor as _doctor
+    except Exception:  # noqa: BLE001 — test path second
+        try:
+            import doctor as _doctor
+        except Exception:  # noqa: BLE001 — no counts
+            return {}
+    try:
+        from collections import Counter
+        return dict(Counter(_doctor._CHECK_CATEGORIES.values()))
+    except Exception:  # noqa: BLE001 — no counts
+        return {}
+
+
+def _redact_report_text(text: str) -> str:
+    """Redact key-shaped material from a report before export
+    (D-P4-18): the checks already report presence only, never a
+    key value — this is the same rule applied once more at the
+    export boundary, so a diagnostic line that ever carried a
+    token cannot leave the machine in a file. Receipt contents
+    are never in the report at all (doctor.py never prints
+    them), so there is nothing to scrub there."""
+    if not text:
+        return text
+    redacted = re.sub(r"AIza[0-9A-Za-z_\-]{10,}", "AIza…(redacted)",
+                      text)
+    redacted = re.sub(r"\bsk-[A-Za-z0-9]{8,}\b", "sk-…(redacted)",
+                      redacted)
+    redacted = re.sub(
+        r"(?i)\b(api[_-]?key|secret)\s*[:=]\s*\S+",
+        r"\1: (redacted)", redacted)
+    return redacted
+
+
+class _RepairTypedConfirmDialog(HudDialog):
+    """Typed confirmation for a destructive repair (D-P4-16) —
+    the W10 reset pattern (window_pages_system.py): the user
+    types the action's name exactly as the dialog shows it, and
+    the confirm button stays disabled until the typed word
+    matches. Cancel holds the default, so Enter keeps things
+    as they are."""
+
+    def __init__(self, parent=None, title="", body="", word="Repair",
+                 button_text="Repair"):
+        super().__init__(parent, title=title,
+                         eyebrow="Destructive action",
+                         severity="danger", destructive=True)
+        self._word = word
+        self.add_title(title, eyebrow="Destructive action")
+        self.add_body(body + f"\n\nType {word} to confirm.")
+        self._edit = QLineEdit(self)
+        self._edit.setPlaceholderText(word)
+        self.content_layout().addWidget(self._edit)
+        buttons = self.add_buttons([
+            ("cancel", "Cancel", "reject", True, False),
+            ("confirm", button_text, "accept", False, True),
+        ])
+        self._confirm_btn = buttons["confirm"]
+        self._confirm_btn.setEnabled(False)
+        self._edit.textChanged.connect(self._on_text_changed)
+        self._edit.returnPressed.connect(self._on_return_pressed)
+
+    def _on_text_changed(self, text: str):
+        self._confirm_btn.setEnabled(text.strip() == self._word)
+
+    def _on_return_pressed(self):
+        if self._confirm_btn.isEnabled():
+            self.accept()
+
+
+class _RepairWorker(QThread):
+    """Run one repair off the GUI thread (a pip install can take
+    minutes) and report its result. The repair callable takes no
+    arguments and returns a dict: {"ok": bool, "evidence": str}
+    — evidence names what changed, never a secret value."""
+
+    done = Signal(dict)
+
+    def __init__(self, parent=None, fn=None):
+        super().__init__(parent)
+        self._fn = fn
+
+    def run(self):
+        try:
+            result = self._fn() if self._fn is not None else {
+                "ok": False, "evidence": "no repair was supplied"}
+        except Exception as exc:  # noqa: BLE001 — a repair that
+            # raises reports, never crashes the page
+            result = {"ok": False, "evidence": f"repair raised: {exc}"}
+        self.done.emit(dict(result))
+
+
 class DoctorPage(QWidget):
     """The Doctor page widget. The main window owns it; it only
     asks the window to navigate (show_settings_card) or to run an
     existing action (_setup_local_brain)."""
+
+    # UI Phase 4 (D-P4-16, R-P4-B): the background download's
+    # progress/done callbacks run on the download thread — these
+    # signals hop them to the GUI thread (the window's own
+    # brain_setup_progress pattern), so no widget is ever
+    # touched from the worker thread.
+    repair_download_progress = Signal(str)
+    repair_download_done = Signal(list)
 
     def __init__(self, window):
         super().__init__()
         self._window = window
         self._ran = False
         self._worker = None
+        # UI Phase 4 (D-P4-16): one repair at a time — a second
+        # Repair click while one runs is refused, never queued.
+        self._repair_running = False
+        self._repair_worker = None
+        self._verify_worker = None
+        self._last_report_text = ""
+        self._run_started = None
+        self._finding_cards: dict = {}
+        self.repair_download_progress.connect(
+            self._on_download_progress)
+        self.repair_download_done.connect(self._on_download_done)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        # v5.57.1 (item 2): the Doctor page has no sidebar entry
-        # (owner override 2026-10-24 18:20 IST — that stays), so
-        # without a way back the page is a trap: the only exit was
-        # clicking Settings in the sidebar. A Back button at the
-        # top returns to the Settings page; it navigates only,
-        # never re-runs or resets the checks.
-        self.btn_back = QPushButton("← Back to Settings")
-        self.btn_back.setObjectName("chipBtn")
-        self.btn_back.clicked.connect(self._on_back)
-        layout.addWidget(self.btn_back, alignment=Qt.AlignmentFlag.AlignLeft)
+        # UI Phase 4 (D-P4-28): the S1 truth — the Doctor HAS a
+        # sidebar entry now (owner override 2026-10-24, sidebar
+        # "Doctor", heartbeat, stack 7), so the page is not a
+        # trap and the redundant "← Back to Settings" button is
+        # gone. The sidebar is the way back; nothing here
+        # re-runs or resets the checks on exit.
 
         # Status hero.
         self.hero = QFrame()
@@ -99,11 +242,65 @@ class DoctorPage(QWidget):
         self.hero_last.setObjectName("muted")
         hero_layout.addWidget(self.hero_last)
         self._read_last_run()
-        row = QVBoxLayout()
+        # UI Phase 4 (D-P4-18): run selected checks — six
+        # category checkboxes above Run ("Run" runs the
+        # selection; "Run all" is the default, all six ticked).
+        # The selection persists in doctor/run_selection
+        # (QSettings, registered in core/config_spec.py).
+        # A grid, not one row: six checkboxes in a row overflow
+        # a 640 px window; two rows of three do not — but only
+        # with the short Phase 4 labels. The fix-round labels
+        # carry a glyph and a count ("✓ Connectivity · 4"), and
+        # three of those columns overflow 640 again, so the grid
+        # is responsive: three columns at >= 700 px page width,
+        # two below (see _relayout_category_grid).
+        self._category_boxes: dict = {}
+        self._category_base_labels: dict = {}
+        self._category_grid = None
+        self._category_cols = None
+        _cat_counts = _category_check_counts()
+        cat_grid = QGridLayout()
+        cat_grid.setContentsMargins(0, 6, 0, 0)
+        cat_grid.setHorizontalSpacing(12)
+        cat_grid.setVerticalSpacing(2)
+        self._category_grid = cat_grid
+        for _i, _cat in enumerate(_CATEGORY_ORDER):
+            # Fix round (F-P4-03, 2026-11-26): each tile carries
+            # its count ("Connectivity · 4") — a tile with no
+            # number tells the user nothing. The glyph (✓ when
+            # ticked) is synced by _sync_category_glyphs, which
+            # runs on every toggle and after the stored selection
+            # is applied.
+            _n = _cat_counts.get(_cat)
+            _base = (_CATEGORY_LABELS[_cat] if _n is None else
+                     f"{_CATEGORY_LABELS[_cat]} · {_n}")
+            self._category_base_labels[_cat] = _base
+            _box = QCheckBox(_base)
+            _box.setChecked(True)
+            _box.toggled.connect(self._on_category_toggled)
+            self._category_boxes[_cat] = _box
+            cat_grid.addWidget(_box, _i // 3, _i % 3)
+        hero_layout.addLayout(cat_grid)
+        self._apply_stored_selection()
+        self._sync_category_glyphs()
+        self._relayout_category_grid()
+        row = QHBoxLayout()
         self.btn_run = QPushButton("Run the checks")
         self.btn_run.clicked.connect(self.run)
         row.addWidget(self.btn_run, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.btn_run_all = QPushButton("Run all")
+        self.btn_run_all.clicked.connect(self._on_run_all)
+        row.addWidget(self.btn_run_all,
+                      alignment=Qt.AlignmentFlag.AlignLeft)
+        self.btn_export = QPushButton("Export report")
+        self.btn_export.clicked.connect(self._on_export_clicked)
+        row.addWidget(self.btn_export,
+                      alignment=Qt.AlignmentFlag.AlignLeft)
+        self.export_result = QLabel("")
+        self.export_result.setObjectName("muted")
+        self.export_result.setWordWrap(True)
         hero_layout.addLayout(row)
+        hero_layout.addWidget(self.export_result)
         layout.addWidget(self.hero)
 
         # Wiring Build 3 — Resilience + undo, on this existing
@@ -130,6 +327,24 @@ class DoctorPage(QWidget):
         self.resilience_label.setObjectName("muted")
         self.resilience_label.setWordWrap(True)
         res_layout.addWidget(self.resilience_label)
+        # Look-fix 2 (2026-11-24): the label used to carry the
+        # verbatim status lines — a log-dump wall (the libraries
+        # list alone is a 100+ char line). The card now shows a
+        # short summary from the same payload, and the verbatim
+        # lines live behind this disclosure — same facts, one tap
+        # away, never hidden.
+        self.resilience_details = QLabel("")
+        self.resilience_details.setObjectName("muted")
+        self.resilience_details.setWordWrap(True)
+        self.resilience_details.hide()
+        res_layout.addWidget(self.resilience_details)
+        self.btn_resilience_details = QPushButton("Show full status")
+        self.btn_resilience_details.setCheckable(True)
+        self.btn_resilience_details.clicked.connect(
+            self._on_resilience_details_toggled)
+        res_layout.addWidget(self.btn_resilience_details,
+                             alignment=Qt.AlignmentFlag.AlignLeft)
+        self._resilience_full_lines: list = []
         self.btn_resilience_rearm = QPushButton("Re-arm resilience")
         self.btn_resilience_rearm.clicked.connect(self._on_resilience_rearm)
         res_layout.addWidget(self.btn_resilience_rearm,
@@ -256,6 +471,17 @@ class DoctorPage(QWidget):
         # Findings, grouped by severity (failures first).
         self.findings_scroll = QScrollArea()
         self.findings_scroll.setWidgetResizable(True)
+        # UI Phase 4 (leg-found, render gate): the findings list
+        # MUST have a usable height. The page's outer scroll area
+        # sizes its content to the sections' size hints, and a
+        # QScrollArea's hint is tiny — without a floor the list
+        # was crushed to 56 px (measured on the live tree AND on
+        # the pre-Phase-4 tree, so pre-existing, not a Phase 4
+        # regression) and the 24 finding cards showed only as a
+        # 2-line slit. 480 px shows 3+ cards at 1280 and 2+ at
+        # 640; the outer page scrolls, so a taller list costs
+        # nothing at any window height.
+        self.findings_scroll.setMinimumHeight(480)
         self.findings_inner = QWidget()
         self.findings_layout = QVBoxLayout(self.findings_inner)
         self.findings_layout.setContentsMargins(0, 0, 0, 0)
@@ -291,13 +517,106 @@ class DoctorPage(QWidget):
         self.report_view.setVisible(False)
         layout.addWidget(self.report_view, stretch=1)
 
-    def _on_back(self):
-        """Return to the Settings page (index 4) — the page this
-        Doctor view is reached from. Navigation only."""
+    # ------------------------------------------- run selection
+    def _selected_categories(self) -> list:
+        """The ticked categories, in _CATEGORY_ORDER."""
+        return [c for c in _CATEGORY_ORDER
+                if self._category_boxes.get(c) is not None
+                and self._category_boxes[c].isChecked()]
+
+    def _apply_stored_selection(self):
+        """Tick the boxes from doctor/run_selection ("all" or a
+        comma list); a missing or unreadable value reads as all.
+        Called once, at build — the boxes own the state after."""
         try:
-            self._window._show_page(4)
-        except Exception:  # noqa: BLE001 — a missing window method
-            pass  # must never break the page itself
+            settings = getattr(self._window, "settings", None)
+            if settings is None:
+                return
+            stored = str(qsettings_get(
+                _RUN_SELECTION_KEY, settings=settings) or "all")
+        except Exception:  # noqa: BLE001 — default is all
+            return
+        if stored.strip().lower() == "all":
+            wanted = set(_CATEGORY_ORDER)
+        else:
+            wanted = {c.strip().lower() for c in stored.split(",")
+                      if c.strip()}
+        for cat, box in self._category_boxes.items():
+            try:
+                box.setChecked(cat in wanted)
+            except Exception:  # noqa: BLE001 — one box never breaks the rest
+                pass
+
+    def _store_selection(self):
+        """Persist the ticked categories ("all" when all six are
+        ticked, else the comma list) — the next visit, and the
+        Pulse Connection row's last-run read, see the same run."""
+        try:
+            settings = getattr(self._window, "settings", None)
+            if settings is None:
+                return
+            selected = self._selected_categories()
+            value = ("all" if len(selected) == len(_CATEGORY_ORDER)
+                     else ",".join(selected))
+            qsettings_set(_RUN_SELECTION_KEY, value, settings=settings)
+        except Exception:  # noqa: BLE001 — persistence is best-effort
+            pass
+
+    def _sync_category_glyphs(self):
+        """Fix round (F-P4-03): the checked state shows a visible
+        check glyph — the global checkbox style paints a checked
+        indicator as a solid cyan block with no glyph, so the
+        glyph lives in the label: "✓ Connectivity · 4" ticked,
+        "Connectivity · 4" unticked. Checked and unchecked are
+        distinguishable at a glance, and the count stays visible
+        in both states."""
+        for cat, box in self._category_boxes.items():
+            try:
+                _base = self._category_base_labels.get(
+                    cat, _CATEGORY_LABELS[cat])
+                box.setText(("✓ " if box.isChecked() else "") + _base)
+            except Exception:  # noqa: BLE001 — one tile never breaks the rest
+                pass
+
+    def _relayout_category_grid(self):
+        """Fix round (F-P4-03): the tile grid is responsive —
+        three columns at >= 700 px page width, two below. The
+        glyph + count labels are wider than the Phase 4 labels,
+        and three of them overflow a 640 px window (the hero card
+        grew a horizontal scrollbar). A no-op unless the column
+        count actually changes, so a resize cannot loop."""
+        grid = getattr(self, "_category_grid", None)
+        if grid is None or not self._category_boxes:
+            return
+        cols = 3 if self.width() >= 700 else 2
+        if cols == getattr(self, "_category_cols", None):
+            return
+        self._category_cols = cols
+        for i in reversed(range(grid.count())):
+            grid.takeAt(i)
+        for i, cat in enumerate(_CATEGORY_ORDER):
+            grid.addWidget(self._category_boxes[cat],
+                           i // cols, i % cols)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._relayout_category_grid()
+
+    def _on_category_toggled(self, _checked=False):
+        self._sync_category_glyphs()
+        self._store_selection()
+
+    def _on_run_all(self):
+        """Tick every category and run — "Run all" is the
+        default selection, and this restores it after the user
+        unticked some."""
+        for box in self._category_boxes.values():
+            try:
+                box.setChecked(True)
+            except Exception:  # noqa: BLE001 — best-effort
+                pass
+        self._store_selection()
+        self.run()
 
     # ------------------------------------------- Wiring Build 3
     def _resilience_gate(self):
@@ -443,17 +762,95 @@ class DoctorPage(QWidget):
     def _refresh_resilience_status(self):
         """Render the shared gate payload through the existing
         renderer. Never raises: a broken status surface must not
-        break the Doctor page."""
+        break the Doctor page.
+
+        Look-fix 2 (2026-11-24): the card shows a short summary
+        derived from the structured payload (never invented), and
+        the verbatim lines live behind "Show full status" — the
+        wall of log lines is gone, the facts are one tap away.
+        """
         try:
             gate = self._resilience_gate()
             lines = gate.render_status_lines()
-            self.resilience_label.setText("\n".join(lines))
+            self._resilience_full_lines = list(lines or [])
+            try:
+                status = gate.resilience_status()
+            except Exception:  # noqa: BLE001 — fall back to the lines
+                status = None
+            self.resilience_label.setText(
+                self._resilience_summary(status, lines))
+            self._sync_resilience_details()
         except Exception:  # noqa: BLE001
             try:
                 self.resilience_label.setText(
                     "Resilience wiring: status unavailable.")
+                self._resilience_full_lines = []
+                self._sync_resilience_details()
             except Exception:  # noqa: BLE001
                 pass
+
+    @staticmethod
+    def _resilience_summary(status, lines):
+        """Short human summary of the gate payload.
+
+        The summary names the state (healthy / tripped / not
+        configured), safe mode, and the counts — the library names,
+        fence wordings and pilot-only items stay in the verbatim
+        lines behind the disclosure, so nothing is lost. When the
+        structured payload is unavailable, the summary IS the
+        verbatim lines (the old behaviour), never a guess.
+        """
+        if not isinstance(status, dict):
+            return "\n".join(lines or [])
+        if not status.get("configured"):
+            summary = ["Resilience wiring: not yet configured in this session."]
+            if status.get("tripped"):
+                summary.append("Control is paused: "
+                               + (status.get("trip_reason")
+                                  or "failsafe tripped"))
+            return "\n".join(summary)
+        if status.get("tripped"):
+            summary = ["Resilience wiring: TRIPPED — "
+                       + (status.get("trip_reason")
+                          or "failsafe tripped")]
+        else:
+            summary = ["Resilience wiring: healthy"]
+        summary.append("Safe mode: "
+                       + ("engaged" if status.get("safe_mode")
+                          else "not engaged"))
+        fences = status.get("fences") or []
+        # Fix round (F-04, parent wording 2026-11-26): the summary
+        # card speaks in plain words — the numbers stay live.
+        summary.append(f"Safety guards on: {len(fences)}")
+        libraries = status.get("libraries") or []
+        summary.append(f"Libraries protected: {len(libraries)}")
+        owed = status.get("owed_reads") or {}
+        if owed:
+            summary.append(
+                f"Licence checks waiting on you: {len(owed)}")
+        proof = status.get("field_proof") or ""
+        if proof:
+            summary.append(proof)
+        return "\n".join(summary)
+
+    def _sync_resilience_details(self):
+        """Show or hide the verbatim lines behind the disclosure."""
+        try:
+            show = bool(
+                getattr(self.btn_resilience_details, "isChecked", lambda: False)())
+            self.resilience_details.setVisible(show)
+            if show:
+                self.resilience_details.setText(
+                    "\n".join(self._resilience_full_lines)
+                    or "No further status lines.")
+            self.btn_resilience_details.setText(
+                "Hide full status" if show else "Show full status")
+        except Exception:  # noqa: BLE001 — the toggle never breaks the page
+            pass
+
+    def _on_resilience_details_toggled(self):
+        """The disclosure toggle — re-sync the details label."""
+        self._sync_resilience_details()
 
     def _on_resilience_rearm(self):
         """Re-arm button: confirm first (default No), then the
@@ -634,14 +1031,32 @@ class DoctorPage(QWidget):
                     return
             except RuntimeError:  # noqa: BLE001 — stale worker
                 self._worker = None
+        # UI Phase 4 (D-P4-18): "Run" runs the selection — with
+        # nothing ticked there is nothing to run, and the hero
+        # says so instead of running everything behind the
+        # user's back.
+        categories = self._selected_categories()
+        if not categories:
+            self.hero_title.setText("Nothing selected")
+            self.hero_title.setStyleSheet(
+                "font-size: 20px; font-weight: 600;")
+            self.hero_counts.setText(
+                "Tick at least one category above, or press "
+                "Run all.")
+            return
+        self._store_selection()
         self._ran = True
+        # UI Phase 4 (D-P4-19): the run's duration, measured
+        # from here to _on_done.
+        self._run_started = time.monotonic()
+        self._run_categories = list(categories)
         self.btn_run.setEnabled(False)
         self.btn_run.setText("Running…")
         self.hero_title.setText("Checking…")
         self.hero_title.setStyleSheet("font-size: 20px; font-weight: 600;")
         self.hero_counts.setText(
             "VYUK is running her checks. This takes a few seconds.")
-        worker = _DoctorWorker(self)
+        worker = _DoctorWorker(self, categories=categories)
         worker.done.connect(self._on_done)
         worker.finished.connect(worker.deleteLater)
         self._worker = worker
@@ -707,13 +1122,20 @@ class DoctorPage(QWidget):
                 "Press Run again to retry.")
             if payload.get("text"):
                 self.report_view.setPlainText(payload["text"])
+                self._last_report_text = str(payload["text"])
             else:
                 self.report_view.setPlainText(
                     "Doctor run failed: %s" % err)
             return
-        counts = payload["counts"]
-        n_pass, n_warn, n_fail = (counts["PASS"], counts["WARN"],
-                                  counts["FAIL"])
+        # Fix round (F-P4-02, parent ruling 2026-11-26): the hero
+        # counts CHECKS — one outcome per check, the worst verdict
+        # that check produced — so the three numbers sum to the
+        # number of checks run (37 for a full run). The worker
+        # carries them as "check_counts"; a payload without them
+        # (an old cached result) falls back to the verdict counts.
+        _hero = payload.get("check_counts") or payload["counts"]
+        n_pass, n_warn, n_fail = (_hero["PASS"], _hero["WARN"],
+                                  _hero["FAIL"])
         self.hero_counts.setText(
             f"{n_pass} checks passed · {n_warn} warnings · "
             f"{n_fail} failures")
@@ -728,14 +1150,27 @@ class DoctorPage(QWidget):
             color = _HEALTHY
         self.hero_title.setStyleSheet(
             "font-size: 20px; font-weight: 600; color: %s;" % color)
-        now = datetime.datetime.now().strftime("%d %b, %H:%M")
+        # UI Phase 4 (D-P4-19): the hero stamp carries the year,
+        # the seconds, and the run duration — stored in the SAME
+        # doctor/last_run key (no third QSettings key), displayed
+        # verbatim. The Pulse Connection row strips the
+        # " (took …)" suffix when it reads the same key.
+        _took = ""
+        if self._run_started is not None:
+            _secs = max(0, int(round(
+                time.monotonic() - self._run_started)))
+            _took = f" (took {_secs} s)"
+        self._run_started = None
+        now = datetime.datetime.now().strftime("%d %b %Y, %H:%M:%S")
+        stamp = f"{now}{_took}"
         try:
             settings = getattr(self._window, "settings", None)
             if settings is not None:
-                qsettings_set("doctor/last_run", now, settings=settings)
+                qsettings_set("doctor/last_run", stamp, settings=settings)
         except Exception:  # noqa: BLE001
             pass
-        self.hero_last.setText(f"Last run: {now}")
+        self.hero_last.setText(f"Last run: {stamp}")
+        self._last_report_text = str(payload.get("text") or "")
         findings = payload["findings"]
         # M-58 confirm popup (click-anywhere Batch 0, Plan 9 §7.2):
         # the write proof asks him to confirm the RESULT in the
@@ -758,6 +1193,7 @@ class DoctorPage(QWidget):
                 % (str(finding.get("detail", "") or "").rstrip(),
                    "yes" if confirmed else "no"))
             break
+        self._finding_cards = {}
         if not findings:
             card = QFrame()
             card.setObjectName("settingsCard")
@@ -779,9 +1215,27 @@ class DoctorPage(QWidget):
                 kicker.setStyleSheet(f"font-size: {TYPE_CARD_TITLE}px; font-weight: 600;"
                                      f" color: {TEXT};")
                 self.findings_layout.addWidget(kicker)
-                for finding in group_findings:
-                    self.findings_layout.addWidget(
-                        self._finding_row(finding))
+                # UI Phase 4 (D-P4-17): group by category inside
+                # severity, in _CATEGORY_ORDER, with a category
+                # kicker. A finding whose marker is missing (an
+                # old cached report) lands under OTHER, last —
+                # never silently dropped, never mis-grouped.
+                for cat in list(_CATEGORY_ORDER) + [""]:
+                    cat_findings = [
+                        f for f in group_findings
+                        if (f.get("category") or "") == cat]
+                    if not cat_findings:
+                        continue
+                    cat_kicker = QLabel(cat.upper() if cat else "OTHER")
+                    cat_kicker.setStyleSheet(
+                        f"font-size: {TYPE_CARD_TITLE}px; font-weight: 600;"
+                        f" color: {TEXT};")
+                    self.findings_layout.addWidget(cat_kicker)
+                    for finding in cat_findings:
+                        card = self._finding_row(finding)
+                        self._finding_cards[
+                            str(finding.get("label", ""))] = card
+                        self.findings_layout.addWidget(card)
         self.findings_layout.addStretch()
         self.report_view.setPlainText(payload["text"])
 
@@ -792,6 +1246,198 @@ class DoctorPage(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+    # ------------------------------------------------------------ repairs
+    # UI Phase 4 (D-P4-16): the pack findings whose repair is the
+    # background download — only when the detail says the pack
+    # is NOT there yet. A partial pack ("downloads resume where
+    # they left off") is already downloading; starting another
+    # would be a second downloader, which the brief forbids.
+    _PACK_DOWNLOAD_LABELS = (
+        "Offline pack", "STT tier (Whisper)", "Local vision (VLM)",
+        "Voice (Kokoro)", "Fallback voice (Piper)")
+    _PACK_DOWNLOAD_PHRASES = (
+        "not downloaded yet", "isn't downloaded yet",
+        "isn't provisioned yet")
+
+    def _pip_repair_specs(self):
+        """doctor.py's allowlist (R-P4-A) — the single source of
+        truth; a missing import reads as no repair, never as an
+        open pip install."""
+        try:
+            from voice_assistant import doctor as _doctor
+        except ImportError:  # running un-packaged, next to doctor.py
+            import doctor as _doctor
+        return dict(getattr(_doctor, "_PIP_REPAIR_SPECS", {}) or {})
+
+    def _repair_for(self, finding: dict):
+        """The safe repair for one finding, or None (no safe
+        repair — the card says so with the reason). The ruled
+        table (D-P4-16); anything outside it is None, and a pip
+        repair only ever names a package in the allowlist."""
+        label = str(finding.get("label", ""))
+        status = str(finding.get("status", ""))
+        detail = str(finding.get("detail", ""))
+        # Missing dependency — pip install the named requirement,
+        # bounded to the declared set (R-P4-A). Required deps
+        # FAIL; optional ones WARN and the repair is offered as
+        # optional (the verb says so).
+        if (label.startswith("Dependency: ")
+                or label.startswith("Local brain dependency: ")):
+            import_name = label.split(": ", 1)[1].strip()
+            spec = self._pip_repair_specs().get(import_name)
+            if spec is None:
+                return None
+            optional = status == "WARN"
+            return {
+                "kind": "pip",
+                "verb": (f"Install {import_name} (optional)"
+                         if optional else f"Install {import_name}"),
+                "spec": spec, "import_name": import_name,
+                "scope": (f"Installs {spec} into this Python "
+                          "environment with pip. Nothing else "
+                          "changes; no other package is touched."),
+                "verify_check": ("check_deps"
+                                 if label.startswith("Dependency: ")
+                                 else "check_brain"),
+                "verify_label": label,
+            }
+        # Unwritable data dir — only when the cause is known
+        # (a permission error naming the folder).
+        if label == "Data directory":
+            if ("Permission denied" in detail or "Errno 13" in detail
+                    or "[WinError 5]" in detail):
+                path = detail.split(" is not writable", 1)[0].strip()
+                if not path:
+                    return None
+                return {
+                    "kind": "chmod",
+                    "verb": "Fix folder permissions",
+                    "path": path,
+                    "scope": (f"Makes VYUK's own data folder ({path}) "
+                              "writable again (owner write on the "
+                              "folder). Nothing outside VYUK's data "
+                              "folder is touched."),
+                    "verify_check": "check_data",
+                    "verify_label": label,
+                }
+            return None
+        # Missing model/voice pack — the existing background
+        # download (the same path Connect uses), never a second
+        # downloader.
+        if label in self._PACK_DOWNLOAD_LABELS and any(
+                p in detail for p in self._PACK_DOWNLOAD_PHRASES):
+            return {
+                "kind": "download",
+                "verb": "Download the pack",
+                "scope": ("Starts the same background download "
+                          "Connect uses (ears, then voice, then "
+                          "brain). It resumes from partial files "
+                          "if it was interrupted; nothing is "
+                          "downloaded twice."),
+                "verify_check": ("check_piper_voice"
+                                 if label == "Fallback voice (Piper)"
+                                 else "check_brain"),
+                "verify_label": label,
+            }
+        # Corrupt receipt store — back it up and let VYUK
+        # recreate it. Destructive (the store is removed), so
+        # the confirm is typed, and it carries the
+        # unknown-outcome warning.
+        if label == "Tool receipt store" and status == "FAIL":
+            return {
+                "kind": "receipt",
+                "verb": "Back up + recreate the store",
+                "scope": ("Backs the corrupt store up beside itself "
+                          "and removes it, so VYUK recreates an "
+                          "empty store on the next tool call."),
+                "warning": ("Recreating loses the unknown-outcome "
+                            "guard history — check no interrupted "
+                            "tool call is still outstanding first. "
+                            "The backup keeps the corrupt file for "
+                            "inspection."),
+                "verify_check": "check_receipt_store",
+                "verify_label": label,
+            }
+        # Stale .env / unsaved brain — navigation IS the repair
+        # (D-P4-16): the card keeps its "Open How VYUK thinks"
+        # button, and no separate Repair button appears.
+        if label == "Stored brain":
+            return {"kind": "nav"}
+        return None
+
+    # Reasons a finding has no automatic repair (D-P4-16): the
+    # card shows "No automatic repair — this one needs you"
+    # with the reason. Exact label first, then the longest
+    # matching prefix, then the generic fallback.
+    _NO_REPAIR_REASONS = {
+        "Brain": "needs your key or your Ollama install — a repair never touches credentials or installs a server.",
+        "API key": "needs your key — a repair never touches credentials.",
+        "Cloud doors (REST + Live)": "needs a network or account look — nothing on this machine to install or fix.",
+        "Gemini key tier": "lives in your Google AI Studio project's billing — VYUK can't read it from here.",
+        "Data directory": "the check doesn't say why the folder is unwritable — only a known permission cause can be fixed automatically.",
+        "Tool receipt store": "the store is missing, not corrupt — run a tool once and it comes back on its own.",
+        "Write proof": "the proof ran and the write failed — fix the cause (see Data directory) and re-run.",
+        "Your world": "needs you to connect Google in Settings — a repair can't sign you in.",
+        "Watchers": "the watcher code itself needs a look — open core/watchers.py.",
+        "Syntax check": "a code error — open the file the check names and fix it.",
+        "Tool registry": "a registration failed — the code needs a look, not a reinstall.",
+        "Control pack": "a pack is missing tools — the code needs a look.",
+        "Tool count": "a registration block didn't run — the code needs a look.",
+        "Module imports": "already reported under Dependency — fix that line first.",
+        "Pack registrations": "a pack failed to register — the code needs a look.",
+        "Microphone": "needs a microphone connected or enabled in the OS sound settings.",
+        "Microphone drops": "close other apps using the microphone, or pick a different one in Settings.",
+        "Microphone (deep check)": "needs a finished session to measure against.",
+        "Adaptive VAD floor": "needs a live session — the floor is estimated while VYUK listens.",
+        "Install-tree integrity": "the tree disagrees with the signed manifest — repair from the pristine source instead of an automatic fix.",
+        "GUI assets": "shipped files are missing — repair from the pristine source on the Distribution & repair card below.",
+        "Secrets at rest": "needs a protection backend on this machine — installing one is a system change, not a VYUK repair.",
+        "Presence": "the auto-start state couldn't be read — nothing safe to change automatically.",
+        "Failure clusters": "diagnostics only — a cluster is a report, not something to fix.",
+        "Learning": "the extractor code needs a look.",
+        "Platform backend": "the platform backend is an environment choice, not a repair.",
+        "MCP server": "fix the entry in mcp_servers.json.",
+        "MCP toolbox servers": "fix mcp_servers.json; the built-in defaults still apply.",
+        "Home Assistant": "configure the instance in Settings — a repair can't reach your home server.",
+        "OCR engine": "the Tesseract binary arrives with the installer — a repair can't fetch a system binary.",
+        "Real Chrome (CDP)": "needs Chrome running with remote debugging — start it and re-run.",
+        "Capability probes": "diagnostics only — the probes report, they don't fix.",
+        "Tool payload": "the offered set is over budget — shrink DESKTOP_TOOL_PRIORITY first.",
+        "Tool router": "the routed set is wrong — the code needs a look.",
+        "VYUK memory": "the tier couldn't be resolved — the code needs a look.",
+        "VYUK process load": "the load reading came back unusable — reinstall psutil (see Dependency) or ignore it.",
+        "Activity log": "the log rotates itself — nothing to fix.",
+        "Folder name": "renaming the folder VYUK runs from can't be done while she's running.",
+        "Python version": "needs a newer Python installed — a system change, not a VYUK repair.",
+        "Lite session": "the lite client must import cleanly — the code needs a look.",
+        "Doctor check": "the check itself is broken — a repair can't verify against a broken check.",
+        "Tool state files": "the packs recreate these on next use.",
+    }
+
+    def _no_repair_reason(self, finding: dict) -> str:
+        label = str(finding.get("label", ""))
+        detail = str(finding.get("detail", ""))
+        # A fix naming a package outside the declared set (R-P4-A).
+        if (label.startswith("Dependency: ")
+                or label.startswith("Local brain dependency: ")):
+            return ("the fix names a package outside VYUK's declared "
+                    "dependency set — a repair never installs an "
+                    "undeclared package.")
+        # A Watchers WARN that is really the missing psutil.
+        if label == "Watchers" and "psutil is not installed" in detail:
+            return ("install psutil — see the Dependency: psutil "
+                    "finding above.")
+        if label in self._NO_REPAIR_REASONS:
+            return self._NO_REPAIR_REASONS[label]
+        best = ""
+        for key, reason in self._NO_REPAIR_REASONS.items():
+            if label.startswith(key) and len(key) > len(best):
+                best = key
+        if best:
+            return self._NO_REPAIR_REASONS[best]
+        return ("no safe automatic repair exists for this finding — "
+                "it needs a person to look at the fix text.")
 
     def _next_step(self, label: str):
         """A navigation button for findings that name a place VYUK
@@ -818,7 +1464,15 @@ class DoctorPage(QWidget):
     def _finding_row(self, finding: dict) -> QFrame:
         """One issue as a row (Build 6 §6.6): title + detail + next
         step on the left, the fix action on the right. The grouped
-        kickers above still say which rows are failures."""
+        kickers above still say which rows are failures.
+
+        UI Phase 4 (D-P4-16/D-P4-27): the repair action (or the
+        honest "no automatic repair") and the W10 links live
+        under the fix text — never beside it at narrow widths
+        (§6.1: the repair button sits below the fix text under
+        640 px; under the text it is below it at every width).
+        The result label under the repair button carries the
+        progress, the evidence, and the re-check verdict."""
         row = QFrame()
         row.setObjectName("settingsCard")
         row_layout = QHBoxLayout(row)
@@ -840,13 +1494,465 @@ class DoctorPage(QWidget):
             step = QLabel(f"Next step: {finding['fix']}")
             step.setWordWrap(True)
             left.addWidget(step)
+        repair = self._repair_for(finding)
+        result_label = QLabel("")
+        result_label.setObjectName("muted")
+        result_label.setWordWrap(True)
+        result_label.hide()
+        if repair is not None and repair.get("kind") != "nav":
+            repair_btn = QPushButton(repair["verb"])
+            repair_btn.clicked.connect(
+                lambda _checked=False, f=finding, s=repair,
+                rl=result_label, rb=repair_btn:
+                    self._on_repair_clicked(f, s, rl, rb))
+            left.addWidget(repair_btn,
+                           alignment=Qt.AlignmentFlag.AlignLeft)
+        elif repair is None:
+            no_repair = QLabel(
+                "No automatic repair — this one needs you. "
+                + self._no_repair_reason(finding))
+            no_repair.setObjectName("muted")
+            no_repair.setWordWrap(True)
+            left.addWidget(no_repair)
+        # UI Phase 4 (D-P4-27): the W10 card, linked from
+        # findings — a dependency FAIL gains "Repair from
+        # pristine…" beside its fix text; an integrity finding
+        # gains "Verify install". (check_integrity verdicts
+        # WARN, never FAIL, by design — so the link is keyed
+        # to the integrity finding at either severity; a
+        # FAIL-only rule would show it never.)
+        if (str(finding.get("status", "")) == "FAIL"
+                and str(finding.get("label", "")).startswith(
+                    "Dependency: ")):
+            w10_btn = QPushButton("Repair from pristine…")
+            w10_btn.clicked.connect(
+                lambda _checked=False, rl=result_label:
+                    self._on_w10_repair(rl))
+            left.addWidget(w10_btn,
+                           alignment=Qt.AlignmentFlag.AlignLeft)
+        elif str(finding.get("label", "")) == "Install-tree integrity":
+            w10_btn = QPushButton("Verify install")
+            w10_btn.clicked.connect(
+                lambda _checked=False, rl=result_label:
+                    self._on_w10_verify(rl))
+            left.addWidget(w10_btn,
+                           alignment=Qt.AlignmentFlag.AlignLeft)
+        left.addWidget(result_label)
         row_layout.addLayout(left, stretch=1)
+        # The navigation button is the repair for "Stored brain"
+        # (kind "nav"); for a finding with a real repair it is
+        # suppressed — the repair IS the action, and a second
+        # button starting the same download would be a trap.
         step_action = self._next_step(finding["label"])
+        if repair is not None and repair.get("kind") != "nav":
+            step_action = None
         if step_action is not None:
             btn = QPushButton(step_action[0])
             btn.clicked.connect(step_action[1])
             row_layout.addWidget(btn)
         return row
+
+    def _on_repair_clicked(self, finding, spec, result_label, button):
+        """Scope first, confirm (default No; typed-confirm for
+        destructive ones), progress while it runs, result, then
+        verification by re-running the check. One repair at a
+        time; no repair-all button (D-P4-16)."""
+        if self._repair_running:
+            result_label.setText(
+                "A repair is already running — one at a time.")
+            result_label.show()
+            return
+        title = f"Repair: {finding.get('label', '')}"
+        body = spec["scope"]
+        if spec.get("warning"):
+            body += "\n\n" + spec["warning"]
+        if spec["kind"] == "receipt":
+            dialog = _RepairTypedConfirmDialog(
+                self, title=title, body=body, word="Repair",
+                button_text="Back up + recreate")
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                result_label.setText("Repair cancelled.")
+                result_label.show()
+                return
+        else:
+            try:
+                ok = HudDialog.confirm(self, title, body)
+            except Exception:  # noqa: BLE001 — no dialog: No
+                ok = False
+            if not ok:
+                result_label.setText("Repair cancelled.")
+                result_label.show()
+                return
+        self._repair_running = True
+        button.setEnabled(False)
+        button.setText("Working…")
+        result_label.setText("Working…")
+        result_label.show()
+        # The download repair is async (R-P4-B): it starts the
+        # background download and returns at once — the card
+        # shows PENDING until the download finishes, then
+        # verifies. Every other repair runs in a worker thread.
+        if spec["kind"] == "download":
+            self._start_download_repair(finding, spec, result_label,
+                                        button)
+            return
+        worker = _RepairWorker(
+            self, fn=lambda: self._run_sync_repair(spec))
+        worker.done.connect(
+            lambda result, f=finding, s=spec, rl=result_label,
+            b=button: self._on_repair_done(result, f, s, rl, b))
+        worker.finished.connect(worker.deleteLater)
+        self._repair_worker = worker
+        worker.start()
+
+    def _run_sync_repair(self, spec):
+        """One synchronous repair, off the GUI thread. Returns
+        {"ok", "evidence"} — evidence names what changed,
+        never a secret value (D-P4-23)."""
+        kind = spec["kind"]
+        if kind == "pip":
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-m", "pip", "install",
+                     spec["spec"]],
+                    capture_output=True, text=True, timeout=600)
+            except subprocess.TimeoutExpired:
+                return {"ok": False,
+                        "evidence": f"pip install {spec['spec']} "
+                                    "timed out after 10 minutes"}
+            except Exception as exc:  # noqa: BLE001
+                return {"ok": False,
+                        "evidence": f"pip could not start: {exc}"}
+            if proc.returncode == 0:
+                return {"ok": True,
+                        "evidence": f"Installed {spec['spec']}"}
+            tail = (proc.stderr or proc.stdout or "").strip().splitlines()
+            return {"ok": False,
+                    "evidence": f"pip install {spec['spec']} failed"
+                    + (f": {tail[-1][:160]}" if tail else "")}
+        if kind == "chmod":
+            path = self._data_dir_repair_path(spec)
+            if path is None:
+                return {"ok": False,
+                        "evidence": "the folder in the finding "
+                                    "could not be resolved"}
+            try:
+                os.chmod(path, 0o755)
+            except Exception as exc:  # noqa: BLE001
+                return {"ok": False,
+                        "evidence": f"could not change permissions "
+                                    f"on {path}: {exc}"}
+            return {"ok": True,
+                    "evidence": f"Set {path} writable (owner write)"}
+        if kind == "receipt":
+            return self._run_receipt_repair()
+        return {"ok": False, "evidence": "unknown repair kind"}
+
+    def _data_dir_repair_path(self, spec):
+        """The folder a data-dir repair may chmod: the one the
+        finding names, and only if it IS VYUK's own data folder
+        (doctor.py's ROOT/data). Anything else reads as
+        unresolvable — a repair never chmods a path the check
+        didn't name."""
+        raw = str(spec.get("path", "")).strip()
+        if not raw:
+            return None
+        try:
+            from pathlib import Path as _Path
+            path = _Path(raw)
+            from voice_assistant import doctor as _doctor
+            data_dir = _Path(getattr(_doctor, "ROOT", "")) / "data"
+        except Exception:  # noqa: BLE001 — unresolvable
+            return None
+        try:
+            if path.resolve() != data_dir.resolve():
+                return None
+        except Exception:  # noqa: BLE001 — unresolvable
+            return None
+        if not path.is_dir():
+            return None
+        return str(path)
+
+    def _run_receipt_repair(self):
+        """Back the corrupt receipt store up beside itself and
+        remove it, so VYUK recreates an empty store on the next
+        tool call. The backup keeps the corrupt file for
+        inspection; a failed back-up removes nothing."""
+        try:
+            from voice_assistant import doctor as _doctor
+            store = _doctor._receipt_store_path()
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False,
+                    "evidence": f"could not resolve the receipt "
+                                f"store: {exc}"}
+        if not store.is_file():
+            return {"ok": False,
+                    "evidence": "the receipt store is already gone "
+                                "— nothing to back up"}
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup = store.with_name(store.name + f".bak-{stamp}")
+        try:
+            shutil.copy2(store, backup)
+            store.unlink()
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False,
+                    "evidence": f"back-up failed, nothing removed: "
+                                f"{exc}"}
+        return {"ok": True,
+                "evidence": f"Backed up to {backup.name} and removed "
+                            "the corrupt store — VYUK recreates it "
+                            "on the next tool call"}
+
+    def _on_repair_done(self, result, finding, spec, result_label,
+                        button):
+        self._repair_worker = None
+        button.setText(spec["verb"])
+        button.setEnabled(True)
+        # D-P4-23: the result names what changed — and the
+        # verification (which check re-ran, its new verdict, its
+        # timestamp) follows on the same card. A repair that
+        # itself failed has nothing to verify; the result says
+        # it failed, and the card stops there.
+        if result.get("ok"):
+            result_label.setText(
+                f"Done: {result.get('evidence', '')}")
+        else:
+            result_label.setText(
+                f"Repair failed: {result.get('evidence', '')}")
+            self._repair_running = False
+            return
+        result_label.show()
+        self._verify_repair(finding, spec, result_label)
+
+    def _verify_repair(self, finding, spec, result_label):
+        """Re-run the finding's check and write its new verdict
+        onto the card (D-P4-16/D-P4-23)."""
+        base = result_label.text()
+        self._verify_base = (result_label, base)
+        result_label.setText(base + "\nRe-checking…")
+        worker = _DoctorWorker(self, checks=[spec["verify_check"]])
+        worker.done.connect(
+            lambda payload, f=finding, s=spec, rl=result_label:
+                self._on_verify_done(payload, f, s, rl))
+        worker.finished.connect(worker.deleteLater)
+        self._verify_worker = worker
+        worker.start()
+
+    def _on_verify_done(self, payload, finding, spec, result_label):
+        self._verify_worker = None
+        self._repair_running = False
+        _when = datetime.datetime.now().strftime("%H:%M:%S")
+        base = ""
+        if getattr(self, "_verify_base", None) is not None:
+            _rl, base = self._verify_base
+            self._verify_base = None
+        else:
+            base = result_label.text()
+        if not payload.get("ok"):
+            # A re-run that itself fails to run reports
+            # "verification couldn't run" (D-P4-23) — never a
+            # verdict the check didn't produce.
+            result_label.setText(
+                base + "\nVerification couldn't run: "
+                + str(payload.get("error", "unknown"))[:120])
+            return
+        label = spec["verify_label"]
+        new = None
+        for f in payload.get("findings", []):
+            if str(f.get("label", "")) == label:
+                new = f
+                break
+        if new is None:
+            # The finding is gone from the findings list — the
+            # check now passes it.
+            result_label.setText(
+                base + f"\nRe-checked: PASS — {label} "
+                f"({spec['verify_check']}, {_when})")
+        else:
+            result_label.setText(
+                base + f"\nRe-checked: {new.get('status', '?')} — "
+                f"{label} ({spec['verify_check']}, {_when})")
+
+    # ------------------------------------------- download repair
+    def _start_download_repair(self, finding, spec, result_label,
+                               button):
+        """Start the Connect-path download (R-P4-B): async, so
+        the card shows PENDING until the download finishes and
+        only then verifies — never a mid-download verdict."""
+        try:
+            from voice_assistant.core.gui_facade import downloads
+        except Exception as exc:  # noqa: BLE001
+            result_label.setText(f"Download failed to start: {exc}")
+            self._repair_running = False
+            button.setEnabled(True)
+            button.setText(spec["verb"])
+            return
+        self._download_repair = (finding, spec, result_label, button)
+        self._download_last_line = ""
+
+        def progress(line):
+            # Runs on the download thread — hop to the GUI thread
+            # through the page's signal.
+            try:
+                self.repair_download_progress.emit(str(line))
+            except Exception:  # noqa: BLE001 — a progress line
+                pass  # never kills the run
+
+        def done(lines):
+            try:
+                self.repair_download_done.emit(list(lines or []))
+            except Exception:  # noqa: BLE001
+                pass
+
+        try:
+            started = downloads.start(progress, done)
+        except Exception as exc:  # noqa: BLE001
+            result_label.setText(f"Download failed to start: {exc}")
+            self._repair_running = False
+            button.setEnabled(True)
+            button.setText(spec["verb"])
+            return
+        if not started:
+            # A download is already running — the same path
+            # Connect uses refuses a second one. The card stays
+            # PENDING: it re-verifies when the running download
+            # finishes or on the next visit (this repair's done
+            # callback only fires for a run it started).
+            result_label.setText(
+                "A download is already running — verification "
+                "PENDING until it lands; re-check on the next visit.")
+            self._repair_running = False
+            button.setEnabled(True)
+            button.setText(spec["verb"])
+            return
+        result_label.setText(
+            "Download started — re-check after it lands "
+            "(verification PENDING).")
+
+    @Slot(str)
+    def _on_download_progress(self, line):
+        if getattr(self, "_download_repair", None) is None:
+            return
+        _finding, _spec, result_label, _button = self._download_repair
+        self._download_last_line = line
+        result_label.setText(
+            "Downloading… " + str(line)[:120]
+            + "\n(verification PENDING — re-check after it lands)")
+
+    @Slot(list)
+    def _on_download_done(self, lines):
+        if getattr(self, "_download_repair", None) is None:
+            return
+        finding, spec, result_label, button = self._download_repair
+        self._download_repair = None
+        button.setEnabled(True)
+        button.setText(spec["verb"])
+        last = ""
+        for line in reversed(lines or []):
+            if str(line).strip():
+                last = str(line).strip()
+                break
+        if (last.lower().startswith("error")
+                or "paused" in last.lower()):
+            result_label.setText(f"Download ended: {last[:160]}")
+        else:
+            result_label.setText("Download finished.")
+        self._verify_repair(finding, spec, result_label)
+
+    # ------------------------------------------------------------ W10 links
+    def _on_w10_verify(self, result_label):
+        """D-P4-27: an integrity finding's "Verify install" link
+        runs the W10 card's verify and mirrors its status line
+        onto the finding card."""
+        try:
+            self._window._w10_doctor_verify()
+            _label = getattr(self._window, "_w10_doctor_status", None)
+            status = str(_label.text() or "") if _label is not None else ""
+        except Exception as exc:  # noqa: BLE001
+            status = f"Install verify failed: {exc}"
+        result_label.setText(
+            status or "Verify install ran — see the Distribution "
+                     "& repair card below.")
+        result_label.show()
+
+    def _on_w10_repair(self, result_label):
+        """D-P4-27: a dependency FAIL's "Repair from pristine…"
+        link runs the W10 card's repair (caller-supplied
+        pristine source) and mirrors its status line."""
+        try:
+            self._window._w10_doctor_repair()
+            _label = getattr(self._window, "_w10_doctor_status", None)
+            status = str(_label.text() or "") if _label is not None else ""
+        except Exception as exc:  # noqa: BLE001
+            status = f"Repair failed: {exc}"
+        result_label.setText(
+            status or "Repair ran — see the Distribution "
+                     "& repair card below.")
+        result_label.show()
+
+    # ------------------------------------------------------------ export
+    def _on_export_clicked(self):
+        """D-P4-18/D-P4-24: export the full text report to a file
+        the user picks, redacted (the same presence-only rule
+        the checks apply, re-applied at the boundary). Blocked
+        in private mode — content goes, statuses stay."""
+        try:
+            from voice_assistant.core.gui_facade import (
+                private_mode as _private_mode)
+            _private = bool(_private_mode.private_mode_on())
+        except Exception:  # noqa: BLE001 — a broken read reads public
+            _private = False
+        if _private:
+            self.export_result.setText(
+                "Export is blocked while private mode is on.")
+            return
+        if not self._last_report_text:
+            self.export_result.setText(
+                "Run the checks first — there is no report to "
+                "export yet.")
+            return
+        try:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export Doctor report",
+                "vyuk-doctor-report.txt",
+                "Text files (*.txt);;All files (*)")
+        except Exception:  # noqa: BLE001 — no dialog, no export
+            return
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(_redact_report_text(self._last_report_text))
+            self.export_result.setText(f"Report exported to {path}.")
+        except Exception as exc:  # noqa: BLE001
+            self.export_result.setText(f"Export failed: {exc}")
+
+    # ------------------------------------------------------------ Pulse hook
+    def highlight_finding(self, label: str):
+        """Pulse's "Open in Doctor ›" hook (D-P4-07): scroll the
+        finding's card into view and edge it briefly. A label
+        with no card (no finding by that name) does nothing —
+        the word stays text on Pulse, as the mapping table says."""
+        card = self._finding_cards.get(str(label or ""))
+        if card is None:
+            return
+        try:
+            self.findings_scroll.ensureWidgetVisible(card)
+        except Exception:  # noqa: BLE001 — best-effort
+            pass
+        try:
+            card.setStyleSheet(
+                f"border: 2px solid {AMBER}; border-radius: 8px;")
+            QTimer.singleShot(
+                2000, lambda: self._clear_highlight(card))
+        except Exception:  # noqa: BLE001 — best-effort
+            pass
+
+    def _clear_highlight(self, card):
+        try:
+            card.setStyleSheet("")
+        except Exception:  # noqa: BLE001 — the card may be gone
+            pass
 
     def _on_report_toggled(self):
         visible = not self.report_view.isVisible()

@@ -126,6 +126,66 @@ def contact_card(action: str, person: str = "",
             f"{clean_person}: {clean_detail}.")
 
 
+def delete_contact_detail(person: str = "", detail: str = ""):
+    """Delete one stored detail for a person, by exact key (UI
+    Phase 3, D-P3-08).
+
+    The save key is ``person.lower() + " | " +
+    detail.lower()[:_MAX_NAME_CHARS]`` — the delete matches that
+    key EXACTLY (P3-04): a prefix match could delete a different
+    detail that shares the opening words. The lookup is the
+    store's own exact key equality (``get_fact``), never a
+    substring scan. Success is a plain receipt string; every
+    failure is an ``_outcome.failed`` — a plain string would be
+    read as success by the receipts while the detail was never
+    deleted (the F-F501 pattern the calendar/gmail writes
+    follow). The delete is verified by re-read: the fact must
+    be gone before the receipt names it.
+    """
+    from . import tool_outcome as _outcome  # R1b: seam wiring
+    clean_person = _clean(person)
+    if not clean_person:
+        return _outcome.failed(
+            "That needs the person's name.", "no person named")
+    clean_detail = _clean(detail)
+    if not clean_detail:
+        return _outcome.failed(
+            "That needs the detail itself — which labelled detail "
+            "should I delete?", "no detail named")
+    key = (clean_person.lower() + " | "
+           + clean_detail.lower()[:_MAX_NAME_CHARS])
+    try:
+        fact = _store().get_fact(_CONTACT_CATEGORY, key)
+    except Exception as e:  # noqa: BLE001
+        return _outcome.failed(
+            f"Couldn't read the contact cards: {e}",
+            "contact store read failed")
+    if fact is None:
+        return _outcome.failed(
+            f"No detail '{clean_detail}' stored for "
+            f"'{clean_person}' — nothing was deleted.",
+            "detail not found")
+    try:
+        deleted = bool(_store().delete_fact(fact["id"]))
+    except Exception as e:  # noqa: BLE001
+        return _outcome.failed(
+            f"Couldn't delete that detail: {e}",
+            "contact store write failed")
+    if not deleted:
+        return _outcome.failed(
+            "That detail couldn't be deleted just now — it is "
+            "still stored.", "contact delete unverified")
+    try:
+        still = _store().get_fact(_CONTACT_CATEGORY, key)
+    except Exception:  # noqa: BLE001
+        still = None
+    if still is not None:
+        return _outcome.failed(
+            "That detail couldn't be deleted just now — it is "
+            "still stored.", "contact delete unverified")
+    return (f"Deleted for {clean_person}: {clean_detail}.")
+
+
 # ---------------------------------------------------------------------------
 # SERVICE SCHEDULE — recurring upkeep with computed due dates,
 # plus MAINTENANCE DUE, the read across the schedule

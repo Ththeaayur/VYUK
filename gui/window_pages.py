@@ -12,6 +12,7 @@ behaviour is unchanged.
 # unchanged. No method name is defined by more than one mixin.
 from .window_pages_activity import PagesActivityMixin
 from .window_pages_memory import PagesMemoryMixin
+from .window_pages_p5 import PagesP5Mixin
 from .window_pages_system import PagesSystemMixin
 from .window_pages_views import PagesViewsMixin
 
@@ -19,6 +20,7 @@ from .window_pages_views import PagesViewsMixin
 class PagesMixin(
     PagesActivityMixin,
     PagesMemoryMixin,
+    PagesP5Mixin,
     PagesSystemMixin,
     PagesViewsMixin,
 ):

@@ -58,6 +58,21 @@ class SettingsThinkMixin:
         self.brain_truth_lbl.setObjectName("muted")
         self.brain_truth_lbl.setWordWrap(True)
         think.addWidget(self.brain_truth_lbl)
+        # Phase 4 (D-P4-33): stored-vs-effective lines for the
+        # keys and the cloud service — presence only, never a
+        # key value. Refreshed with the brain truth line.
+        self.api_key_truth_lbl = QLabel("")
+        self.api_key_truth_lbl.setObjectName("muted")
+        self.api_key_truth_lbl.setWordWrap(True)
+        think.addWidget(self.api_key_truth_lbl)
+        self.groq_key_truth_lbl = QLabel("")
+        self.groq_key_truth_lbl.setObjectName("muted")
+        self.groq_key_truth_lbl.setWordWrap(True)
+        think.addWidget(self.groq_key_truth_lbl)
+        self.cloud_provider_truth_lbl = QLabel("")
+        self.cloud_provider_truth_lbl.setObjectName("muted")
+        self.cloud_provider_truth_lbl.setWordWrap(True)
+        think.addWidget(self.cloud_provider_truth_lbl)
         # v5.25: the full three-option comparison (incl. Both) lives
         # in the choice dialog — the segmented control above only
         # switches the engine, so give it a permanent door here.
@@ -356,3 +371,91 @@ class SettingsThinkMixin:
             line += (" · Running on-device because the brain is "
                      "frozen — your saved pick is unchanged.")
         lbl.setText(line)
+        # Phase 4 (D-P4-33): the stored-vs-effective lines for
+        # the keys and the cloud service. Stored = the .env
+        # file's own line (never os.environ, never the live
+        # config value). Presence only — a key value is never
+        # shown. A save that didn't land says so: the input
+        # still holds the attempted text but the file doesn't.
+        try:
+            from voice_assistant.core.gui_facade import (
+                _stored_env_file_value as _stored33)
+        except Exception:  # noqa: BLE001 — truth display degrades
+            _stored33 = None
+        self._refresh_key_truth(
+            getattr(self, "api_key_truth_lbl", None),
+            "GEMINI_API_KEY", "Saved key",
+            getattr(self, "input_api_key", None),
+            getattr(self, "_api_key_save_attempt", None),
+            _stored33)
+        self._refresh_key_truth(
+            getattr(self, "groq_key_truth_lbl", None),
+            "GROQ_API_KEY", "Saved Groq key",
+            getattr(self, "input_groq_key", None),
+            getattr(self, "_groq_key_save_attempt", None),
+            _stored33)
+        self._refresh_provider_truth(
+            getattr(self, "cloud_provider_truth_lbl", None),
+            _stored33)
+
+    @staticmethod
+    def _refresh_key_truth(label, env_key, prefix, input_box,
+                           attempt, stored_reader):
+        """One stored-vs-effective key line. `attempt` is the
+        input text at save time; `stored_reader` is the .env
+        file reader (None degrades to 'not saved yet')."""
+        if label is None:
+            return
+        try:
+            stored = stored_reader(env_key) if stored_reader else None
+        except Exception:  # noqa: BLE001 — truth display degrades
+            stored = None
+        try:
+            current = input_box.text().strip() \
+                if input_box is not None else ""
+        except Exception:  # noqa: BLE001
+            current = ""
+        if attempt and current == attempt and stored != attempt:
+            label.setText(
+                f"{prefix}: the save didn't land — try saving again.")
+        elif current and stored != current:
+            if stored:
+                label.setText(
+                    f"{prefix}: set — the key in the box isn't "
+                    f"saved yet.")
+            else:
+                label.setText(
+                    f"{prefix}: not saved yet — the key in the box "
+                    f"isn't saved yet.")
+        elif stored:
+            label.setText(f"{prefix}: set")
+        else:
+            label.setText(f"{prefix}: not saved yet")
+
+    def _refresh_provider_truth(self, label, stored_reader):
+        """One stored-vs-effective cloud-service line."""
+        if label is None:
+            return
+        try:
+            stored = stored_reader("CLOUD_PROVIDER") \
+                if stored_reader else None
+        except Exception:  # noqa: BLE001 — truth display degrades
+            stored = None
+        if stored not in ("gemini", "groq"):
+            stored = None
+        try:
+            picked = self._cloud_provider()
+        except Exception:  # noqa: BLE001
+            picked = "gemini"
+        if picked not in ("gemini", "groq"):
+            picked = "gemini"
+        names = {"gemini": "Gemini Live", "groq": "Groq"}
+        if stored is None:
+            label.setText(
+                "Saved service: not saved yet — running on "
+                f"{names[picked]} this session.")
+        else:
+            line = f"Saved service: {names[stored]}"
+            if picked != stored:
+                line += f" — running on {names[picked]} this session."
+            label.setText(line)

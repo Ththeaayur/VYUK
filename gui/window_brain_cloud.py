@@ -20,6 +20,9 @@ class BrainCloudMixin:
     def _save_api_key(self):
         key = self.input_api_key.text().strip()
         if key:
+            # Phase 4 (D-P4-33): remember what was attempted,
+            # so the truth line can say the save didn't land.
+            self._api_key_save_attempt = key
             config.save_api_key(key)
             if self._brain_engine() == "local":
                 # Brain audit round 2, defect 7 named this seam;
@@ -46,6 +49,8 @@ class BrainCloudMixin:
             else:
                 self._notify("Key saved. You're ready to Connect.")
             self._sync_test_key_button()
+            # Phase 4 (D-P4-33): the truth lines re-read the file.
+            self._refresh_brain_truth()
 
     def _offer_cloud_switch(self) -> bool:
         """v5.29: the modal switch offer after a key save on the
@@ -140,6 +145,8 @@ class BrainCloudMixin:
             pass
         self._sync_cloud_provider()
         self._refresh_settings_summary()
+        # Phase 4 (D-P4-33): the service truth line re-reads the file.
+        self._refresh_brain_truth()
 
     def _sync_cloud_provider(self):
         provider = self._cloud_provider()
@@ -153,6 +160,9 @@ class BrainCloudMixin:
     def _save_groq_key(self):
         key = self.input_groq_key.text().strip()
         if key:
+            # Phase 4 (D-P4-33): remember what was attempted,
+            # so the truth line can say the save didn't land.
+            self._groq_key_save_attempt = key
             config.groq_api_key = key
             try:
                 from voice_assistant.core.gui_facade import save_env_setting
@@ -176,6 +186,8 @@ class BrainCloudMixin:
                     "Groq is picked in “How VYUK thinks”.")
             else:
                 self._notify("Groq key saved. You're ready to Connect.")
+            # Phase 4 (D-P4-33): the truth lines re-read the file.
+            self._refresh_brain_truth()
             self._sync_test_groq_button()
 
     def _sync_test_groq_button(self):

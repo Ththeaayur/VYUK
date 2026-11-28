@@ -12,6 +12,7 @@ importer (window_pages, skills_galaxy, tests) keeps working unchanged.
 from .skills_catalog_data import (
     GROUP_MEMBERS,
     GROUP_ORDER,
+    ROLE_CHIPS,
     ROLE_FRIENDLY,
     ROLE_GROUP,
     ROLE_KIND,
@@ -33,6 +34,7 @@ from .skills_catalog_widget import (
 __all__ = [
     "GROUP_MEMBERS",
     "GROUP_ORDER",
+    "ROLE_CHIPS",
     "ROLE_FRIENDLY",
     "ROLE_GROUP",
     "ROLE_KIND",

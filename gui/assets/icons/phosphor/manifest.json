@@ -1,8 +1,18 @@
 {
  "entries": [
   {
+   "name": "address-book",
+   "path": "address-book-duotone.svg",
+   "system": "phosphor"
+  },
+  {
    "name": "bell",
    "path": "bell-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "calendar",
+   "path": "calendar-duotone.svg",
    "system": "phosphor"
   },
   {
@@ -16,8 +26,48 @@
    "system": "phosphor"
   },
   {
+   "name": "cloud",
+   "path": "cloud-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "cloud-fog",
+   "path": "cloud-fog-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "cloud-lightning",
+   "path": "cloud-lightning-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "cloud-rain",
+   "path": "cloud-rain-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "cloud-snow",
+   "path": "cloud-snow-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "cloud-sun",
+   "path": "cloud-sun-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "currency-dollar",
+   "path": "currency-circle-dollar-duotone.svg",
+   "system": "phosphor"
+  },
+  {
    "name": "database",
    "path": "database-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "envelope",
+   "path": "envelope-duotone.svg",
    "system": "phosphor"
   },
   {
@@ -28,6 +78,16 @@
   {
    "name": "grid",
    "path": "grid-four-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "heartbeat",
+   "path": "heartbeat-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "house",
+   "path": "house-duotone.svg",
    "system": "phosphor"
   },
   {
@@ -43,6 +103,16 @@
   {
    "name": "monitor",
    "path": "monitor-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "note",
+   "path": "note-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "phone-call",
+   "path": "phone-call-duotone.svg",
    "system": "phosphor"
   },
   {
@@ -66,6 +136,11 @@
    "system": "phosphor"
   },
   {
+   "name": "shapes",
+   "path": "shapes-duotone.svg",
+   "system": "phosphor"
+  },
+  {
    "name": "sliders",
    "path": "sliders-horizontal-duotone.svg",
    "system": "phosphor"
@@ -78,6 +153,11 @@
   {
    "name": "square",
    "path": "square-duotone.svg",
+   "system": "phosphor"
+  },
+  {
+   "name": "sun",
+   "path": "sun-duotone.svg",
    "system": "phosphor"
   },
   {

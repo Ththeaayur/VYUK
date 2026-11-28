@@ -12,6 +12,9 @@ from .style_tokens import (
     ACCENT,
     ACCENT_2,
     BG,
+    INPUT_BG,
+    INPUT_BG_DISABLED,
+    INPUT_BORDER_DISABLED,
     SURFACE_1,
     SURFACE_2,
     TEXT,
@@ -209,12 +212,22 @@ def _resolve_theme(theme: dict) -> dict:
     accent_2 = theme["accent_2"]
     bg = theme.get("bg", BG)
     text = theme.get("text", TEXT)
+    surface_2 = theme.get("surface_2", SURFACE_2)
     # Light chrome (bg luminance > 0.5) needs two token values
     # the dark themes never did: a solid selection background
     # (the accent wash at 38% over a light surface is too pale
     # for the white selection text — white on solid #1D6FE0 is
     # 4.77:1) and a disabled-text colour that follows the theme
     # text (the house near-white at 45% would vanish on light).
+    # Look-fix 2 (2026-11-24): the input wells need the same
+    # treatment — the house black-at-38% well is a mid-grey slab
+    # on light (measured 148–154), so on light the well follows
+    # the theme surface_2, the disabled well sits halfway between
+    # surface_2 and the bg, and the disabled border follows the
+    # theme text at a visible alpha (the house white-at-10 border
+    # is invisible on light). Dark themes keep the house values.
+    # Mirrors core/tokens_theme.build_python_tokens exactly — the
+    # INV-11 proof compares the two resolvers key by key.
     light = _luminance(bg) > 0.5
     return {
         "accent": accent,
@@ -240,7 +253,7 @@ def _resolve_theme(theme: dict) -> dict:
         or _mix(accent_2, BG, 0.60),
         "bg": bg,
         "surface_1": theme.get("surface_1", SURFACE_1),
-        "surface_2": theme.get("surface_2", SURFACE_2),
+        "surface_2": surface_2,
         "text": text,
         "text_muted": theme.get("text_muted", TEXT_MUTED),
         "text_faint": theme.get("text_faint", TEXT_FAINT),
@@ -252,6 +265,17 @@ def _resolve_theme(theme: dict) -> dict:
         "text_disabled": (
             "rgba({}, 115)".format(_triplet(text)) if light
             else "rgba({}, 115)".format(_triplet(TEXT))
+        ),
+        "input_bg": (
+            surface_2 if light else INPUT_BG
+        ),
+        "input_bg_disabled": (
+            _mix(surface_2, bg, 0.5) if light
+            else INPUT_BG_DISABLED
+        ),
+        "input_border_disabled": (
+            "rgba({}, 32)".format(_triplet(text)) if light
+            else INPUT_BORDER_DISABLED
         ),
     }
 
@@ -399,6 +423,14 @@ def build_stylesheet(theme=None, font_scale: float = 1.0,
         # disabled tint — see _resolve_theme).
         tokens["SELECTION_BG"] = resolved["selection_bg"]
         tokens["TEXT_DISABLED"] = resolved["text_disabled"]
+        # Look-fix 2 (2026-11-24): the input wells follow the
+        # resolved theme the same way — the house black well is a
+        # mid-grey slab on light, and the house white-at-10
+        # disabled border is invisible there. Mirrors
+        # core/tokens_outputs.generate_stylesheet.
+        tokens["INPUT_BG"] = resolved["input_bg"]
+        tokens["INPUT_BG_DISABLED"] = resolved["input_bg_disabled"]
+        tokens["INPUT_BORDER_DISABLED"] = resolved["input_border_disabled"]
         sheet = _remap_colors(_QSS.substitute(tokens), resolved)
 
     if scale != 1.0:

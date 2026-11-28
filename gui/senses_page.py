@@ -72,6 +72,17 @@ from .style import TEXT, TEXT_MUTED, ACCENT, ACCENT_2
 _STATE_POLL_MS = 5000
 _TIMELINE_CAP = 100
 
+# UI Phase 4 (D-P4-14): the network-quality feel thresholds — the
+# PAGE's thresholds, not the core module's (core/senses_quality.py
+# verdicts on 50/120/250; the page's words use 100/300). The card
+# states these numbers, so the verdict line is checkable.
+_QUALITY_FAST_MS = 100
+_QUALITY_SLOW_MS = 300
+# The quality probe's targets, from core/senses_quality.py: five
+# timed TCP connects alternating 1.1.1.1:53 / 8.8.8.8:53.
+_QUALITY_TARGETS = "1.1.1.1 and 8.8.8.8 (DNS)"
+_QUALITY_SAMPLES = 5
+
 
 def _event_time(ts) -> str:
     """Best-effort 'HH:MM' from a timeline timestamp: an ISO string,
@@ -95,6 +106,29 @@ def _event_time(ts) -> str:
     if len(text) >= 16 and text[13] == ":":
         return text[11:16]
     return "--:--"
+
+
+def _event_date_time(ts) -> str:
+    """Best-effort '24 Nov 18:14' from a timeline timestamp (UI
+    Phase 4, D-P4-15): a row must tell yesterday from an hour ago.
+    Same parsing as _event_time; unparseable reads '-- --- --:--'."""
+    parsed = None
+    if isinstance(ts, datetime):
+        parsed = ts
+    elif isinstance(ts, (int, float)):
+        try:
+            parsed = datetime.fromtimestamp(ts)
+        except (OSError, OverflowError, ValueError):
+            parsed = None
+    elif ts is not None:
+        text = str(ts)
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            parsed = None
+    if parsed is None:
+        return "-- --- --:--"
+    return parsed.strftime("%d %b %H:%M")
 
 
 class _SensesSignals(QObject):
@@ -227,34 +261,60 @@ class SensesPage(QWidget):
         # names are re-coloured by set_palette, so both are kept
         # (the title used to be discarded, the names were locals).
         self._senses_title = _senses_title
+        # UI Phase 4 (D-P4-11): the permission matrix — three
+        # columns per sense (OS permission / app grant / active
+        # capture), each with its own unknown state. One model,
+        # two surfaces: the words come from the same Permissions
+        # model the Settings card reads, so the two must agree.
+        # The grid relayouts below 460 px page width (§6.1): the
+        # three columns stack under each sense name.
+        self._matrix_grid = QGridLayout()
+        self._matrix_grid.setContentsMargins(0, 0, 0, 0)
+        self._matrix_grid.setSpacing(8)
+        senses_layout.addLayout(self._matrix_grid)
+        self._matrix_headers: dict[str, QLabel] = {}
+        for _col, (_key, _text) in enumerate((
+                ("os", "OS permission"), ("app", "App grant"),
+                ("capture", "Active capture")), start=1):
+            _h = QLabel(_text)
+            _h.setStyleSheet(
+                f"color: {TEXT_MUTED}; font-size: 11px; font-weight: 600;")
+            self._matrix_headers[_key] = _h
+            self._matrix_grid.addWidget(_h, 0, _col)
+        self._matrix_words: dict[tuple[str, str], QLabel] = {}
+        self._matrix_kickers: dict[tuple[str, str], QLabel] = {}
         self._sense_rows: dict[str, QLabel] = {}
         self._sense_name_labels: dict[str, QLabel] = {}
         self._sense_buttons: dict[str, QPushButton] = {}
         for pid, name in (("microphone", "Microphone"),
                           ("camera", "Camera"),
                           ("screen", "Screen")):
-            row = QHBoxLayout()
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(8)
             name_label = QLabel(name)
             name_label.setStyleSheet(
                 f"color: {TEXT}; font-size: {TYPE_CARD_TITLE}px; "
                 "font-weight: 600;")
-            row.addWidget(name_label)
             self._sense_name_labels[pid] = name_label
-            row.addStretch(1)
-            word_label = QLabel("—")
-            word_label.setStyleSheet(
-                f"color: {TEXT}; font-size: {TYPE_BODY}px;")
-            row.addWidget(word_label)
-            self._sense_rows[pid] = word_label
+            for col, _text in (("os", "OS"), ("app", "App"),
+                               ("capture", "Capture")):
+                word_label = QLabel("—")
+                word_label.setStyleSheet(
+                    f"color: {TEXT}; font-size: {TYPE_BODY}px;")
+                self._matrix_words[(pid, col)] = word_label
+                kicker = QLabel(_text)
+                kicker.setStyleSheet(
+                    f"color: {TEXT_MUTED}; font-size: 11px; "
+                    "font-weight: 600;")
+                kicker.setVisible(False)
+                self._matrix_kickers[(pid, col)] = kicker
+            # The old single word was the app grant — _sense_rows
+            # keeps meaning the app word, for any reader of it.
+            self._sense_rows[pid] = self._matrix_words[(pid, "app")]
             if on_open_permissions is not None:
                 btn = QPushButton("Permissions")
                 btn.clicked.connect(
                     lambda _checked=False: on_open_permissions())
-                row.addWidget(btn)
                 self._sense_buttons[pid] = btn
-            senses_layout.addLayout(row)
+        self._relayout_matrix(self.width())
         column.addWidget(senses_frame)
 
         # ------------------------------------------------ state row
@@ -286,6 +346,33 @@ class SensesPage(QWidget):
         self.measure_button.clicked.connect(self._start_quality)
         self._state_cards["quality"].layout.insertWidget(
             3, self.measure_button)
+        # UI Phase 4 (D-P4-14): the quality card names what it
+        # measures against — the hosts and the sample count, the
+        # code's constants, shown. The verdict line (below) states
+        # the page's 100/300 ms thresholds.
+        self._quality_targets_label = QLabel(
+            f"Measured against {_QUALITY_TARGETS}, "
+            f"{_QUALITY_SAMPLES} samples")
+        self._quality_targets_label.setWordWrap(True)
+        self._quality_targets_label.setStyleSheet(
+            f"color: {TEXT_MUTED}; font-size: 11px;")
+        self._state_cards["quality"].layout.insertWidget(
+            4, self._quality_targets_label)
+        # Fix round (F-07, 2026-11-26): the thresholds line is
+        # part of the card from the start — the verdict line used
+        # to be built only inside _on_quality_result, so the
+        # thresholds were invisible until after the first
+        # measurement. Built from the same constants, so it cannot
+        # drift from the verdicts.
+        self._quality_thresholds_label = QLabel(
+            f"Feels instant under {_QUALITY_FAST_MS} ms · "
+            f"a little slow under {_QUALITY_SLOW_MS} ms · "
+            f"slow above {_QUALITY_SLOW_MS} ms")
+        self._quality_thresholds_label.setWordWrap(True)
+        self._quality_thresholds_label.setStyleSheet(
+            f"color: {TEXT_MUTED}; font-size: 11px;")
+        self._state_cards["quality"].layout.insertWidget(
+            5, self._quality_thresholds_label)
         self._relayout_state(self.width())
 
         # ------------------------------------------------ wifi radar
@@ -308,6 +395,12 @@ class SensesPage(QWidget):
         wifi_layout.insertLayout(0, header)
         self.wifi_list = QListWidget()
         self.wifi_list.setMinimumHeight(110)
+        # Fix round (O-1, 2026-11-26): the list stays hidden until
+        # the first scan completes — before that the card is its
+        # header (title + status + Scan), not a tall empty box
+        # holding one "Press Scan" row (§6.2: empty states, not
+        # voids). _on_wifi_ready shows it with the results.
+        self.wifi_list.setVisible(False)
         wifi_layout.addWidget(self.wifi_list)
         column.addWidget(wifi_frame)
 
@@ -324,6 +417,16 @@ class SensesPage(QWidget):
         self.brightness_button.clicked.connect(self._start_brightness)
         room_row.addWidget(self.brightness_button)
         room_layout.addLayout(room_row)
+        # UI Phase 4 (D-P4-13): the Room check's promise, standing
+        # on the card — the frame is measured, never stored or sent.
+        # (The Notices hint states the ambient-light equivalent;
+        # the Room check now states its own.)
+        self._room_promise_label = QLabel(
+            "The picture is measured, never stored or sent anywhere.")
+        self._room_promise_label.setWordWrap(True)
+        self._room_promise_label.setStyleSheet(
+            f"color: {TEXT_MUTED}; font-size: 11px;")
+        room_layout.addWidget(self._room_promise_label)
         column.addWidget(room_frame)
 
         # ------------------------------------------------ timeline
@@ -432,11 +535,18 @@ class SensesPage(QWidget):
                 label.setStyleSheet(
                     f"color: {t}; font-size: {TYPE_CARD_TITLE}px; "
                     "font-weight: 600;")
-            for label in getattr(self, "_sense_rows", {}).values():
+            for label in getattr(self, "_matrix_words", {}).values():
                 label.setStyleSheet(
                     f"color: {t}; font-size: {TYPE_BODY}px;")
+            for label in list(
+                    getattr(self, "_matrix_headers", {}).values()) + list(
+                    getattr(self, "_matrix_kickers", {}).values()):
+                label.setStyleSheet(
+                    f"color: {m}; font-size: 11px; font-weight: 600;")
             for label in (getattr(self, "wifi_status_label", None),
-                          getattr(self, "brightness_label", None)):
+                          getattr(self, "brightness_label", None),
+                          getattr(self, "_quality_targets_label", None),
+                          getattr(self, "_room_promise_label", None)):
                 if label is not None:
                     label.setStyleSheet(
                         f"color: {m}; font-size: 11px;")
@@ -483,44 +593,92 @@ class SensesPage(QWidget):
                     state = raw
             except Exception:  # noqa: BLE001 — placeholder, never a crash
                 state = None
+        # The matrix's capture column reads the privacy probe from
+        # this state (D-P4-11); a missing state reads as no probe.
+        self._last_state = state or {}
         self._apply_state(state)
         self._refresh_sense_rows()
 
     def _refresh_sense_rows(self):
-        """Repaint the three sense state words from the standing
-        grants. A read failure shows "—" — the page never invents
-        a standing. Denied or never-decided reads "Off": that is
-        the effective state; the Permissions card shows the exact
-        standing."""
+        """Repaint the permission matrix (D-P4-11): three words per
+        sense, each from its own source. OS from the Permissions
+        model's OS state (allowed / denied / unknown — the model's
+        own unknown line is "couldn't be read", so the column reads
+        "—", never "Unknown": the OS probe reports its own state).
+        App from the model + session grants (granted "On", session
+        "This session only", denied "Off", never-decided "Unknown" —
+        the probe cannot tell never-asked from unreadable, so it
+        asserts neither (fix round F-08, parent ruling 2026-11-26
+        19:19 IST; the model's own "Not set yet" in D-P4-11's word
+        is the same unknown). Capture from the privacy probe the
+        state poll carries (D-P4-12 flags): in use, idle, or "—"
+        when the probe failed. Screen has no OS switch and no
+        capture probe, so both read "—". A model read failure shows
+        "—" in every column — the page never invents a standing.
+        While a brightness check runs, the Camera capture column
+        names VYUK's own use (D-P4-13)."""
         try:
             from .pf_permissions import (
-                PERMISSION_GRANTED, permissions_model)
+                PERMISSION_DENIED, PERMISSION_GRANTED, permissions_model)
             from voice_assistant.core.gui_facade import permission_grants
 
             model = permissions_model()
         except Exception:  # noqa: BLE001 — honest "—", never a crash
             model = None
             permission_grants = None  # type: ignore[assignment]
+        state = getattr(self, "_last_state", None) or {}
         for pid in ("microphone", "camera", "screen"):
-            label = self._sense_rows.get(pid)
-            if label is None:
-                continue
+            os_label = self._matrix_words.get((pid, "os"))
+            app_label = self._matrix_words.get((pid, "app"))
+            cap_label = self._matrix_words.get((pid, "capture"))
             if model is None:
-                label.setText("—")
+                for lbl in (os_label, app_label, cap_label):
+                    if lbl is not None:
+                        lbl.setText("—")
                 continue
             entry = next((e for e in model
                           if e.permission_id == pid), None)
-            if entry is None:
-                label.setText("—")
-            elif entry.state == PERMISSION_GRANTED:
-                # A durable grant wins over a session grant: the
-                # "Always allow" flow opens this session too, so
-                # both are present — the row reads "On".
-                label.setText("On")
-            elif self._has_session_grant(pid, permission_grants):
-                label.setText("This session only")
-            else:
-                label.setText("Off")
+            # OS column — the model's OS state.
+            if os_label is not None:
+                os_state = (getattr(entry, "os_state", None)
+                            if entry is not None else None)
+                os_label.setText(
+                    {"allowed": "Allowed", "denied": "Denied"}.get(
+                        os_state, "—"))
+            # App column — the model + session grants.
+            if app_label is not None:
+                if entry is None:
+                    app_label.setText("—")
+                elif entry.state == PERMISSION_GRANTED:
+                    # A durable grant wins over a session grant: the
+                    # "Always allow" flow opens this session too, so
+                    # both are present — the row reads "On".
+                    app_label.setText("On")
+                elif self._has_session_grant(pid, permission_grants):
+                    app_label.setText("This session only")
+                elif entry.state == PERMISSION_DENIED:
+                    app_label.setText("Off")
+                else:
+                    # Fix round (F-08, parent ruling 2026-11-26
+                    # 19:19 IST): "Unknown" — the probe cannot
+                    # tell never-asked from unreadable, so the
+                    # page asserts neither.
+                    app_label.setText("Unknown")
+            # Capture column — the privacy probe.
+            if cap_label is not None:
+                if (pid == "camera"
+                        and getattr(self, "_brightness_busy", False)):
+                    cap_label.setText(
+                        "In use now — VYUK checking brightness")
+                elif pid == "screen":
+                    cap_label.setText("—")
+                elif not state.get("privacy_ok", False):
+                    cap_label.setText("—")
+                else:
+                    user = (state.get("camera_user") if pid == "camera"
+                            else state.get("mic_user"))
+                    cap_label.setText(
+                        f"In use now ({user})" if user else "Idle")
 
     @staticmethod
     def _has_session_grant(pid, permission_grants) -> bool:
@@ -574,11 +732,13 @@ class SensesPage(QWidget):
                 ("light", self.light_chart,
                  lambda vals: sum(vals) / len(vals))):
             series = []
+            hours = []
             for back in range(23, -1, -1):
                 hour = (now - _td(hours=back)).hour
+                hours.append(hour)
                 vals = buckets[kind].get(hour)
                 series.append(pick(vals) if vals else None)
-            chart.set_series(series)
+            chart.set_series(series, hours)
 
     def refresh_timeline(self):
         """Reload the environment timeline from the events
@@ -621,6 +781,17 @@ class SensesPage(QWidget):
             self.timeline_list.addItem(
                 "Nothing noticed yet — sentinels report here.")
             return
+        # UI Phase 4 (D-P4-24, render side): in private mode the
+        # messages are blanked here too — the window's provider
+        # blanks them at raise time, so a provider that returns
+        # messages is blanked either way. Statuses and counts
+        # stay: the row keeps its time and kind.
+        try:
+            from voice_assistant.core.gui_facade import (
+                private_mode as _private_mode)
+            _private = bool(_private_mode.private_mode_on())
+        except Exception:  # noqa: BLE001 — a broken read reads public
+            _private = False
         shown = 0
         for event in events:
             if shown >= _TIMELINE_CAP:
@@ -630,20 +801,41 @@ class SensesPage(QWidget):
             if selected != "All kinds" and \
                     str(event.get("kind") or "") != selected:
                 continue
-            when = _event_time(event.get("ts"))
-            message = str(event.get("message") or "")
-            self.timeline_list.addItem(f"{when} · {message}")
+            when = _event_date_time(event.get("ts"))
+            if _private:
+                kind = str(event.get("kind") or "")
+                self.timeline_list.addItem(f"{when} · {kind} · —")
+            else:
+                message = str(event.get("message") or "")
+                self.timeline_list.addItem(f"{when} · {message}")
             shown += 1
         if shown == 0:
             # Defensive: kinds come from the loaded events, so
             # a listed filter should always match something.
             self.timeline_list.addItem("Nothing under this filter.")
         if selected == "All kinds":
-            self.timeline_count_label.setText(
-                f"{shown} noticed thing" + ("" if shown == 1 else "s"))
+            # UI Phase 4 (D-P4-15, R-P4-M4): the "of M shown" form
+            # for the All-kinds view too, with M = the FILE's line
+            # count (capped at 500) from the events_total provider
+            # — not the loaded <= 100. Without the provider the
+            # count falls back to the loaded events.
+            total = self._events_total() or len(events)
+            self.timeline_count_label.setText(f"{shown} of {total} shown")
         else:
             self.timeline_count_label.setText(
                 f"{shown} of {len(events)} shown")
+
+    def _events_total(self) -> int:
+        """The timeline file's line count from the events_total
+        provider (D-P4-15). 0 when the provider is absent or fails
+        — the caller falls back to the loaded event count."""
+        provider = self._provider("events_total")
+        if provider is None:
+            return 0
+        try:
+            return max(0, int(provider()))
+        except Exception:  # noqa: BLE001
+            return 0
 
     # ------------------------------------------------------------- lifecycle
 
@@ -661,12 +853,68 @@ class SensesPage(QWidget):
     def resizeEvent(self, event):  # noqa: N802 (Qt naming)
         super().resizeEvent(event)
         self._relayout_state(self.width())
+        self._relayout_matrix(self.width())
 
     # ------------------------------------------------------------- internals
 
     def _provider(self, key: str):
         fn = self._providers.get(key)
         return fn if callable(fn) else None
+
+    def _relayout_matrix(self, width: int):
+        """The permission matrix stacks below 460 px page width
+        (§6.1): three columns per sense at wide widths, one
+        stacked block per sense below. The word labels keep their
+        bare words in both forms — only the kickers move, so a
+        reader of the words never depends on the layout."""
+        stacked = width < 460
+        if getattr(self, "_matrix_stacked", None) == stacked:
+            return
+        self._matrix_stacked = stacked
+        grid = self._matrix_grid
+        for widget in list(self._matrix_headers.values()):
+            grid.removeWidget(widget)
+        for pid in ("microphone", "camera", "screen"):
+            grid.removeWidget(self._sense_name_labels[pid])
+            for col in ("os", "app", "capture"):
+                grid.removeWidget(self._matrix_words[(pid, col)])
+                grid.removeWidget(self._matrix_kickers[(pid, col)])
+            btn = self._sense_buttons.get(pid)
+            if btn is not None:
+                grid.removeWidget(btn)
+        for header in self._matrix_headers.values():
+            header.setVisible(not stacked)
+        if not stacked:
+            for col, key in enumerate(("os", "app", "capture"), start=1):
+                grid.addWidget(self._matrix_headers[key], 0, col)
+            for row, pid in enumerate(
+                    ("microphone", "camera", "screen"), start=1):
+                grid.addWidget(self._sense_name_labels[pid], row, 0)
+                for col, key in enumerate(("os", "app", "capture"),
+                                         start=1):
+                    grid.addWidget(self._matrix_words[(pid, key)], row, col)
+                    self._matrix_kickers[(pid, key)].setVisible(False)
+                btn = self._sense_buttons.get(pid)
+                if btn is not None:
+                    grid.addWidget(btn, row, 4)
+            for col, stretch in ((0, 1), (1, 1), (2, 1), (3, 1), (4, 0)):
+                grid.setColumnStretch(col, stretch)
+        else:
+            row = 0
+            for pid in ("microphone", "camera", "screen"):
+                grid.addWidget(self._sense_name_labels[pid], row, 0)
+                btn = self._sense_buttons.get(pid)
+                if btn is not None:
+                    grid.addWidget(btn, row, 1)
+                row += 1
+                for key in ("os", "app", "capture"):
+                    kicker = self._matrix_kickers[(pid, key)]
+                    kicker.setVisible(True)
+                    grid.addWidget(kicker, row, 0)
+                    grid.addWidget(self._matrix_words[(pid, key)], row, 1)
+                    row += 1
+            grid.setColumnStretch(0, 0)
+            grid.setColumnStretch(1, 1)
 
     def _relayout_state(self, width: int):
         # D8 redesign (owner ruling 2026-11-01): the grid used
@@ -701,57 +949,72 @@ class SensesPage(QWidget):
             self._state_grid.setColumnStretch(col, 1)
 
     def _apply_state(self, state: dict | None):
+        # UI Phase 4 (D-P4-12): unknown is unknown — each leg
+        # carries a probe-ok flag, and a failed leg renders "—" +
+        # "Couldn't check", never a state word. A wholly-missing
+        # state (provider absent or raised) reads the same way on
+        # every leg. A leg that read fine but has no value (no
+        # battery, no interface up) keeps its honest state word.
         blank = state is None
         state = state or {}
 
-        conn = state.get("connection")
-        if conn == "wifi":
-            self.state_labels["connection"].setText(
-                state.get("ssid") or "Wi-Fi")
-            self._state_subs["connection"].setText("Wi-Fi")
-        elif conn == "ethernet":
-            self.state_labels["connection"].setText("Ethernet")
-            self._state_subs["connection"].setText("Wired connection")
-        elif conn == "offline":
-            self.state_labels["connection"].setText("Offline")
-            self._state_subs["connection"].setText("No connection")
-        else:
+        if not state.get("connection_ok", False):
             self.state_labels["connection"].setText("—")
-            self._state_subs["connection"].setText("")
-
-        pct = state.get("battery_pct")
-        if pct is None:
-            self.state_labels["battery"].setText("—")
-            self._state_subs["battery"].setText(
-                "" if blank else "No battery")
+            self._state_subs["connection"].setText("Couldn't check")
         else:
-            try:
-                shown = max(0.0, min(100.0, float(pct)))
-                self.state_labels["battery"].setText(f"{shown:.0f}%")
-            except (TypeError, ValueError):
-                self.state_labels["battery"].setText("—")
-            plugged = state.get("battery_plugged")
-            if plugged is True:
-                self._state_subs["battery"].setText("Charging")
-            elif plugged is False:
-                self._state_subs["battery"].setText("On battery")
+            conn = state.get("connection")
+            if conn == "wifi":
+                self.state_labels["connection"].setText(
+                    state.get("ssid") or "Wi-Fi")
+                self._state_subs["connection"].setText("Wi-Fi")
+            elif conn == "ethernet":
+                self.state_labels["connection"].setText("Ethernet")
+                self._state_subs["connection"].setText("Wired connection")
+            elif conn == "offline":
+                self.state_labels["connection"].setText("Offline")
+                self._state_subs["connection"].setText("No connection")
             else:
-                self._state_subs["battery"].setText("")
+                self.state_labels["connection"].setText("—")
+                self._state_subs["connection"].setText("")
 
-        lines = []
-        if state.get("camera_user"):
-            lines.append(f"Camera: {state['camera_user']}")
-        if state.get("mic_user"):
-            lines.append(f"Mic: {state['mic_user']}")
-        if lines:
-            self.state_labels["privacy"].setText("\n".join(lines))
-            self._state_subs["privacy"].setText("In use now")
-        elif blank:
-            self.state_labels["privacy"].setText("—")
-            self._state_subs["privacy"].setText("")
+        if not state.get("battery_ok", False):
+            self.state_labels["battery"].setText("—")
+            self._state_subs["battery"].setText("Couldn't check")
         else:
-            self.state_labels["privacy"].setText("Idle")
-            self._state_subs["privacy"].setText("Not in use")
+            pct = state.get("battery_pct")
+            if pct is None:
+                self.state_labels["battery"].setText("—")
+                self._state_subs["battery"].setText(
+                    "" if blank else "No battery")
+            else:
+                try:
+                    shown = max(0.0, min(100.0, float(pct)))
+                    self.state_labels["battery"].setText(f"{shown:.0f}%")
+                except (TypeError, ValueError):
+                    self.state_labels["battery"].setText("—")
+                plugged = state.get("battery_plugged")
+                if plugged is True:
+                    self._state_subs["battery"].setText("Charging")
+                elif plugged is False:
+                    self._state_subs["battery"].setText("On battery")
+                else:
+                    self._state_subs["battery"].setText("")
+
+        if not state.get("privacy_ok", False):
+            self.state_labels["privacy"].setText("—")
+            self._state_subs["privacy"].setText("Couldn't check")
+        else:
+            lines = []
+            if state.get("camera_user"):
+                lines.append(f"Camera: {state['camera_user']}")
+            if state.get("mic_user"):
+                lines.append(f"Mic: {state['mic_user']}")
+            if lines:
+                self.state_labels["privacy"].setText("\n".join(lines))
+                self._state_subs["privacy"].setText("In use now")
+            else:
+                self.state_labels["privacy"].setText("Idle")
+                self._state_subs["privacy"].setText("Not in use")
 
     # ------------------------------------------------ wifi radar
 
@@ -781,6 +1044,10 @@ class SensesPage(QWidget):
         self._scanning = False
         if self._provider("wifi_scan") is not None:
             self.scan_button.setEnabled(True)
+        # Fix round (O-1): the first completed scan opens the
+        # results area — before this the list stays hidden and the
+        # card is compact.
+        self.wifi_list.setVisible(True)
         self.last_wifi_result = result if isinstance(result, dict) else None
         stamp = datetime.now().strftime("%H:%M:%S")
         self.wifi_status_label.setText(f"Last scan {stamp}")
@@ -853,8 +1120,15 @@ class SensesPage(QWidget):
         latency = result.get("latency_ms")
         if isinstance(latency, (int, float)):
             _ms = float(latency)
-            _feel = ("Feels instant" if _ms < 100 else
-                     "A little slow" if _ms < 300 else "Slow")
+            # UI Phase 4 (D-P4-14): the verdict line states the
+            # PAGE's thresholds (100/300 ms), not the core
+            # module's 50/120/250 verdicts.
+            if _ms < _QUALITY_FAST_MS:
+                _feel = f"Feels instant under {_QUALITY_FAST_MS} ms"
+            elif _ms < _QUALITY_SLOW_MS:
+                _feel = f"A little slow under {_QUALITY_SLOW_MS} ms"
+            else:
+                _feel = f"Slow above {_QUALITY_SLOW_MS} ms"
             sub.setText(f"{_feel} — {_ms:.0f} ms")
         else:
             sub.setText("")
@@ -868,6 +1142,10 @@ class SensesPage(QWidget):
         self._brightness_busy = True
         self.brightness_button.setEnabled(False)
         self.brightness_label.setText("Checking…")
+        # UI Phase 4 (D-P4-13): the Camera capture column names
+        # VYUK's own use while the check runs — refresh the matrix
+        # now, not on the next 5 s poll.
+        self._refresh_sense_rows()
 
         def done_cb(result):
             # The provider may call back from a capture thread;
@@ -884,6 +1162,9 @@ class SensesPage(QWidget):
         self._brightness_busy = False
         if self._provider("brightness") is not None:
             self.brightness_button.setEnabled(True)
+        # The check is over — the Camera capture column goes back
+        # to the probe's word (D-P4-13).
+        self._refresh_sense_rows()
         if not isinstance(result, dict):
             self.brightness_label.setText(
                 "No camera available on this machine.")
@@ -913,6 +1194,10 @@ class _TrendChart(QWidget):
         super().__init__(parent)
         self._title = title
         self._series: list = [None] * 24
+        # UI Phase 4 (D-P4-29): the bucket hours, riding with the
+        # series so the axis can label them. None until the first
+        # refresh_trends feed.
+        self._hours: list | None = None
         # E-F209: the bar colour follows the theme accent (set by
         # SensesPage.set_palette); the default is the house ACCENT,
         # so Cyan is unchanged.
@@ -926,7 +1211,9 @@ class _TrendChart(QWidget):
         # title scales with the appearance font scale (the QSS
         # cannot reach paintEvent text).
         self._font_scale = 1.0
-        self.setMinimumHeight(self._H + 30)
+        # The hour labels sit under the baseline (D-P4-29), so the
+        # minimum height leaves room for them.
+        self.setMinimumHeight(self._H + 44)
         self.setToolTip(title)
 
     def set_font_scale(self, scale: float) -> None:
@@ -941,8 +1228,12 @@ class _TrendChart(QWidget):
         """The painted title's computed point size (probe hook)."""
         return 9.0 * self._font_scale
 
-    def set_series(self, series: list):
+    def set_series(self, series: list, hours: list | None = None):
+        """Replace the 24 hourly buckets; `hours` (the bucket's
+        hour, oldest first) labels the axis (D-P4-29). Without
+        hours the axis stays unlabelled rather than guessing."""
         self._series = list(series)[:24]
+        self._hours = (list(hours)[:24] if hours is not None else None)
         self.update()
 
     def set_bar_color(self, color: str):
@@ -990,4 +1281,22 @@ class _TrendChart(QWidget):
             x = i * slot + 1.0
             painter.drawRoundedRect(
                 int(x), int(top + height - h), int(bar_w), int(h), 1, 1)
+        # UI Phase 4 (D-P4-29): the axis labels each bucket's hour,
+        # every 3rd bucket ("18:00"), so a peak can be placed at a
+        # time of day. The hours ride with the series; without them
+        # the axis stays unlabelled rather than guessing.
+        hours = getattr(self, "_hours", None)
+        if hours:
+            label_font = QFont()
+            label_font.setPointSizeF(8.0 * self._font_scale)
+            painter.setFont(label_font)
+            painter.setPen(QColor(self._text_muted))
+            for i in range(0, 24, 3):
+                if i >= len(hours) or hours[i] is None:
+                    continue
+                try:
+                    text = f"{int(hours[i]):02d}:00"
+                except (TypeError, ValueError):
+                    continue
+                painter.drawText(int(i * slot), top + height + 13, text)
         painter.end()

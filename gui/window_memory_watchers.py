@@ -391,6 +391,22 @@ class MemoryWatchersMixin:
                 page.stop_checks()
         except Exception:  # noqa: BLE001 — closing must never break
             pass
+        # UI Phase 6 (D-02): the mic level arc is a child widget
+        # with its own native window once shown — a window merely
+        # closed (not deleted) leaves the arc's native window to
+        # outlive the app teardown, and the process segfaults at
+        # interpreter shutdown (repro: leg35 solo, rc=139; the
+        # probe deleting the arc while the app is alive exits
+        # clean, rc=0). Destroy it here, while the app is alive,
+        # like the other sinks below — the window is closing, so
+        # the ring is never needed again.
+        try:
+            arc = getattr(self, "mic_level_arc", None)
+            if arc is not None:
+                arc.deleteLater()
+                self.mic_level_arc = None
+        except Exception:  # noqa: BLE001 — closing must never break
+            pass
         # EYES E6 (v5.45): watch mode never outlives the window —
         # stopping the engine also drops its in-memory baseline.
         self._disable_watch_mode("window closing")

@@ -5,6 +5,12 @@ result tags and a preview rail. Items are DATA ONLY (label, scope,
 preview): the radar never holds a callable and never dispatches.
 Enter or double-click previews the selected result; dispatch is
 always the caller's job. Fuzzy matches never auto-dispatch.
+
+Phase 0 HELD (UI programme Phase 2): this is the command palette
+panel, NOT a Wi-Fi radar — the blueprint's "Senses Wi-Fi radar,
+Pulse" mapping is a misreading. The app already has a dispatching
+palette (CommandPalette, Ctrl+K); unifying the two is a
+navigation-phase decision, not a foundation adoption.
 """
 
 from PySide6.QtCore import Qt, Signal

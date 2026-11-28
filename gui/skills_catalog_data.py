@@ -22,6 +22,8 @@ module directly.
 
 from __future__ import annotations
 
+import re
+
 from PySide6.QtCore import Qt
 
 from core.gui_facade import catalogue_groups_data
@@ -33,8 +35,9 @@ GROUP_ORDER = catalogue_groups_data.GROUP_ORDER
 ROLE_NAME = Qt.ItemDataRole.UserRole          # raw tool name / "" for headers
 ROLE_FRIENDLY = Qt.ItemDataRole.UserRole + 1  # friendly display name
 ROLE_SUMMARY = Qt.ItemDataRole.UserRole + 2   # one-line summary
-ROLE_KIND = Qt.ItemDataRole.UserRole + 3      # "tool" | "header"
+ROLE_KIND = Qt.ItemDataRole.UserRole + 3      # "tool" | "header" | "note"
 ROLE_GROUP = Qt.ItemDataRole.UserRole + 4     # group title the row belongs to
+ROLE_CHIPS = Qt.ItemDataRole.UserRole + 5     # state chips ("Pinned", ...) or []
 
 __all__ = [
     "GROUP_MEMBERS",
@@ -44,9 +47,11 @@ __all__ = [
     "ROLE_SUMMARY",
     "ROLE_KIND",
     "ROLE_GROUP",
+    "ROLE_CHIPS",
     "_NAME_TO_GROUP",
     "_FALLBACK_GROUP",
     "_MAX_SUMMARY",
+    "_summarise",
 ]
 
 # Inverted once at import: raw name -> group title.
@@ -57,3 +62,42 @@ for _group, _names in GROUP_MEMBERS.items():
 
 _FALLBACK_GROUP = "More skills"
 _MAX_SUMMARY = 95
+
+
+def _summarise(description: str) -> str:
+    """First sentence of a description, capped at 95 chars + ellipsis.
+
+    The ONE summary rule (moved here from the widget in UI Phase 2
+    so the detail builder can share it without an import cycle):
+    the catalogue rows, the detail drawer and the Galaxy card all
+    show this summary for a tool, never a different truncation.
+    """
+    text = " ".join((description or "").split())
+    if not text:
+        return ""
+    sentence = text
+    for match in re.finditer(r"[.!?](?=\s|$)", text):
+        # Abbreviations ("e.g.", "i.e.", "Dr.") are not sentence ends.
+        before = re.search(r"([A-Za-z]+)$", text[: match.start()])
+        if before and (len(before.group(1)) == 1
+                       or before.group(1).lower() in
+                       {"eg", "ie", "etc", "vs", "dr", "mr", "mrs", "st"}):
+            continue
+        sentence = text[: match.end()]
+        break
+    sentence = sentence.rstrip()
+    if sentence.endswith("."):
+        sentence = sentence[:-1].rstrip()
+    if len(sentence) > _MAX_SUMMARY:
+        # Hunt fix (c) item 4: cap at a word boundary, never
+        # mid-word. The old character cap cut the summary to
+        # "creat…", "te…" in the rows (and in the detail drawer
+        # and Galaxy card, which share this rule).
+        cut = sentence[: _MAX_SUMMARY - 1].rstrip()
+        if (len(sentence) > len(cut)
+                and sentence[len(cut)] != " "):
+            space = cut.rfind(" ")
+            if space > 0:
+                cut = cut[:space].rstrip()
+        sentence = cut + "…"
+    return sentence

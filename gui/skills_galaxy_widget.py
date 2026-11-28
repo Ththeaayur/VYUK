@@ -34,16 +34,17 @@ from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
 
 class SkillsGalaxyWidget(QWidget):
     """The Skills Galaxy: every built-in tool as a star around
-    its group hub, in 2D or 3D. Feed it declarations (plugins
-    already excluded — the window owns that filter, as it does
-    for the Skills list) plus the friendly-name map."""
+    its group hub, in 2D or 3D. Feed it declarations (plugin
+    tools INCLUDED — they land in "More skills" through the
+    group_for_name fallback, exactly like the list view) plus
+    the friendly-name map."""
 
     skill_chosen = Signal(str)           # tool name
     selection_cleared = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(320, 280)
+        self.setMinimumSize(320, 360)
         # Without tracking, Qt drops no-button mouse-move events
         # addressed to this widget before its handlers ever see
         # them — and the relay below lives on those events.
@@ -368,15 +369,33 @@ class SkillsGalaxyWidget(QWidget):
 # ---------------------------------------------------------------------------
 
 class SkillDetailCard(QWidget):
-    """Shows one skill: friendly title, group, trimmed
-    description and the raw tool name — plus an "Ask with this"
-    button. Starts (and clear() returns it to) a quiet hint
-    state; the window fills it from skill_chosen."""
+    """Shows one skill from the ONE shared detail builder
+    (gui/skill_detail.build_skill_detail): friendly title, group,
+    outcome description, example request, requirements
+    (permission scope), connection state where one applies, the
+    raw tool name — plus Pin to Home and "Ask with this".
+
+    Starts (and clear() returns it to) a quiet hint state; the
+    window fills it from skill_chosen. The pin state is the same
+    store the Centre's Pinned section and the Home dock read,
+    and pin_changed tells the page to refresh both.
+
+    UI Phase 2 fix: the Ask button used to be created inside
+    set_font_scale — which referenced the __init__-local
+    ``layout`` and raised NameError on every call — so
+    _ask_btn never existed, set_skill and clear() raised
+    AttributeError, and picking a star showed nothing but the
+    hint. The card is built whole in __init__ now; set_font_scale
+    only re-applies the raw-name font.
+    """
 
     ask_requested = Signal(str, str)     # name, friendly
+    pin_changed = Signal(str, bool)      # name, pinned
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, settings=None):
         super().__init__(parent)
+        self._settings = settings
+        self._private_mode = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(4)
@@ -397,6 +416,18 @@ class SkillDetailCard(QWidget):
         self._description = QLabel("")
         self._description.setWordWrap(True)
         layout.addWidget(self._description)
+        self._example = QLabel("")
+        self._example.setObjectName("muted")
+        self._example.setWordWrap(True)
+        layout.addWidget(self._example)
+        self._requirements = QLabel("")
+        self._requirements.setObjectName("muted")
+        self._requirements.setWordWrap(True)
+        layout.addWidget(self._requirements)
+        self._connection = QLabel("")
+        self._connection.setObjectName("muted")
+        self._connection.setWordWrap(True)
+        layout.addWidget(self._connection)
         self._raw_name = QLabel("")
         self._raw_name.setObjectName("muted")
         # B-R1-7: the raw skill name renders in the mono stack
@@ -409,6 +440,17 @@ class SkillDetailCard(QWidget):
         self._font_scale = 1.0
         self._apply_raw_name_font()
         layout.addWidget(self._raw_name)
+        layout.addSpacing(6)
+        self._pin_btn = QPushButton("Pin to Home")
+        self._pin_btn.setObjectName("chipBtn")
+        self._pin_btn.clicked.connect(self._toggle_pin)
+        layout.addWidget(self._pin_btn)
+        self._ask_btn = QPushButton("Ask with this")
+        self._ask_btn.setObjectName("primaryBtn")
+        self._ask_btn.clicked.connect(self._emit_ask)
+        layout.addWidget(self._ask_btn)
+        layout.addStretch()
+        self.clear()
 
     def _apply_raw_name_font(self) -> None:
         mono = QFont(first_font_family(MONO_FONT_STACK))
@@ -423,22 +465,58 @@ class SkillDetailCard(QWidget):
         except (TypeError, ValueError):
             self._font_scale = 1.0
         self._apply_raw_name_font()
-        layout.addSpacing(6)
-        self._ask_btn = QPushButton("Ask with this")
-        self._ask_btn.setObjectName("primaryBtn")
-        self._ask_btn.clicked.connect(self._emit_ask)
-        layout.addWidget(self._ask_btn)
-        layout.addStretch()
-        self.clear()
 
     def _emit_ask(self):
         if self._name:
             self.ask_requested.emit(self._name, self._friendly)
 
+    def _toggle_pin(self):
+        if not self._name:
+            return
+        from .skill_pins import is_pinned, set_pinned
+
+        pinned = not is_pinned(self._name, settings=self._settings)
+        set_pinned(self._name, pinned, settings=self._settings)
+        self._sync_pin_button()
+        self.pin_changed.emit(self._name, pinned)
+
+    def _sync_pin_button(self):
+        from .skill_pins import is_pinned
+
+        try:
+            pinned = is_pinned(self._name, settings=self._settings)
+        except Exception:  # noqa: BLE001 — a failed read
+            pinned = False  # shows "Pin to Home", never a lie.
+        self._pin_btn.setText(
+            "Unpin from Home" if pinned else "Pin to Home")
+
+    def set_private_mode(self, private: bool) -> None:
+        """Private mode hides the Pin button (pinning would write
+        the pin store — user data — and the drawer suppresses the
+        same action)."""
+        self._private_mode = bool(private)
+        self._pin_btn.setVisible(
+            bool(self._name) and not self._private_mode)
+
     def set_skill(self, name: str, friendly: str, group: str,
                   description: str):
+        from .skill_detail import build_skill_detail
+
         self._name = name or ""
         self._friendly = friendly or name or ""
+        # The content comes from the ONE shared detail builder;
+        # the passed args are only the fallback when the builder
+        # cannot find the tool (a stale star name).
+        detail = None
+        try:
+            detail = build_skill_detail(
+                self._name, settings=self._settings)
+        except Exception:  # noqa: BLE001 — the fallback below
+            detail = None  # renders the passed args.
+        if detail is not None:
+            self._friendly = detail["friendly"]
+            group = detail["group"]
+            description = detail["description"]
         self._hint.setVisible(False)
         self._title.setText(self._friendly)
         self._title.setVisible(True)
@@ -446,8 +524,31 @@ class SkillDetailCard(QWidget):
         self._group.setVisible(bool(group))
         self._description.setText(description or "")
         self._description.setVisible(bool(description))
+        if detail is not None:
+            self._example.setText(detail["example"] or "")
+            self._example.setVisible(bool(detail["example"]))
+            self._requirements.setText(detail["requirements"] or "")
+            self._requirements.setVisible(bool(detail["requirements"]))
+            connection = detail["connection"]
+            if connection == "connected":
+                conn_text = "Connected — Google account linked"
+            elif connection == "not_connected":
+                conn_text = ("Not connected — link Google in "
+                             "Settings → Your world")
+            elif connection == "unknown":
+                conn_text = "Couldn't check the connection just now"
+            else:
+                conn_text = ""
+            self._connection.setText(conn_text)
+            self._connection.setVisible(bool(conn_text))
+            self._sync_pin_button()
+        else:
+            for widget in (self._example, self._requirements,
+                           self._connection):
+                widget.setVisible(False)
         self._raw_name.setText(self._name)
         self._raw_name.setVisible(bool(self._name))
+        self._pin_btn.setVisible(not self._private_mode)
         self._ask_btn.setVisible(True)
 
     def clear(self):
@@ -455,7 +556,9 @@ class SkillDetailCard(QWidget):
         self._friendly = ""
         self._hint.setVisible(True)
         for widget in (self._title, self._group, self._description,
-                       self._raw_name, self._ask_btn):
+                       self._example, self._requirements,
+                       self._connection, self._raw_name,
+                       self._pin_btn, self._ask_btn):
             widget.setVisible(False)
 
     @property

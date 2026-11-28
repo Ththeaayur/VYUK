@@ -75,7 +75,11 @@ class MemoryWebWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(320, 280)
+        # UI upgrade Phase 1 (r3ef202): 280 -> 480. The
+        # seed ring radius (~150-210) needs ~250 px of
+        # half-height; at 280 the bottom hubs and their
+        # labels fell off the canvas and were clipped.
+        self.setMinimumSize(320, 480)
         # Without tracking, Qt drops no-button mouse-move events
         # addressed to this widget before its handlers ever see
         # them — and the relay below lives on those events.
@@ -125,6 +129,24 @@ class MemoryWebWidget(QWidget):
         if persisted == "3d" and not self._gl_unavailable:
             # GL needs a shown window — activate on first show.
             self._mode_pending = "3d"
+
+    def set_theme(self, resolved: dict) -> None:
+        """Recolour the dimension chip bar from the resolved theme.
+
+        Look-fix 2026-11-24: the chip bar was built once from the
+        house BG (dark), so on Light it floated as a dark
+        rectangle over the light graph. The canvas already
+        re-resolves per theme (M-21); the chip bar follows the
+        same dict. Called from _mem_sync_canvas_theme on every
+        web refresh.
+        """
+        try:
+            bg = (resolved or {}).get("bg", BG)
+            self._chip_bar.setStyleSheet(
+                f"#memDimBar {{ background: {with_alpha(bg, 175)};"
+                f" border-radius: {RADIUS_BTN}px; }}")
+        except Exception:  # noqa: BLE001 — theme never breaks the graph
+            pass
 
     # ------------------------------------------------------------ chips/mode
 

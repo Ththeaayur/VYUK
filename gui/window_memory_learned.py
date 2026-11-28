@@ -9,10 +9,10 @@ from PySide6.QtCore import (
     QTimer,
 )
 from PySide6.QtGui import (
+    QFontMetrics,
     QKeyEvent,
 )
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from .design_system.empty import EmptyState
 from voice_assistant.core.gui_facade import discover_plugins
 from voice_assistant.core.gui_facade import scheduler
 from .empty_art import GenerativeArt
@@ -36,12 +37,56 @@ from .window_chat import ChatMixin  # v5.50 item 43: _delete_layout_items lives 
 from voice_assistant.core.gui_facade import qsettings_get, qsettings_set
 
 
+class _ScheduledTimelineRow(QWidget):
+    """One Scheduled-timeline row (Phase 1, §3).
+
+    A row (bg fill + 1 px LINE_SUBTLE edge, no vertical margins
+    of its own) whose reading re-elides on resize, like the
+    task-state rows. ``is_past`` is the dimming truth the legs
+    read: True for an event whose fire time is before now (or
+    that already fired), False otherwise — "No time set" rows
+    are never past. A click selects the row (reminders only:
+    the selection drives Remove selected).
+    """
+
+    def __init__(self, parent=None, *, on_select=None):
+        super().__init__(parent)
+        self.setObjectName("scheduledTimelineRow")
+        self.is_past = False
+        self._on_select = on_select
+        self._title_lbl = None
+        self._title_full = ""
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+
+    def mousePressEvent(self, event):  # noqa: N802 (Qt naming)
+        if callable(self._on_select):
+            self._on_select()
+        super().mousePressEvent(event)
+
+    def resizeEvent(self, event):  # noqa: N802 (Qt naming)
+        super().resizeEvent(event)
+        label = self._title_lbl
+        if label is None or label.width() <= 0:
+            return
+        elided = QFontMetrics(label.font()).elidedText(
+            self._title_full, Qt.TextElideMode.ElideRight,
+            label.width())
+        if elided != label.text():
+            label.setText(elided)
+
+
 class MemoryLearnedMixin:
     # --------------------------------------- she learns you (v2.6)
     def _build_learned_section(self, layout):
-        """The 'Learned about you' card on the Memory page: master
-        toggle, the learned-fact rows (rebuilt on page show, like the
-        routines list), and the forget-everything two-tap button."""
+        """The 'Learned about you' card on the Memory page: the
+        learned-fact rows (rebuilt on page show, like the
+        routines list), and the forget-everything two-tap button.
+        Phase 1: the learning toggle MOVED to the Profile
+        section — this card no longer owns it. The Profile
+        section builds first, so chk_learn exists before the
+        first _refresh_learned_facts() runs; the refresh guards
+        it with getattr, so a missing toggle could never crash
+        the card."""
         card = QFrame()
         card.setObjectName("card")
         c_layout = QVBoxLayout(card)
@@ -51,8 +96,6 @@ class MemoryLearnedMixin:
         title.setObjectName("sectionTitle")
         header.addWidget(title)
         header.addStretch()
-        self.chk_learn = QCheckBox("Learn from our conversations")
-        header.addWidget(self.chk_learn)
         c_layout.addLayout(header)
         self.learned_layout = QVBoxLayout()
         self.learned_layout.setSpacing(6)
@@ -64,11 +107,6 @@ class MemoryLearnedMixin:
         c_layout.addLayout(foot)
         self.learned_card = card
         layout.addWidget(card)
-        # States-then-connections, the presence-card discipline:
-        # setting the saved state must not fire the handler.
-        self.chk_learn.setChecked(
-            bool(qsettings_get("learning/enabled", settings=self.settings)))
-        self.chk_learn.toggled.connect(self._on_learning_toggled)
         self.btn_forget_all_learned.clicked.connect(self._forget_all_learned)
         self._refresh_learned_facts()
 
@@ -90,17 +128,25 @@ class MemoryLearnedMixin:
             pass
 
     def _learned_fact_count(self) -> int:
-        """Rows the Learned card shows right now (E-F204): the
-        header counts them alongside the list rows. Guarded like
+        """Rows the Learned card shows right now. Guarded like
         the card refresh itself — no module, or a failing read,
         counts as zero — and it counts exactly what the card
         renders (one row per dict fact), so the count cannot drift
-        from the rows."""
+        from the rows. Hunt fix (c) item 6: the card shows all
+        user facts (get_all_user_facts), not the "learned"
+        category alone. Hunt fix (c) header round: this count no
+        longer feeds the header — the header counts unique facts
+        (memory_header_text), and these rows are the same facts
+        already in the list, so adding them counted every fact
+        twice. The method stays as the card's row-count accessor
+        (the item-6 tests read it)."""
         module = self._learning_module()
         if module is None:
             return 0
         try:
-            facts = module.get_learned_facts() or []
+            getter = getattr(module, "get_all_user_facts",
+                             module.get_learned_facts)
+            facts = getter() or []
         except Exception:  # noqa: BLE001 — a broken read is zero rows
             return 0
         return sum(1 for f in facts if isinstance(f, dict))
@@ -118,10 +164,12 @@ class MemoryLearnedMixin:
             item = layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
-                # Hide NOW, not just deleteLater: until the deferred
-                # delete lands, an orphaned widget would keep painting
-                # at its old geometry, over the rows that replace it.
-                widget.hide()
+                # setParent(None) FIRST (not just hide + deleteLater):
+                # until the deferred delete lands, an orphaned widget
+                # keeps answering findChildren AND keeps painting at
+                # its old geometry, over the rows that replace it
+                # (the orphan trap from legs 51/54).
+                widget.setParent(None)
                 widget.deleteLater()
             elif item.layout() is not None:
                 ChatMixin._delete_layout_items(item.layout())  # v5.50 item 43: was MainWindow._delete_layout_items (same staticmethod, now on ChatMixin)
@@ -130,20 +178,42 @@ class MemoryLearnedMixin:
             widget = getattr(self, attr, None)
             if widget is not None:
                 widget.setEnabled(module is not None)
+        if self._mem_private_on():
+            # Private mode blanks the learned rows (M-01) but the
+            # footer Forget-all stays enabled: forgetting stays
+            # available while private mode is on.
+            note = QLabel("Private mode is on")
+            note.setObjectName("muted")
+            note.setWordWrap(True)
+            layout.addWidget(note)
+            return
         if module is None:
             note = QLabel("Learning isn't available in this build.")
             note.setObjectName("muted")
             note.setWordWrap(True)
             layout.addWidget(note)
             return
+        # Hunt fix (c) item 6: the card shows all user facts
+        # (general + preferences + inferred + learned), not the
+        # "learned" category alone — that narrow read said
+        # "Nothing learned yet" while the page header counted 5.
         try:
-            facts = list(module.get_learned_facts() or [])
+            getter = getattr(module, "get_all_user_facts",
+                             module.get_learned_facts)
+            facts = list(getter() or [])
         except Exception:  # noqa: BLE001
             facts = []
         if not facts:
             # v5.24 (Eyes E34): the learned card's empty state
-            # gets the generative art too (its own seed).
-            layout.addWidget(GenerativeArt(seed=23))
+            # gets the generative art too (its own seed) — except
+            # on the Minimal profile, where decorative art is off
+            # (the Knowledge Graph canvas is gated the same way in
+            # _apply_hud_profile; this card's art is a separate
+            # GenerativeArt, so it needs its own gate).
+            profile = getattr(self, "_hud_profile_name", "") or str(
+                qsettings_get("appearance/hud_profile") or "Cinematic")
+            if profile != "Minimal":
+                layout.addWidget(GenerativeArt(seed=23))
             empty = QLabel(
                 "Nothing learned yet — as we talk, VYUK quietly picks up "
                 "things like your name and what you like, and lists them "
@@ -212,7 +282,14 @@ class MemoryLearnedMixin:
         ok = False
         if module is not None:
             try:
-                ok = bool(module.forget_learned_fact(fact_id))
+                # Hunt fix (c) item 6: the card shows all user
+                # facts now, so a row's Forget must work for
+                # every row it shows (forget_user_fact); the
+                # "learned"-only forget would refuse the
+                # general / preferences / inferred rows.
+                forgetter = getattr(module, "forget_user_fact",
+                                    module.forget_learned_fact)
+                ok = bool(forgetter(fact_id))
             except Exception:  # noqa: BLE001
                 ok = False
         self._refresh_learned_facts(mark_seen=True)
@@ -357,24 +434,20 @@ class MemoryLearnedMixin:
         # live in gui/memory_view.py — this method only renders.
         view = reminders_view()
         reminders = view["reminders"]
-        if not reminders:
-            self.reminders_list.addItem("No reminders yet.")
+        # Phase 1 (§3): the visible surface is the timeline
+        # (_rebuild_scheduled_timeline, via _refresh_routines
+        # below). This list stays as its hidden selection backing
+        # store — one item per reminder with the label on
+        # UserRole, so _remove_selected_reminder keeps working
+        # against the same identities; a timeline row's click
+        # syncs its current item.
         for r in reminders:
-            # Screen 3 Activity: the row is an instrument — the
-            # label (with the repeat on it), the message as the
-            # one reading, the fire time right-aligned in the mono
-            # face. The item carries NO text: QListWidget paints
-            # an item's text behind its widget, so the old
-            # "message · fire_at · status" string would
-            # double-paint over the row. The status + repeat live
-            # on the widget (label + fired dimming); the label
-            # string rides on UserRole for Remove selected.
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, r["label"])
             self.reminders_list.addItem(item)
-            widget = self._reminder_row_widget(r)
-            item.setSizeHint(list_item_size_hint(widget))
-            self.reminders_list.setItemWidget(item, widget)
+        _labels = {str(r.get("label")) for r in reminders}
+        if getattr(self, "_timeline_selected_label", None) not in _labels:
+            self._timeline_selected_label = None
         # UI rethink Build 2: the Scheduled headline line, from
         # the same reminder read — no second read. The old
         # summary label is gone: its line IS the headline now
@@ -384,6 +457,12 @@ class MemoryLearnedMixin:
             scheduled_line(reminders, datetime.datetime.now().date()))
         self._refresh_home()
         self._refresh_routines()
+        # Phase 1: Plans are a Scheduled-tab surface too — a plan
+        # created after the page was built (voice, or another
+        # surface) shows up on the next Activity refresh, not
+        # only at page build.
+        self._refresh_plans()
+        self._update_reminder_remove_btn()
         # Build 2: the Scheduled page's content changed, so the
         # pane re-hugs the current tab.
         try:
@@ -420,18 +499,230 @@ class MemoryLearnedMixin:
         row.addWidget(number)
         return wrap
 
+    def _select_timeline_reminder(self, label):
+        """A timeline reminder row was clicked: it is the
+        selection — Remove selected appears, and the hidden
+        reminders_list mirrors it so _remove_selected_reminder
+        cancels this exact reminder."""
+        self._timeline_selected_label = str(label)
+        lst = getattr(self, "reminders_list", None)
+        if lst is not None:
+            for i in range(lst.count()):
+                item = lst.item(i)
+                if item.data(Qt.ItemDataRole.UserRole) == label:
+                    lst.setCurrentItem(item)
+                    break
+        self._update_reminder_remove_btn()
+
+    def _scheduled_timeline_row(self, event):
+        """One timeline row widget from a timeline event dict."""
+        from .style import LINE_SUBTLE, TEXT_MUTED
+        from .task_state import instrument_row_title
+
+        wrap = _ScheduledTimelineRow(
+            on_select=event.get("on_select"))
+        wrap.is_past = bool(event.get("is_past"))
+        wrap.setStyleSheet(
+            f"border: 1px solid {LINE_SUBTLE};")
+        row = QHBoxLayout(wrap)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(12)
+        label = QLabel(event["kind_label"])
+        label.setObjectName("activityRowLabel")
+        row.addWidget(label)
+        title = str(event.get("title") or "")
+        value = QLabel(title)
+        value.setObjectName("activityRowValue")
+        value.setWordWrap(False)
+        row.addWidget(value, stretch=1)
+        instrument_row_title(wrap, value, title)
+        tag = event.get("tag")
+        if tag:
+            tag_lbl = QLabel(str(tag))
+            tag_lbl.setObjectName("muted")
+            row.addWidget(tag_lbl)
+        number = QLabel(str(event.get("time_text") or ""))
+        number.setObjectName("activityRowNumber")
+        number.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(number)
+        if wrap.is_past:
+            # B-A05: past events dim to the muted text token,
+            # never below the contrast floor; the dimming
+            # applies to the row's text.
+            for lbl in (label, value, number):
+                lbl.setStyleSheet(f"color: {TEXT_MUTED};")
+        return wrap
+
+    def _rebuild_scheduled_timeline(self):
+        """Rebuild the Scheduled timeline (Phase 1, §3/A-04/A-09).
+
+        One chronological list — reminders + routines — ordered
+        by the fire datetime (the scheduler record's fire_at
+        datetime via get_all_reminders_with_epoch, and the
+        routine's next run via planner.next_run, the same call
+        _routine_next_text uses — NEVER the formatted display
+        string). Day/time groups: Today, Tomorrow, This week,
+        Later; a reminder with no parseable fire time renders
+        under "No time set" — never hidden, never dimmed. Fired
+        reminders render dimmed. Plans stay out of the timeline
+        (they have no fire time) — they keep their own section
+        below it. The spine + now-dot render only when the
+        timeline has events; the dot's position and the past-dim
+        state come from ``now`` at this refresh — no background
+        timer, so a long-open tab's hinge goes stale until the
+        next refresh (accepted and stated, B-A01).
+        """
+        layout = getattr(self, "_scheduled_timeline_layout", None)
+        spine = getattr(self, "_scheduled_timeline_spine", None)
+        if layout is None or spine is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                # setParent(None) FIRST: deleteLater() alone leaves
+                # the widget answering findChildren until the event
+                # loop destroys it, so a second rebuild in the same
+                # turn would double the rows (the orphan trap from
+                # legs 51/54 — the Memory list had the same fix).
+                widget.setParent(None)
+                widget.deleteLater()
+        now_local = datetime.datetime.now()
+        now_epoch = datetime.datetime.now(
+            datetime.timezone.utc).timestamp()
+        today = now_local.date()
+        events = []
+
+        def _group(epoch):
+            if epoch is None:
+                return "No time set"
+            day = datetime.datetime.fromtimestamp(epoch).date()
+            if day == today:
+                return "Today"
+            if day == today + datetime.timedelta(days=1):
+                return "Tomorrow"
+            if day <= today + datetime.timedelta(days=7):
+                return "This week"
+            return "Later"
+
+        try:
+            from voice_assistant.core.gui_facade import scheduler as _sched
+            getter = getattr(_sched, "get_all_reminders_with_epoch", None)
+            _rows = list(getter() or []) if callable(getter) else []
+        except Exception:  # noqa: BLE001 — no reminders then
+            _rows = []
+        for r in _rows or []:
+            if not isinstance(r, dict):
+                continue
+            epoch = r.get("fire_at_epoch")
+            epoch = (float(epoch) if isinstance(epoch, (int, float))
+                     else None)
+            label = str(r.get("label") or "")
+            message = str(r.get("message") or "")
+            fired = bool(r.get("fired"))
+            events.append({
+                "epoch": epoch,
+                "group": _group(epoch),
+                "kind_label": ("REMINDER · DAILY" if r.get("repeat")
+                               else "REMINDER"),
+                "title": message,
+                # The label is the reminder's identity (Remove
+                # selected cancels by it); when it differs from
+                # the message it rides as a muted tag so the row
+                # still names it.
+                "tag": label if label and label != message else None,
+                "time_text": (str(r.get("fire_at") or "")
+                              if epoch is not None else "No time set"),
+                "is_past": fired or (
+                    epoch is not None and epoch < now_epoch),
+                "on_select": (
+                    (lambda _lbl=label:
+                     self._select_timeline_reminder(_lbl))
+                    if label else None),
+            })
+        try:
+            from voice_assistant.core.gui_facade import planner as _planner
+            routines = list(_planner.get_routines() or [])
+        except Exception:  # noqa: BLE001 — no routines then
+            routines = []
+            _planner = None
+        for routine in routines or []:
+            if not isinstance(routine, dict):
+                continue
+            name = str(routine.get("name", "") or "Untitled")
+            nxt = None
+            if _planner is not None:
+                try:
+                    nxt = _planner.next_run(routine, now_local)
+                except Exception:  # noqa: BLE001 — undated then
+                    nxt = None
+            epoch = (nxt.timestamp()
+                     if isinstance(nxt, datetime.datetime) else None)
+            events.append({
+                "epoch": epoch,
+                "group": _group(epoch),
+                "kind_label": "ROUTINE",
+                "title": name,
+                "tag": None,
+                "time_text": (self._routine_next_text(routine)
+                              if epoch is not None else "No time set"),
+                "is_past": epoch is not None and epoch < now_epoch,
+                "on_select": None,
+            })
+        groups = {}
+        for event in events:
+            groups.setdefault(event["group"], []).append(event)
+        for group in ("Today", "Tomorrow", "This week", "Later",
+                      "No time set"):
+            rows = groups.get(group)
+            if not rows:
+                continue
+            rows.sort(key=lambda e: (
+                e["epoch"] is None,
+                e["epoch"] if e["epoch"] is not None else 0))
+            header = QLabel(group.upper())
+            header.setObjectName("muted")
+            layout.addWidget(header)
+            for event in rows:
+                layout.addWidget(self._scheduled_timeline_row(event))
+        if not events:
+            # A-12 + B-A03: the timeline's empty state — the
+            # resting ring + the tab's own line + one quiet
+            # suggestion naming a real capability of the tab.
+            from .design_system.empty import EmptyState
+            layout.addWidget(EmptyState(
+                sentence="No reminders yet.",
+                suggested_task="Add a reminder below."))
+        epochs = sorted(e["epoch"] for e in events
+                        if e["epoch"] is not None)
+        spine.set_epochs(epochs)
+        spine.set_now(now_epoch)
+        spine.setVisible(bool(epochs))
+
     def _reload_plugins(self):
         self._plugins = discover_plugins()
         if not hasattr(self, "plugin_list"):
             return
         self.plugin_list.clear()
         if not self._plugins:
-            self.plugin_list.addItem("No extra skills yet. Skills a developer gives you go in the plugins folder.")
+            # Look-fix 2: the empty line is long enough to elide
+            # under the list's ElideRight mode — the full guidance
+            # rides the tooltip, so it is never lost.
+            _empty = QListWidgetItem(
+                "No extra skills yet. Skills a developer gives you "
+                "go in the plugins folder.")
+            _empty.setToolTip(
+                "No extra skills yet. Skills a developer gives you "
+                "go in the plugins folder.")
+            self.plugin_list.addItem(_empty)
         else:
             for p in self._plugins:
                 name = p.get("name", "?").replace("_", " ")
                 desc = p.get("description", "")
-                self.plugin_list.addItem(f"{name}  —  {desc}")
+                _item = QListWidgetItem(f"{name}  —  {desc}")
+                _item.setToolTip(f"{name}  —  {desc}")
+                self.plugin_list.addItem(_item)
 
     # ------------------------------------------------- Presence (v2.1)
     @staticmethod

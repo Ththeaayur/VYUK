@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -83,8 +84,30 @@ class PagesSystemMixin:
         try:
             from voice_assistant.gui.pulse_page import PulsePage
 
-            self.pulse_page = PulsePage()
+            # UI Phase 4: the page owns the cadence key (D-P4-08)
+            # and the Doctor/last_run read (D-P4-06) through the
+            # window's settings store.
+            self.pulse_page = PulsePage(settings=self.settings)
+            # UI Phase 4 fix round (F-P4-01/F-01, 2026-11-26): the
+            # page fills the content width like the other pages.
+            # The old 960 cap + centre alignment centred the widget
+            # at its ~500 px content size (the cap never bound) —
+            # Pulse read as a narrow column at every size. No cap,
+            # no centring: the Expanding policy fills the layout
+            # and the meter bars stretch with it; the chart below
+            # was already full width and stays that way.
+            self.pulse_page.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Preferred)
             layout.addWidget(self.pulse_page, stretch=1)
+            # UI Phase 4 (D-P4-09): the sampler tick refreshes the
+            # overview chart — the tick IS the throttle, so the
+            # refresh runs at the live cadence.
+            self.pulse_page.on_sampled = self._refresh_pulse_overview
+            # UI Phase 4 (D-P4-07): a mapped warning word navigates
+            # to Doctor (the mapping table is empty today, so this
+            # never fires — the hook exists for a future check).
+            self.pulse_page.on_word_doctor = self._open_doctor_from_pulse
             # Conversion Wave 9: the fixed-layout overview panel
             # (pyqtgraph lazy-optional, fallback otherwise) fed
             # from the live activity log. This IS the shipped
@@ -134,20 +157,60 @@ class PagesSystemMixin:
             pass
         return scroll
 
+    def _refresh_pulse_overview(self, _sample=None) -> None:
+        """UI Phase 4 (D-P4-09): the Pulse sampler tick re-reads the
+        activity log into the overview panel. Guarded: a refresh
+        failure never breaks the tick."""
+        panel = getattr(self, "_w9_overview_panel", None)
+        if panel is None:
+            return
+        try:
+            from .w9_wiring_proof import refresh_overview_panel
+            refresh_overview_panel(panel)
+        except Exception:  # noqa: BLE001 — the tick goes on
+            pass
+
+    def _open_doctor_from_pulse(self, check_label: str) -> None:
+        """UI Phase 4 (D-P4-07): a mapped Pulse warning word opens
+        Doctor on that finding. The mapping table is empty today,
+        so this never fires — the navigation + highlight hook
+        exists for the first check that maps."""
+        try:
+            self._show_page(7)
+        except Exception:  # noqa: BLE001 — navigation is best-effort
+            return
+        try:
+            page = getattr(self, "doctor_page", None)
+            highlight = getattr(page, "highlight_finding", None)
+            if callable(highlight):
+                highlight(check_label)
+        except Exception:  # noqa: BLE001 — the page is open either way
+            pass
+
     # ------------------------------------------------------- senses
 
     def _senses_state(self) -> dict:
         """The Senses page's cheap state poll (v5.20): battery from
         psutil, connection kind from the up interfaces, camera/mic
         users from the watchers' privacy probe. Every leg guarded —
-        a missing sensor is a None, never a crash or a claim."""
-        state = {"ssid": None, "connection": "offline",
+        a missing sensor is a None, never a crash or a claim.
+        UI Phase 4 (D-P4-12): each leg carries a probe-ok flag
+        (`connection_ok`, `battery_ok`, `privacy_ok`) — a failed
+        leg renders "—" + "Couldn't check", never a state word.
+        The connection no longer defaults to "offline": a psutil
+        failure leaves it None (unknown), not a claim."""
+        state = {"ssid": None, "connection": None,
                  "battery_pct": None, "battery_plugged": None,
-                 "camera_user": None, "mic_user": None}
+                 "camera_user": None, "mic_user": None,
+                 "connection_ok": False, "battery_ok": False,
+                 "privacy_ok": False}
         try:
             import psutil
 
             batt = psutil.sensors_battery()
+            # The read ran: a battery-less desktop reads "no battery"
+            # (ok, value absent), not a failed probe.
+            state["battery_ok"] = True
             if batt is not None:
                 state["battery_pct"] = float(batt.percent)
                 state["battery_plugged"] = bool(batt.power_plugged)
@@ -159,12 +222,22 @@ class PagesSystemMixin:
                 state["connection"] = (
                     "wifi" if any(any(w in n.lower() for w in wifiish)
                                   for n in up) else "ethernet")
-        except Exception:  # noqa: BLE001
+                state["connection_ok"] = True
+            else:
+                # The interfaces read fine and none is up: that IS
+                # an offline reading, not a failed probe.
+                state["connection"] = "offline"
+                state["connection_ok"] = True
+        except Exception:  # noqa: BLE001 — the flags stay False
             pass
         try:
             from voice_assistant.core.gui_facade import watchers
 
             active = watchers._probe_privacy()
+            # None means the probe did not run (off Windows, or a
+            # failure) — only a frozenset (possibly empty: nobody
+            # using a device) is a successful read.
+            state["privacy_ok"] = active is not None
             if active:
                 for entry in active:
                     kind, _, app = str(entry).partition(":")
@@ -172,9 +245,35 @@ class PagesSystemMixin:
                         state["camera_user"] = app
                     elif kind == "microphone":
                         state["mic_user"] = app
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — the flag stays False
             pass
         return state
+
+    def _senses_events(self) -> list:
+        """The timeline events, newest first. UI Phase 4 (D-P4-24,
+        raise side): in private mode the messages are blanked here
+        — the page blanks them again at render time, so a provider
+        that returns messages is blanked either way. Never raises."""
+        try:
+            from voice_assistant.core.gui_facade import senses_log
+            from voice_assistant.core.gui_facade import (
+                private_mode as _private_mode)
+            events = senses_log.read_events(limit=100)
+            if bool(_private_mode.private_mode_on()):
+                return [{**e, "message": ""} if isinstance(e, dict) else e
+                        for e in events]
+            return events
+        except Exception:  # noqa: BLE001 — empty timeline, never a crash
+            return []
+
+    def _senses_timeline_total(self) -> int:
+        """The timeline file's line count (UI Phase 4, D-P4-15) —
+        the "M" in the page's "N of M shown". Never raises."""
+        try:
+            from voice_assistant.core.gui_facade import senses_log
+            return int(senses_log.timeline_line_count())
+        except Exception:  # noqa: BLE001 — the count says 0
+            return 0
 
     def _senses_brightness(self, done_cb) -> None:
         """Room brightness on demand (v5.20): one webcam frame on a
@@ -207,7 +306,8 @@ class PagesSystemMixin:
                 "state": self._senses_state,
                 "wifi_scan": senses.wifi_scan,
                 "quality": senses.network_quality,
-                "events": lambda: senses_log.read_events(limit=100),
+                "events": self._senses_events,
+                "events_total": self._senses_timeline_total,
                 "brightness": self._senses_brightness,
             }
             self.senses_page = SensesPage(
@@ -347,7 +447,11 @@ class PagesSystemMixin:
                 f"Backup: {_bak.get('last_status', 'never')}"
                 + (f" (last: {_bak.get('last_bundle') or '—'})"
                    if _bak.get('last_bundle') else "")
-                + (f" {_bak.get('last_failure', {}).get('error', '')}"
+                # Fix round (O-2, 2026-11-26): the failure reason
+                # reads after an em dash — "Backup: failed no
+                # backup passphrase is set" was missing its
+                # separator.
+                + (f" — {_bak.get('last_failure', {}).get('error', '')}"
                    if _bak.get('last_status') == 'failed' else "")
                 + (f" {_safe}" if _safe else ""))
         except Exception:  # noqa: BLE001

@@ -757,6 +757,60 @@ def get_learned_facts() -> list[dict]:
     ]
 
 
+# Hunt fix (c) item 6: the Learned card shows what the page counts
+# — the user-fact categories (general + preferences + inferred +
+# learned), not the "learned" category alone. USER_FACT_CATEGORIES
+# is {learned, general, preferences}; "inferred" is a real user-fact
+# category too (review_inbox / memory_files), so it joins the set.
+# The card used to read get_learned_facts() only, so it said
+# "Nothing learned yet" while the page header counted 5 facts
+# (general + preferences + inferred, none of them "learned").
+CARD_CATEGORIES = frozenset(USER_FACT_CATEGORIES) | {"inferred"}
+
+
+def get_all_user_facts() -> list[dict]:
+    """All user facts for the Memory-page Learned card, in the same
+    {"id", "key", "value", "display", "updated_at"} shape as
+    get_learned_facts. This is what the card counts and shows, so
+    its count cannot drift from the page header's."""
+    try:
+        rows = memory_store.get_all_facts()
+    except Exception:  # noqa: BLE001
+        return []
+    return [
+        {
+            "id": r.get("id"),
+            "key": r.get("key", ""),
+            "value": r.get("value", ""),
+            "display": display_for(str(r.get("key", "")), str(r.get("value", ""))),
+            "updated_at": r.get("updated_at"),
+        }
+        for r in rows
+        if str(r.get("category", "")).lower() in CARD_CATEGORIES
+    ]
+
+
+def forget_user_fact(fact_id) -> bool:
+    """Delete ONE user fact by store id, in any user-fact category
+    (general / preferences / inferred / learned). The card's per-row
+    Forget uses this — it shows all user facts now, so a row's
+    Forget must work for every row it shows. forget_learned_fact
+    still refuses non-"learned" facts (a learned-fact control must
+    never delete a hand-saved fact); the bulk "Forget everything
+    learned" keeps that scope too. The file-store copy is deleted
+    alongside the DB row, as in forget_learned_fact."""
+    try:
+        for r in memory_store.get_all_facts():
+            if r.get("id") == fact_id and str(
+                    r.get("category", "")).lower() in CARD_CATEGORIES:
+                _delete_file_copy(r.get("category", ""),
+                                  r.get("key", ""))
+                return bool(memory_store.delete_fact(fact_id))
+        return False
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def forget_learned_fact(fact_id) -> bool:
     """Delete ONE learned fact by store id. Refuses (returns False)
     when the id doesn't exist or belongs to another category — a

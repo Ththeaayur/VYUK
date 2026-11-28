@@ -367,7 +367,7 @@ def register_all(registry) -> None:
     micro-wake-word pattern)."""
     registry.register(
         name="train_custom_wake_word",
-        description="Train a custom wake-word model for a phrase you choose ('computer', 'hey jarvis', your name) from synthetic speech rendered by the on-device voice — no real audio collection. This is a dev-time training run (minutes of CPU + voice rendering) that saves a tiny model file; it does NOT turn wake on, and the trained model is UNEVALUATED until it passes the 1.5 m rig test. When the voice is not provisioned, give wav_dir with positives/ and negatives/ folders of .wav files instead.",
+        description="Train a custom wake-word model for a phrase you choose ('computer', 'hey VYUK', your name) from synthetic speech rendered by the on-device voice — no real audio collection. This is a dev-time training run (minutes of CPU + voice rendering) that saves a tiny model file; it does NOT turn wake on, and the trained model is UNEVALUATED until it passes the 1.5 m rig test. When the voice is not provisioned, give wav_dir with positives/ and negatives/ folders of .wav files instead.",
         parameters={
             "type": "object",
             "properties": {

@@ -346,8 +346,13 @@ class _MemoryWeb3DRenderMixin:
                     (_LABEL_HUB_PX if node.kind != "fact"
                      else _LABEL_FACT_PX)
                     * getattr(self, "_font_scale", 1.0))))
-                text_w = float(
-                    QFontMetrics(font).horizontalAdvance(label))
+                # Hunt fix (c) item 9: the 2D canvas's E-F202
+                # lesson, ported — measure the DRAWN ink
+                # (boundingRect), not the advance; an
+                # advance-wide rect cuts the last glyph's edge.
+                ink_w = float(QFontMetrics(font).boundingRect(
+                    label).width())
+                text_w = ink_w + 4.0
                 rect = QRectF(centre.x() - text_w / 2.0,
                               centre.y() + r + 3.0, text_w, 16.0)
                 alt = QRectF(centre.x() - text_w / 2.0,
@@ -371,7 +376,14 @@ class _MemoryWeb3DRenderMixin:
             # so these are the highest-degree facts).
             fact_entries.sort(key=lambda e: -e["degree"])
             entries.extend(fact_entries[:60])
-            planned = _plan_label_rects(entries)
+            # Hunt fix (c) item 9: every projected node's sphere
+            # is an obstacle for every other node's label.
+            obstacles = [(centre, self._screen_radius(node, depth, proj),
+                          node.id)
+                         for node in data.nodes
+                         if node.id in projected
+                         for centre, depth in [projected[node.id]]]
+            planned = _plan_label_rects(entries, obstacles=obstacles)
             for node_id, rect in planned.items():
                 label, font, _colour = label_info[node_id]
                 _draw_label_halo(painter, rect, label, font)

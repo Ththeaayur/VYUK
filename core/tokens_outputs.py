@@ -164,6 +164,11 @@ def generate_stylesheet(theme_name: str | None, shipped) -> str:
     # tint — mirrors gui/style.build_stylesheet).
     tokens["SELECTION_BG"] = resolved["selection_bg"]
     tokens["TEXT_DISABLED"] = resolved["text_disabled"]
+    # Look-fix 2 (2026-11-24): the input wells follow the
+    # resolved theme the same way (mirrors build_stylesheet).
+    tokens["INPUT_BG"] = resolved["input_bg"]
+    tokens["INPUT_BG_DISABLED"] = resolved["input_bg_disabled"]
+    tokens["INPUT_BORDER_DISABLED"] = resolved["input_border_disabled"]
     return _remap(_shipped._QSS.substitute(tokens), resolved)
 
 

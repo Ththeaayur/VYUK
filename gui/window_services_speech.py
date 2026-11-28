@@ -277,6 +277,15 @@ class ServicesSpeechMixin:
             self.audio_timer.start(25)
 
     def _sync_audio_telemetry(self):
+        # The facade re-resolves audio_manager per access (no
+        # cache), but this module's top-level import bound the
+        # value at first import — a test harness that replaces
+        # the audio stub per test (WindowBase._install_shim)
+        # would leave the telemetry (and the mic ring) reading a
+        # stale fake while the leg drives the current one.
+        # Resolve fresh here so every read below is live.
+        import voice_assistant.core.gui_facade as _facade
+        audio_manager = _facade.audio_manager
         self._tick += 1
         if audio_manager.is_playing:
             energy = audio_manager.speaker_level
@@ -298,21 +307,22 @@ class ServicesSpeechMixin:
                     ribbon.push(audio_manager.mic_level, "listening")
             except Exception:  # noqa: BLE001
                 pass
-        # v5.17 (Ears A1): the mic meter mirrors the live mic level
-        # (post-gain); while she speaks it rests at zero — her voice
-        # is already the orb's energy + spectrum.
+        # UI Phase 1 (H-32): the mic meter is superseded by the ring
+        # around the composer mic button (micLevelArc). The ring
+        # shows only while listening; its level is the live mic
+        # level. The old mic_meter is deleted with the v6.3 stage.
         try:
-            if hasattr(self, "mic_meter"):
+            arc = getattr(self, "mic_level_arc", None)
+            if arc is not None:
                 lvl = 0.0 if audio_manager.is_playing else (
-                    0.0 if audio_manager.is_muted else audio_manager.mic_level)
-                self.mic_meter.setValue(int(max(0.0, min(1.0, lvl)) * 100))
-                # Sci-fi Home: the meter shows only while
-                # listening — the orb carries the level while she
-                # speaks, and at idle there is nothing to meter.
+                    0.0 if audio_manager.is_muted
+                    else audio_manager.mic_level)
+                arc.set_level(lvl)
                 listening = "LISTENING" in (
                     getattr(self, "_status_raw", "") or "")
-                if self.mic_meter.isVisible() != listening:
-                    self.mic_meter.setVisible(listening)
+                visible = bool(listening and not audio_manager.is_muted)
+                if arc.isVisible() != visible:
+                    arc.setVisible(visible)
         except Exception:  # noqa: BLE001
             pass
         # v5.17 (Mouth M8–M11): karaoke caption + transport row.
@@ -411,6 +421,26 @@ class ServicesSpeechMixin:
                     except Exception:  # noqa: BLE001
                         pass
                     self.briefing_label.setText("  ·  ".join(parts))
+                # UI Phase 1: the same ~1 Hz tick refreshes the
+                # Home telemetry (status-block mini-bars, battery,
+                # clock) and the state-aware composer placeholder.
+                # _room_hour is set above inside the briefing-label
+                # guard; it is also set here so the room light keeps
+                # its hour even if the label is ever removed.
+                try:
+                    self._room_hour = datetime.datetime.now().hour
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    if hasattr(self, "_refresh_home_telemetry"):
+                        self._refresh_home_telemetry()
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    if hasattr(self, "_sync_composer_placeholder"):
+                        self._sync_composer_placeholder()
+                except Exception:  # noqa: BLE001
+                    pass
         except Exception:  # noqa: BLE001
             pass
 
@@ -495,7 +525,12 @@ class ServicesSpeechMixin:
                     except Exception:  # noqa: BLE001
                         pass
             try:
-                muted = bool(audio_manager.is_muted)
+                # Resolve fresh via the facade (same staleness
+                # class as _sync_audio_telemetry, leg 35): the
+                # module-top audio_manager is the FIRST test's
+                # fake, while the live fake is the current one.
+                import voice_assistant.core.gui_facade as _facade
+                muted = bool(_facade.audio_manager.is_muted)
             except Exception:  # noqa: BLE001
                 muted = False
             try:
@@ -550,17 +585,51 @@ class ServicesSpeechMixin:
             resolve_status,
         )
         from voice_assistant.gui.state_bus import AppState, get_state_bus
+        from voice_assistant.gui.style import NEUTRAL
 
         word, role, _glyph, colour = resolve_status(text)
-        self.status_pill.setText(STATUS_DISPLAY_WORDS.get(word, word))
+        # UI Phase 1: the state word lives on the Home state line
+        # (homeStateLine, under the wordmark), coloured with the
+        # visualizer's exact accent hex (leg 70; the accent passes
+        # H-39's 4.5:1 on dark and Light). The vitals strip's
+        # status_label is the brain source, never the state word.
+        # Pre-HUD windows fall back to the old status_pill.
+        line = getattr(self, "home_state_line", None)
+        if line is not None:
+            line.setText(STATUS_DISPLAY_WORDS.get(word, word))
+            try:
+                vis = getattr(self, "visualizer", None)
+                accent = vis.accent_color().name() if vis is not None \
+                    else colour
+            except Exception:  # noqa: BLE001
+                accent = colour
+            line.setStyleSheet(
+                f"color: {accent}; font-size: 13px;")
+        else:
+            self.status_pill.setText(STATUS_DISPLAY_WORDS.get(word, word))
+            # Look-fix 2 (2026-11-24): a neutral-role word resolves
+            # to the house NEUTRAL (#7E9AA6, ~2.5:1 on Light) — the
+            # strip's set_theme re-resolves the resting sheet, but
+            # this write would put the faint colour straight back
+            # on the next status change. Substitute the resolved
+            # theme's text_muted for the neutral role only; the
+            # other role colours (cyan / green / amber / red) are
+            # semantic and untouched.
+            if colour == NEUTRAL:
+                try:
+                    _resolved = getattr(self, "_resolved_theme", None)
+                    if isinstance(_resolved, dict):
+                        colour = _resolved.get("text_muted", colour)
+                except Exception:  # noqa: BLE001 — theme never breaks the pill
+                    pass
+            self.status_pill.setStyleSheet(
+                f"color: {colour}; font-size: 12px;"
+            )
         try:
             from .w9_wiring_theme import sync_status_glyph
             sync_status_glyph(self, word)
         except Exception:  # noqa: BLE001 — glyph is cosmetic
             pass
-        self.status_pill.setStyleSheet(
-            f"color: {colour}; font-size: 12px;"
-        )
         try:
             mic_muted = bool(audio_manager.is_muted)
         except Exception:  # noqa: BLE001 — unknown mutes hide chips

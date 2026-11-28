@@ -559,3 +559,119 @@ def home_assistant_status(config: HomeAssistantConfig | None = None) -> dict:
         "detail": "Dormant until used: no background connection, no auto-discovery.",
         "host": config.host,
     }
+
+
+def join_snapshot(areas, devices, states):
+    """Join one Home Assistant snapshot into rooms (UI Phase 5,
+    §4.3) — pure, no network, never raises on odd shapes.
+
+    The join is by entity/device id ONLY, from the linkage the
+    responses themselves carry: a device's `entities` list, or a
+    state's `device_id`. A missing join is never papered over:
+    - a device with no linked state shows "Unknown" (its
+      `state_text` is "Unknown", `states` is empty);
+    - a state with no device is returned under
+      `unassigned_states` with its entity id as-is;
+    - a device with no area lands under `unassigned_devices`
+      ("No room assigned"), never under a guessed room.
+    Areas with no devices are still listed (an empty room is a
+    real room). Device names use the hub's `name` when supplied,
+    else the device id; state names use
+    `attributes.friendly_name` when supplied, else the entity id
+    (P5-22). `last_seen` is the hub's `last_updated` /
+    `last_changed` as reported, never computed.
+
+    Returns {"rooms": [{"area_id", "name", "devices": [{"id",
+    "name", "area_id", "states": [{entity_id, name, state,
+    last_seen}], "state_text"}]}], "unassigned_devices": [...],
+    "unassigned_states": [...]}. `state_text` is the first linked
+    state's state, "Unknown" when there is none, or "Mixed" when
+    linked states disagree.
+    """
+    areas = [a for a in (areas or []) if isinstance(a, dict)]
+    devices = [d for d in (devices or []) if isinstance(d, dict)]
+    states = [s for s in (states or []) if isinstance(s, dict)]
+
+    def _state_view(state):
+        attrs = state.get("attributes") or {}
+        if not isinstance(attrs, dict):
+            attrs = {}
+        name = str(attrs.get("friendly_name") or
+                   state.get("entity_id") or "")
+        return {
+            "entity_id": str(state.get("entity_id") or ""),
+            "name": name,
+            "state": str(state.get("state") or "unknown"),
+            "last_seen": str(state.get("last_updated")
+                             or state.get("last_changed") or ""),
+        }
+
+    # entity_id -> state view, and entity_id -> device id (only
+    # where the responses link them).
+    state_by_entity = {}
+    for state in states:
+        view = _state_view(state)
+        if view["entity_id"]:
+            state_by_entity[view["entity_id"]] = view
+    entity_device = {}
+    for state in states:
+        dev = state.get("device_id")
+        if dev and state.get("entity_id"):
+            entity_device[str(state["entity_id"])] = str(dev)
+    device_entities = {}
+    for device in devices:
+        dev_id = str(device.get("id") or "")
+        if not dev_id:
+            continue
+        ents = device.get("entities")
+        if isinstance(ents, list):
+            for ent in ents:
+                if str(ent):
+                    entity_device.setdefault(str(ent), dev_id)
+
+    def _device_view(device):
+        dev_id = str(device.get("id") or "")
+        linked = []
+        for entity_id, owner in entity_device.items():
+            if owner == dev_id and entity_id in state_by_entity:
+                linked.append(state_by_entity[entity_id])
+        linked.sort(key=lambda v: v["entity_id"])
+        if not linked:
+            state_text = "Unknown"
+        else:
+            values = {v["state"] for v in linked}
+            state_text = values.pop() if len(values) == 1 else "Mixed"
+        return {
+            "id": dev_id,
+            "name": str(device.get("name") or dev_id or "Unnamed device"),
+            "area_id": str(device.get("area_id") or ""),
+            "states": linked,
+            "state_text": state_text,
+        }
+
+    rooms = []
+    for area in areas:
+        area_id = str(area.get("area_id") or "")
+        members = [_device_view(d) for d in devices
+                   if str(d.get("area_id") or "") == area_id]
+        rooms.append({
+            "area_id": area_id,
+            "name": str(area.get("name") or area_id or "Unnamed room"),
+            "devices": members,
+        })
+    unassigned_devices = [
+        _device_view(d) for d in devices
+        if not str(d.get("area_id") or "")]
+    # Linked only where the owning device actually exists in this
+    # snapshot: a state naming a device the hub did not return is
+    # still unassigned (shown with its entity id as-is), never
+    # silently dropped.
+    device_ids = {str(d.get("id") or "") for d in devices if d.get("id")}
+    linked_entities = {e for e, owner in entity_device.items()
+                       if owner in device_ids}
+    unassigned_states = [
+        state_by_entity[e] for e in sorted(state_by_entity)
+        if e not in linked_entities]
+    return {"rooms": rooms,
+            "unassigned_devices": unassigned_devices,
+            "unassigned_states": unassigned_states}

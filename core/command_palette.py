@@ -190,18 +190,35 @@ def score_match(needle: str, label: str, description: str = "") -> float | None:
     return None
 
 
-def rank_entries(entries: list[dict], query: str) -> list[dict]:
+def rank_entries(entries: list[dict], query: str,
+                 goal_ranks: dict[str, float] | None = None) -> list[dict]:
     """Entries matching query, best first, stable on ties.
 
     Each returned entry is a shallow copy with its original ``index``
     preserved (entries without one get their position). Non-matching
     entries are dropped, never silently kept.
+
+    UI Phase 2 (D-P2-04): ``goal_ranks`` is the shared token
+    index's answer for this query — {tool_name: score} from
+    ``core/skill_search.py``, in the 55–65 band (the top goal hit
+    scores 65, lower hits decay toward 55). A TOOL entry's score
+    is the best of its text lanes and its goal rank, so typing a
+    goal ("send an email") surfaces the tool without its name.
+    The band straddles the description-substring lane (60) by
+    design: a strong goal hit beats a description hit, a weak
+    one does not. Entries of other kinds never carry a goal
+    rank; with goal_ranks None the ranking is exactly as before.
     """
     scored = []
     for pos, entry in enumerate(entries):
         score = score_match(
             query, str(entry.get("label") or ""),
             str(entry.get("description") or ""))
+        if goal_ranks:
+            tool_name = entry.get("tool_name")
+            if tool_name in goal_ranks:
+                goal = goal_ranks[tool_name]
+                score = goal if score is None else max(score, goal)
         if score is None:
             continue
         copy = dict(entry)
@@ -212,14 +229,17 @@ def rank_entries(entries: list[dict], query: str) -> list[dict]:
 
 
 def filter_entries(entries: list[dict], query: str,
-                   cap: int = ROW_CAP) -> tuple[list[dict], int]:
+                   cap: int = ROW_CAP,
+                   goal_ranks: dict[str, float] | None = None) -> tuple[list[dict], int]:
     """(shown, hidden_count) for a query, capped at ``cap`` rows.
 
     The hidden count is returned so the widget can show the honest
     "and N more — keep typing to narrow" line instead of silently
     hiding results, as the shipped widget already did.
+    ``goal_ranks`` passes through to ``rank_entries`` (UI Phase 2,
+    D-P2-04 — the shared token index's goal lane for TOOL rows).
     """
-    ranked = rank_entries(entries, query)
+    ranked = rank_entries(entries, query, goal_ranks=goal_ranks)
     if cap <= 0:
         return [], len(ranked)
     return ranked[:cap], max(0, len(ranked) - cap)

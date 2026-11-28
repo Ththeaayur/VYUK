@@ -49,6 +49,7 @@ from voice_assistant.core.gui_facade import (
 )
 from voice_assistant.core.gui_facade import VERSION
 from .design_system.panels import HudPanel
+from .design_system.switches import HudSwitch
 from .style import (
     build_stylesheet,
     derive_theme,
@@ -149,11 +150,13 @@ class SettingsMixin(_SettingsThinkMixin, _SettingsVoiceMixin, _SettingsGroupsMix
             h.setWordWrap(True)
             layout.addWidget(h)
         # Settings redesign §4b: every card gets the same shape —
-        # its current value in words, and a line saying whether
-        # voice can change it. Both labels are refreshed from
-        # _refresh_settings_card_values (privacy mixin); the
-        # registry supplies the voice line per title, so a card
-        # never has to word its own class.
+        # its current value in words, a line saying whether
+        # voice can change it, and (Phase 4, D-P4-31) a line
+        # saying when a change on it takes effect. All three
+        # labels are refreshed from _refresh_settings_card_values
+        # (privacy mixin); the registry supplies the voice and
+        # effect lines per title, so a card never has to word
+        # its own class or timing.
         value_label = QLabel("")
         value_label.setObjectName("cardHint")
         value_label.setWordWrap(True)
@@ -164,9 +167,15 @@ class SettingsMixin(_SettingsThinkMixin, _SettingsVoiceMixin, _SettingsGroupsMix
         voice_label.setWordWrap(True)
         voice_label.setVisible(False)
         layout.addWidget(voice_label)
+        effect_label = QLabel("")
+        effect_label.setObjectName("cardHint")
+        effect_label.setWordWrap(True)
+        effect_label.setVisible(False)
+        layout.addWidget(effect_label)
         try:
             self._settings_card_value_labels[title] = value_label
             self._settings_card_voice_labels[title] = voice_label
+            self._settings_card_effect_labels[title] = effect_label
         except Exception:  # noqa: BLE001 — labels still render
             pass
         parent_layout.addWidget(card)
@@ -531,7 +540,7 @@ class SettingsMixin(_SettingsThinkMixin, _SettingsVoiceMixin, _SettingsGroupsMix
         # the pre-S4 layout — only the homes changed, plus the two
         # S4 dedups (ShortcutsWidget display, citizenship
         # autostart cross-link) and four value-wording hints.
-        page, layout = self._page_shell("Settings", "Your key, voice, and look — all stored on this device.")
+        page, layout = self._page_shell("Settings", "Your key, voice, and look — all stored on this device.", kicker=True)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         content = QWidget()
@@ -567,8 +576,14 @@ class SettingsMixin(_SettingsThinkMixin, _SettingsVoiceMixin, _SettingsGroupsMix
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(6, 2, 6, 0)
         header_layout.setSpacing(2)
+        # Phase 0: the summary name wears the kicker face now, not
+        # the large pageTitle — the page already has its header
+        # (the SETTINGS kicker above); a second large title under
+        # it is two headers. Same wordmark treatment as Home.
         header_name = QLabel("VYUK")
-        header_name.setObjectName("pageTitle")
+        header_name.setObjectName("pageKicker")
+        header_name.setStyleSheet(
+            f"font-size: {TYPE_CARD_TITLE}px; font-weight: 600;")
         header_layout.addWidget(header_name)
         self.settings_summary_label = QLabel("")
         self.settings_summary_label.setObjectName("muted")
@@ -582,6 +597,12 @@ class SettingsMixin(_SettingsThinkMixin, _SettingsVoiceMixin, _SettingsGroupsMix
         # cards stay as the second way in, below.
         self._settings_card_value_labels: dict = {}
         self._settings_card_voice_labels: dict = {}
+        self._settings_card_effect_labels: dict = {}
+        # Phase 4 (D-P4-32): the HUD preview session — None
+        # outside a preview; _hud_preview_before is the value
+        # to restore on Cancel, _hud_preview_current the pick.
+        self._hud_preview_before: str | None = None
+        self._hud_preview_current: str | None = None
         top_row = QHBoxLayout()
         top_row.setSpacing(6)
         self._settings_top_tasks: dict = {}
@@ -664,6 +685,9 @@ class SettingsMixin(_SettingsThinkMixin, _SettingsVoiceMixin, _SettingsGroupsMix
 
         # Refactor Phase 1 step 5: card sections live in their group mixins; order unchanged.
         self._build_think_cards(_g_connect)
+        # UI Phase 5 (D-P5-15): the Home hub card — the one new
+        # settings surface, in Connections beside the brain card.
+        self._build_ha_card(_g_connect)
         self._build_voice_cards(_g_voice, _g_appearance, _g_connect)
         self._build_notices_cards(_g_notices)
         more_layout = self._build_suggestions_cards(_g_notices, c_layout)
@@ -698,6 +722,12 @@ class SettingsMixin(_SettingsThinkMixin, _SettingsVoiceMixin, _SettingsGroupsMix
                 for _i in range(_w.count()):
                     _parts.append(_w.itemText(_i))
             for _w in _card.findChildren(QCheckBox):
+                _parts.append(_w.text())
+            # Phase 0: Settings toggles are HudSwitches now — their
+            # label rides as text(), so the search map reads it the
+            # same way (the QCheckBox loop above stays for any
+            # checkbox a later card adds).
+            for _w in _card.findChildren(HudSwitch):
                 _parts.append(_w.text())
             self._settings_card_texts[_card] = " ".join(_parts).lower()
         # Round-2 N3: the ranked search results area — matched

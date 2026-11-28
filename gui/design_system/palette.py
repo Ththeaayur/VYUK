@@ -67,6 +67,23 @@ def with_alpha(token_value: str, alpha: int) -> str:
     return css_color(r, g, b, alpha)
 
 
+def qcolor(token_value: str):
+    """A real QColor from any token string (hex or rgba).
+
+    QColor(str) does NOT parse the css rgba(r, g, b, a) form in
+    this Qt build — it returns an INVALID colour (isValid False,
+    rgb 0,0,0), which paints BLACK. That is why every glass
+    HudPanel painted black in both themes (invisible on dark,
+    glaring on Light, 2026-11-24). Parse via parse_color and
+    construct QColor(r, g, b, a) explicitly. Use this wherever a
+    colour token string goes into QColor — never QColor(str).
+    """
+    from PySide6.QtGui import QColor
+
+    r, g, b, a = parse_color(token_value)
+    return QColor(int(r), int(g), int(b), int(a))
+
+
 def hex_of(token_value: str) -> str:
     """The token colour as a six-digit hex string (alpha dropped)."""
     r, g, b, _a = parse_color(token_value)
@@ -83,3 +100,20 @@ def lighten(token_value: str, frac: float) -> str:
     r, g, b, _a = parse_color(token_value)
     mixed = tuple(int(round(c + (255 - c) * frac)) for c in (r, g, b))
     return "#%02x%02x%02x" % mixed
+
+
+def luminance(token_value: str) -> float:
+    """Relative luminance (0..1) of a token colour.
+
+    The same sRGB curve the theme resolver uses for its Light
+    test — a panel asks it whether its background is light
+    (luminance above one half) before choosing a wash colour.
+    """
+    r, g, b, _a = parse_color(token_value)
+
+    def channel(value: int) -> float:
+        c = value / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    return (0.2126 * channel(r) + 0.7152 * channel(g)
+            + 0.0722 * channel(b))

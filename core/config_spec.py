@@ -319,6 +319,21 @@ class ConfigSpec:
     # Read live per gate check via
     # core.daily_quiet.calendar_quiet_enabled().
     calendar_quiet_enabled: bool = field(default=True, metadata={"env": "VYUK_CALENDAR_QUIET_ENABLED"})
+    # UI Phase 1 (H-11): the weather city — the user's HOME city,
+    # never assumed from a college city, never guessed. The ONE
+    # canonical store for the city (the wizard's optional field,
+    # the inline Home prompt and the Settings input all write
+    # this field + the "home/city" QSettings key below, and the
+    # weather read consults it). Empty until the user sets it;
+    # while empty the weather block says "set your city".
+    home_city: str = field(default="", metadata={"env": "VYUK_HOME_CITY"})
+    # UI Phase 1 (backdrop ruling): the HUD profile — Cinematic /
+    # Professional / Minimal. Stored default Cinematic; the live
+    # value is resolved once per appearance pass through
+    # resolve_profile(stored, power_saver, contrast_theme) — the
+    # QSettings key "appearance/hud_profile" below is the stored
+    # value's home (the calendar_quiet_enabled dual pattern).
+    hud_profile: str = field(default="Cinematic", metadata={"env": "VYUK_HUD_PROFILE"})
     briefing_speed: float = field(default=1.0, metadata={"env": "BRIEFING_SPEED"})
     update_feed_url: str = field(default="", metadata={"env": "UPDATE_FEED_URL"})
     google_client_id: str = field(default="", metadata={"env": "GOOGLE_CLIENT_ID"})
@@ -806,6 +821,12 @@ QSETTINGS_FIELDS: tuple[tuple[str, str, type, Any], ...] = (
     # Learning / suggestions.
     ("learning_enabled", "learning/enabled", bool, True),
     ("learning_seen_ids", "learning/seen_ids", list, []),
+    # UI Phase 1 (Review Inbox): the ids Approve has marked
+    # reviewed. A reviewed record keeps its kind in the store
+    # and never returns to the inbox — the mark, not a deletion,
+    # is what removes it (seen_ids alone cannot do that for an
+    # inferred record, which the learned section never shows).
+    ("learning_reviewed_ids", "learning/reviewed_ids", list, []),
     ("learning_announced_once", "learning/announced_once", bool, False),
     ("suggestions_auto_act", "suggestions/auto_act", bool, False),
     ("suggestions_auto_act_meeting_open", "suggestions/auto_act_meeting_open", bool, False),
@@ -840,6 +861,13 @@ QSETTINGS_FIELDS: tuple[tuple[str, str, type, Any], ...] = (
     # name (core/daily_quiet.calendar_quiet_enabled).
     ("calendar_quiet_enabled", "quiet/calendar_quiet_enabled",
      bool, True),
+    # UI Phase 1 (H-11): the weather city — the user's HOME city.
+    # The canonical store (with the ConfigSpec home_city field
+    # above); empty until the user sets it.
+    ("home_city", "home/city", str, ""),
+    # UI Phase 1 (backdrop ruling): the stored HUD profile —
+    # Cinematic / Professional / Minimal. Default Cinematic.
+    ("hud_profile", "appearance/hud_profile", str, "Cinematic"),
     ("watchers_battery", "watchers/battery", bool, True),
     ("watchers_downloads", "watchers/downloads", bool, True),
     ("watchers_network", "watchers/network", bool, True),
@@ -856,6 +884,15 @@ QSETTINGS_FIELDS: tuple[tuple[str, str, type, Any], ...] = (
     # Memory / skills views.
     ("memory_view", "memory/view", str, "list"),
     ("skills_view", "skills/view", str, "list"),
+    ("skills_pinned", "skills/pinned", list, []),
+    # UI Phase 2 — capabilities centre (D-P2-06): palette
+    # recents. A bounded, ordered list of {action_id, label}
+    # dicts, most recent first, max 8. Only the action_id
+    # and the label are stored — never parameters, never the
+    # confirmation ticket, never the tool arguments. QSettings
+    # may hand a lone string back for a one-item list; callers
+    # normalise (see gui/palette_recents.py).
+    ("palette_recent", "palette/recent", list, []),
     ("memory_dimension", "memory/dimension", str, "2d"),
     ("skills_dimension", "skills/dimension", str, "2d"),
     # First-open continuous-display prompt (core/firstopen_surface).
@@ -888,6 +925,19 @@ QSETTINGS_FIELDS: tuple[tuple[str, str, type, Any], ...] = (
     # the refusal + strip button is the durable way back.
     ("browser_connect_offer_shown", "browser/connect_offer_shown",
      bool, False),
+    # UI Phase 3 (D-P3-16): the Calendar view switch (Month /
+    # Week / Agenda) persists across launches — the only new
+    # QSettings key Phase 3 adds. The Inbox triage tab, the
+    # Contacts sort and the Calls filter are session state, not
+    # persisted.
+    ("calendar_view", "calendar/view", str, "Month"),
+    # UI Phase 4 (D-P4-08 / D-P4-18): the Pulse refresh cadence in
+    # ms (1000 / 2000 / 5000, default 1000) and the Doctor run
+    # selection ("all" or a comma-separated list of the six
+    # category ids). The only new QSettings keys this phase adds
+    # (106 -> 108).
+    ("pulse_refresh_ms", "pulse/refresh_ms", int, 1000),
+    ("doctor_run_selection", "doctor/run_selection", str, "all"),
 )
 
 

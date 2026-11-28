@@ -15,13 +15,17 @@ from the snapshot, or without a resolvable friendly name.
 The suite pins it and the prover re-runs it; a new tool that
 forgets a table fails loudly instead of silently.
 
-The documented ungrouped set is exactly the tools the
-"More skills" fallback is FOR: click_anywhere (deliberate
-playbook opt-out — a hands-driver, not a grouped skill) and
-the plugin tools (dynamic — discovered at runtime, so no
-static table can list them; the router and the GUI catalogue
-both place them in "More skills" through the fallback).
-Anything else ungrouped is a placement bug.
+The documented ungrouped set is empty: every registered tool is
+now listed in GROUP_MEMBERS. The "More skills" fallback still
+exists for genuinely unknown or dynamic tools (a future plugin
+tool the static table cannot name lands there through
+group_for_name, and the router and the GUI catalogue both
+place it the same way) — but the three tools the fallback used
+to carry are now placed explicitly: click_anywhere in
+Desktop control and the two plugin tools in "More skills"
+(UI Phase 2, D-P2-03 — the 3-tool snapshot gap is closed).
+Anything ungrouped that is not a caller-declared plugin name
+is a placement bug.
 """
 
 from __future__ import annotations
@@ -35,8 +39,9 @@ from .tool_labels import tool_friendly_name
 
 #: Tools that are ungrouped BY DESIGN (see the module
 #: docstring). Every other registered tool must be in
-#: GROUP_MEMBERS.
-DOCUMENTED_UNGROUPED = frozenset({"click_anywhere"})
+#: GROUP_MEMBERS. UI Phase 2 (D-P2-03): the set is empty —
+#: the last three ungrouped tools are now listed explicitly.
+DOCUMENTED_UNGROUPED = frozenset()
 
 
 def _registry_names(registry: Any) -> list[str]:

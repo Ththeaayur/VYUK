@@ -6,7 +6,8 @@ Split from gui/window_memory.py (GUI split #12 batch 2, move only).
 import asyncio
 import datetime
 import threading
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -18,17 +19,23 @@ from PySide6.QtWidgets import (
 )
 from voice_assistant.core.gui_facade import confirm_gate
 from voice_assistant.core.gui_facade import live_session
+from .design_system.empty import EmptyState
+from .design_system.panels import HudPanel
+from .design_system.progress import SegmentBar
 from .room_activity import (
     error_line,
     headline_counts,
     headline_line,
     strip_absolute_paths,
 )
+from .style import AMBER
 from .task_state import (
     add_task_row,
+    build_task_row_widget,
     instrument_row,
     instrument_row_title,
     list_item_size_hint,
+    mission_state_for_record,
     render_task,
 )
 
@@ -52,15 +59,262 @@ def _cap_activity_list(lst, rows):
             lst.setMinimumHeight(0)
             lst.setMaximumHeight(16777215)
             return
-        row_h = max(lst.sizeHintForRow(i) for i in range(count))
         # The list is exactly its content tall (capped): the
         # minimum stops it stretching to fill the pane's slack,
         # so the pane ends after the last row instead of after
-        # a stretched list.
-        lst.setMinimumHeight(row_h * min(count, rows) + 2)
-        lst.setMaximumHeight(row_h * rows + 2)
+        # a stretched list. The content height is the SUM of
+        # the row heights, not the tallest row times the count
+        # — with a tall approval card (239 px) among short
+        # rows (37 px), max x count over-allocates (229x4=918
+        # for 350 px of content) and the list overflows its
+        # layout slot, painting over the journal below it
+        # (parent by-eye fix, 2026-11-24: the journal collided
+        # with the approval card). The cap still binds at N
+        # rows: past it the list shows N rows and scrolls.
+        _heights = [lst.sizeHintForRow(i) for i in range(count)]
+        _shown = min(count, rows)
+        lst.setMinimumHeight(sum(_heights[:_shown]) + 2)
+        lst.setMaximumHeight(
+            sum(_heights[:_shown])
+            + (max(_heights) * (rows - _shown) if rows > _shown else 0)
+            + 2)
     except Exception:  # noqa: BLE001 — cap is cosmetic
         pass
+
+
+# Phase 1: the inline approval card's 60 s silence window.
+_COUNTDOWN_TOTAL_S = 60
+
+
+class _CountdownHairline(QWidget):
+    """The approval countdown as a depleting 1 px amber hairline
+    under the card (B-A02 / round 4).
+
+    A per-second reading update from the same remaining-seconds
+    value as the countdown label — never an animation, never a
+    whole-card repaint. The width is the fraction that is left.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("approvalCountdownBar")
+        self.setFixedHeight(1)
+        self._remaining = _COUNTDOWN_TOTAL_S
+
+    def set_remaining(self, seconds):
+        """Set the seconds left (clamped to the 60 s window)."""
+        self._remaining = max(
+            0, min(_COUNTDOWN_TOTAL_S, int(seconds)))
+        self.update()
+
+    def countdown_fraction(self):
+        """The fraction of the window left (1.0 = full 60 s)."""
+        return self._remaining / _COUNTDOWN_TOTAL_S
+
+    def paintEvent(self, event):  # noqa: N802 (Qt naming)
+        painter = QPainter(self)
+        width = int(round(self.width() * self.countdown_fraction()))
+        if width > 0:
+            painter.fillRect(0, 0, width, 1, QColor(AMBER))
+        painter.end()
+
+
+class _ApprovalCard(HudPanel):
+    """The inline approval card (Phase 1, §3/A-01).
+
+    A paused row carrying its own coordinator pending approval
+    renders this card INLINE below the row — the dialog's
+    contract, not a second one: the tool, the step label, the
+    engine sentence verbatim, the confirm-flag name (from
+    pending_approval_summary), "Allow once" / "Don't allow",
+    the 60 s silence timer as a countdown, the safe default
+    (Don't allow), no "Always allow" third button, no voice
+    path. Resolution goes ONLY through the window's
+    ``_resolve_pending(task_id, approved)`` at click time —
+    the card never resolves anything itself, and never holds a
+    cached reference to the resolver (the repro spies on the
+    method, so the lookup happens on the window at click time).
+    The card and the dialog share one presenter state: resolving
+    from either clears the other on the next refresh, because
+    the refresh re-reads the ledger.
+    """
+
+    def __init__(self, window, task_id, pending):
+        super().__init__(glass=True, edge="amber")
+        self.setObjectName("activityApprovalCard")
+        self._window = window
+        # Phase 6 (Light sweep, D-16 family): a HudPanel paints
+        # its own fill, and the window's appearance pass only
+        # recolors the panels that exist when it runs. This card
+        # is created dynamically on the Activity refresh — after
+        # the pass — so without this it keeps the house-dark
+        # SURFACE_2 fill and reads dark-on-dark on Light (the
+        # title uses ${TEXT}, which IS theme-dark on Light).
+        # Pick up the window's current resolved theme at
+        # creation; the appearance pass still recolors it on
+        # the next theme change.
+        try:
+            _th = getattr(window, "_home_theme", None)
+            if _th:
+                self.set_theme(_th)
+        except Exception:  # noqa: BLE001 — theme never breaks paint
+            pass
+        self._task_id = str(task_id)
+        self._remaining = _COUNTDOWN_TOTAL_S
+        self._resolved = False
+        from voice_assistant.gui.pending_approval import (
+            pending_approval_summary)
+        tool, summary = pending_approval_summary(pending)
+        layout = self.content_layout()
+        title = QLabel(
+            f"Approval needed — {tool}" if tool else "Approval needed")
+        title.setObjectName("sectionTitle")
+        layout.addWidget(title)
+        for line in str(summary).split("\n"):
+            if not line.strip():
+                continue
+            lbl = QLabel(line)
+            lbl.setWordWrap(True)
+            layout.addWidget(lbl)
+        self._countdown = QLabel(self._countdown_text())
+        self._countdown.setWordWrap(True)
+        layout.addWidget(self._countdown)
+        # §4: the buttons stack full-width at ≤640, sit side by
+        # side above that.
+        try:
+            narrow = window.width() <= 640
+        except Exception:  # noqa: BLE001 — default to side by side
+            narrow = False
+        btn_row = QVBoxLayout() if narrow else QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(6)
+        self._allow_btn = QPushButton("Allow once")
+        self._allow_btn.setObjectName("approvalAllowBtn")
+        self._allow_btn.clicked.connect(
+            lambda _=False: self._resolve(True))
+        self._deny_btn = QPushButton("Don't allow")
+        self._deny_btn.setObjectName("approvalDenyBtn")
+        self._deny_btn.clicked.connect(
+            lambda _=False: self._resolve(False))
+        btn_row.addWidget(self._allow_btn)
+        btn_row.addWidget(self._deny_btn)
+        if not narrow:
+            btn_row.addStretch(1)
+        layout.addLayout(btn_row)
+        self._hairline = _CountdownHairline(self)
+        layout.addWidget(self._hairline)
+        # The glass tile from the window's stored theme, when
+        # known — without it the glass paints the translucent
+        # fill alone (the panel's own fallback). Look-fix
+        # 2026-11-24: the tile IS the backdrop's grid, blurred —
+        # it only belongs where the backdrop actually shows a
+        # grid. Activity is vignette now (no grid), so an
+        # unconditional tile painted a checkerboard inside the
+        # approval card on a flat page.
+        try:
+            resolved = getattr(window, "_activity_theme_resolved", None)
+            if resolved:
+                from .design_system.backdrop import glass_tile
+                bd = getattr(window, "_activity_backdrop", None)
+                grid_on = (bd is not None
+                           and bd.effective_layers()[0])
+                self.set_glass_tile(
+                    glass_tile(resolved) if grid_on else None)
+        except Exception:  # noqa: BLE001 — cosmetic
+            pass
+        self._timer = QTimer(self)
+        self._timer.setInterval(1000)
+        # Named _on_countdown_tick, not _tick: HudPanel already
+        # owns self._tick (the accent-colour string for the
+        # corner ticks), and an instance attribute shadows the
+        # method — connect() would get the string.
+        self._timer.timeout.connect(self._on_countdown_tick)
+        self._timer.start()
+
+    def _countdown_text(self):
+        # Seconds left in the 60 s window, in the plan's shape
+        # ("Decides itself in 0:47 — no answer means Don't
+        # allow"). At first paint the window is whole, so it
+        # reads 0:60 for one second, then 0:59 — the window
+        # itself stays exactly 60 s.
+        return (f"Decides itself in 0:{self._remaining:02d} — "
+                "no answer means Don't allow")
+
+    def set_remaining(self, seconds):
+        """Set the seconds left; label + hairline read the same
+        value (B-A02 — they can never disagree)."""
+        self._remaining = max(
+            0, min(_COUNTDOWN_TOTAL_S, int(seconds)))
+        self._countdown.setText(self._countdown_text())
+        self._hairline.set_remaining(self._remaining)
+
+    def countdown_fraction(self):
+        """The fraction of the 60 s window left."""
+        return self._hairline.countdown_fraction()
+
+    def _on_countdown_tick(self):
+        # A-10: the countdown updates the timer label (and its
+        # hairline) only — never the whole card, never moving
+        # focus.
+        if self._resolved:
+            return
+        self.set_remaining(self._remaining - 1)
+        if self._remaining <= 0:
+            self._expire()
+
+    def _resolve(self, approved):
+        if self._resolved:
+            return
+        try:
+            # Click-time lookup on the window: _resolve_pending
+            # is owned by the Home builder (window_home_hud.py)
+            # and may be spied on in tests — never cached.
+            self._window._resolve_pending(self._task_id, bool(approved))
+        except AttributeError:
+            # The resolver is not built yet: leave the card live
+            # (its timer keeps running) rather than pretending
+            # the answer landed.
+            return
+        except Exception:  # noqa: BLE001 — a failed resolve
+            pass  # still refreshes: the ledger is the truth.
+        self._resolved = True
+        try:
+            self._timer.stop()
+        except Exception:  # noqa: BLE001 — teardown never raises
+            pass
+        try:
+            # Deferred past the click: the refresh rebuilds the
+            # list and destroys this card.
+            QTimer.singleShot(0, self._window._refresh_activity_tabs)
+        except Exception:  # noqa: BLE001 — cosmetic
+            pass
+
+    def _expire(self):
+        """60 s of silence = denial (the dialog's contract)."""
+        if self._resolved:
+            return
+        self._resolved = True
+        try:
+            self._timer.stop()
+        except Exception:  # noqa: BLE001 — teardown never raises
+            pass
+        self._countdown.setText("Denied — no answer in 60 s")
+        self._hairline.set_remaining(0)
+        for btn in (self._allow_btn, self._deny_btn):
+            try:
+                btn.setEnabled(False)
+            except Exception:  # noqa: BLE001 — teardown never raises
+                pass
+        try:
+            self._window._resolve_pending(self._task_id, False)
+        except Exception:  # noqa: BLE001 — silence still denied
+            pass  # on the card; the refresh shows the truth.
+        try:
+            # The denial stays readable briefly, then the
+            # refresh clears the card (the approval is gone).
+            QTimer.singleShot(1500, self._window._refresh_activity_tabs)
+        except Exception:  # noqa: BLE001 — cosmetic
+            pass
 
 
 class MemoryActivityMixin:
@@ -89,6 +343,20 @@ class MemoryActivityMixin:
         history = getattr(self, "_activity_history_list", None)
         if in_progress is None or history is None:
             return
+        # A-08: a resolution refreshes every tab — preserve the
+        # selected Mission Log mission across the rebuild, by
+        # task_id; if it is gone, the pane says so (below).
+        _prev_log_task = None
+        _ml_prev = getattr(self, "_mission_log_list", None)
+        if _ml_prev is not None:
+            try:
+                _cur = _ml_prev.currentItem()
+                if _cur is not None:
+                    _d = _cur.data(Qt.ItemDataRole.UserRole)
+                    if isinstance(_d, dict):
+                        _prev_log_task = _d.get("task_id")
+            except Exception:  # noqa: BLE001 — no selection kept
+                _prev_log_task = None
         records = None
         load_error = ""
         try:
@@ -98,6 +366,18 @@ class MemoryActivityMixin:
         except Exception as exc:  # noqa: BLE001 — the page still builds
             records = None
             load_error = str(exc)
+        # UI Phase 6: QListWidget.clear() drops the items but NOT
+        # their item widgets — a resolved approval card (or any
+        # row) survived every refresh as a hidden orphan parented
+        # to the viewport, findable by findChild and accumulating
+        # a dead widget per refresh (the D-01 family). Delete the
+        # old row widgets BEFORE clear(), while the app is alive,
+        # so the rebuild adds fresh ones.
+        for _lst in (in_progress, history):
+            for _i in range(_lst.count()):
+                _w = _lst.itemWidget(_lst.item(_i))
+                if _w is not None:
+                    _w.deleteLater()
         in_progress.clear()
         history.clear()
         if records is None:
@@ -138,7 +418,8 @@ class MemoryActivityMixin:
                 _ml_unavail.setItemWidget(_item, _widget)
             return
         live = [r for r in records
-                if str(r.get("state", "")) in ("running", "paused")]
+                if str(r.get("state", "")) in ("running", "paused",
+                                               "verifying")]
         done = [r for r in records
                 if str(r.get("state", "")) in ("completed", "failed",
                                                 "cancelled")]
@@ -155,6 +436,9 @@ class MemoryActivityMixin:
         for _section in ("in_progress", "history", "mission_log"):
             self._update_activity_headline(
                 _section, headline_line(_section, _counts))
+        # Phase 1 (§3): the MissionRail producer bridge — the
+        # ledger's newest live record, from this same read.
+        self._publish_mission_rail(live)
         # UI Slice 3 (complexity doc CX-05): rows render through
         # the single task-state component (gui/task_state.py) —
         # no per-tab state text anymore. The live pending
@@ -171,17 +455,26 @@ class MemoryActivityMixin:
         except Exception:  # noqa: BLE001 — gate unreadable: no hint
             pending_tool = pending_summary = None
         pending_used = False
-        if not live:
-            in_progress.addItem("Nothing in progress right now.")
+        # B-A03: when idle, the designed empty state lives in the
+        # rail (resting hollow ring + "Nothing in progress right
+        # now." + "Ask VYUK to start something."). The list below
+        # the rail does NOT repeat it — an EmptyState item here
+        # would print the same words twice on the page. The list
+        # simply stays empty while idle (no `if not live` branch).
         for r in live:
             # §7 consumers batch 7: a paused row carrying its own
             # coordinator pending approval renders Needs approval
             # from its record and must NOT consume the live gate
             # hint — the hint belongs to a running row positioned
             # at the gated tool, never to a row that already
-            # names its own question.
+            # names its own question. UI Phase 2 (P2-02): a
+            # VERIFYING row carries one too (resumed after a
+            # crash, died mid-verification with its pending step
+            # still open) — the Review queue offers it, so the
+            # card renders for it as well. A running row is
+            # excluded on purpose: the live gate hint owns it.
             coord_pending = (
-                str(r.get("state", "")) == "paused"
+                str(r.get("state", "")) in ("paused", "verifying")
                 and isinstance(r.get("pending_approval"), dict)
                 and bool(r.get("pending_approval", {}).get("tool")))
             hint_tool = hint_summary = None
@@ -194,17 +487,107 @@ class MemoryActivityMixin:
                     and rendered["state"] == "Needs approval"):
                 pending_used = True
             add_task_row(in_progress, rendered, parent=in_progress)
+            # Phase 1 (§3/A-01): a paused row carrying its own
+            # coordinator pending approval renders its approval
+            # card INLINE below the row — not as a button that
+            # opens a dialog.
+            if coord_pending:
+                _card_item = QListWidgetItem()
+                in_progress.addItem(_card_item)
+                _card = _ApprovalCard(
+                    self, r.get("task_id", ""),
+                    r.get("pending_approval") or {})
+                _card_item.setSizeHint(list_item_size_hint(_card))
+                in_progress.setItemWidget(_card_item, _card)
+                # The card's sizeHint is measured before its
+                # layout has run at the list's width, so its
+                # word-wrapped lines mis-measure and the item
+                # comes out too short — the journal below then
+                # paints over the card's lower half (parent
+                # by-eye fix, 2026-11-24: "Journal · 1 ...",
+                # "Nothing needs attention right now." and "0
+                # reconciled — see History" collided with the
+                # approval card text). Once the layout settles,
+                # give the card the list's viewport width FIRST
+                # (so the wrapped lines measure at the real
+                # width), then re-measure and grow the item to
+                # fit; the list is AdjustToContents, so it
+                # follows and the journal drops below the card.
+                try:
+                    from PySide6.QtCore import QTimer as _QTimer
+
+                    def _fix_card_height(
+                            _item=_card_item, _c=_card,
+                            _lst=in_progress):
+                        try:
+                            _vw = _lst.viewport().width()
+                            if _vw > 0:
+                                _c.setFixedWidth(_vw)
+                            _c.adjustSize()
+                            _item.setSizeHint(
+                                list_item_size_hint(_c))
+                            # Release the fixed width so the card
+                            # still follows the list on a resize;
+                            # the item keeps the measured height.
+                            _c.setMinimumWidth(0)
+                            _c.setMaximumWidth(16777215)
+                            _lst.updateGeometry()
+                            # Re-cap the list at the re-measured
+                            # heights: the card can grow once laid
+                            # out (its sizeHint settles after the
+                            # refresh's cap ran), and the cap is
+                            # what pins the list's min/max — a
+                            # stale cap leaves the list short and
+                            # the journal overlapping again.
+                            try:
+                                _cap_activity_list(_lst, 6)
+                            except Exception:  # noqa: BLE001
+                                pass
+                            # The list grows when the item does
+                            # (AdjustToContents), but the parent
+                            # QVBoxLayout does not re-run on its
+                            # own — the journal below stays at the
+                            # position it had when the list was
+                            # short, painting over the card. Force
+                            # the parent layout to re-run so the
+                            # journal drops below the grown list.
+                            try:
+                                _parent = _lst.parentWidget()
+                                if _parent is not None:
+                                    _lay = _parent.layout()
+                                    if _lay is not None:
+                                        _lay.invalidate()
+                                        _lay.activate()
+                                    _parent.updateGeometry()
+                            except Exception:  # noqa: BLE001
+                                pass
+                        except Exception:  # noqa: BLE001
+                            pass
+
+                    _QTimer.singleShot(0, _fix_card_height)
+                except Exception:  # noqa: BLE001 — cosmetic
+                    pass
         # §7 consumers batch 7: the recovery offer's visibility
         # + count, refreshed with the rows above. The button
         # itself is built with the Activity page; until then
-        # this is a guarded no-op.
+        # this is a guarded no-op. UI Phase 2 (P2-02): the count
+        # is the ONE shared count (pending_approvals_count) —
+        # the Review queue's length — never a local sum, so the
+        # button label, the sidebar badge, and the Home headline
+        # can never disagree again. Before this the button
+        # counted paused live records from all_records()
+        # (paused goal records included, verifying records
+        # excluded) while the Review queue counted
+        # list_interrupted() — the two disagreed in both
+        # directions.
+        try:
+            from voice_assistant.gui.pending_approval import (
+                pending_approvals_count)
+            _n_pending = pending_approvals_count()
+        except Exception:  # noqa: BLE001 — a count never
+            _n_pending = 0  # breaks the page.
         _pending_btn = getattr(self, "_activity_pending_btn", None)
         if _pending_btn is not None:
-            _n_pending = sum(
-                1 for r in live
-                if str(r.get("state", "")) == "paused"
-                and isinstance(r.get("pending_approval"), dict)
-                and bool(r.get("pending_approval", {}).get("tool")))
             _pending_btn.setVisible(_n_pending > 0)
             _pending_btn.setText(
                 f"Review pending approvals ({_n_pending})"
@@ -213,13 +596,13 @@ class MemoryActivityMixin:
         # refreshed with the rows above, same shape as the
         # approvals offer. Hidden while no question is
         # pending.
+        _n_questions = sum(
+            1 for r in live
+            if str(r.get("state", "")) == "paused"
+            and isinstance(r.get("pending_question"), dict)
+            and bool(r.get("pending_question", {}).get("question")))
         _question_btn = getattr(self, "_activity_question_btn", None)
         if _question_btn is not None:
-            _n_questions = sum(
-                1 for r in live
-                if str(r.get("state", "")) == "paused"
-                and isinstance(r.get("pending_question"), dict)
-                and bool(r.get("pending_question", {}).get("question")))
             _question_btn.setVisible(_n_questions > 0)
             _question_btn.setText(
                 f"Answer pending questions ({_n_questions})"
@@ -228,13 +611,13 @@ class MemoryActivityMixin:
         # refreshed with the rows above, same shape as the
         # approvals and questions offers. Hidden while no
         # reconcile decision is pending.
+        _n_reconciles = sum(
+            1 for r in live
+            if str(r.get("state", "")) == "paused"
+            and isinstance(r.get("pending_reconcile"), dict)
+            and bool(r.get("pending_reconcile", {}).get("question")))
         _reconcile_btn = getattr(self, "_activity_reconcile_btn", None)
         if _reconcile_btn is not None:
-            _n_reconciles = sum(
-                1 for r in live
-                if str(r.get("state", "")) == "paused"
-                and isinstance(r.get("pending_reconcile"), dict)
-                and bool(r.get("pending_reconcile", {}).get("question")))
             _reconcile_btn.setVisible(_n_reconciles > 0)
             _reconcile_btn.setText(
                 f"Decide what happened ({_n_reconciles})"
@@ -274,12 +657,13 @@ class MemoryActivityMixin:
         # read, never a stale table). Guarded like the pending
         # button: a broken journal never breaks the Activity
         # page — it renders its own loud row instead.
+        _journal_result = None
         _journal_list = getattr(self, "_activity_journal_list", None)
         if _journal_list is not None:
             try:
                 from voice_assistant.gui.journal_surface import (
                     refresh_journal_list)
-                refresh_journal_list(
+                _journal_result = refresh_journal_list(
                     _journal_list,
                     label_widget=getattr(
                         self, "_activity_journal_label", None))
@@ -292,6 +676,7 @@ class MemoryActivityMixin:
                         "Reopen Activity to try again"))
                 except Exception:  # noqa: BLE001 — never raises
                     pass  # into the refresh.
+                _journal_result = {"ok": False, "error": str(exc)}
             # Build 2: the journal rows changed, so the contextual
             # buttons and the hint line re-derive from the fresh
             # list (the selection signal may not fire when nothing
@@ -299,10 +684,109 @@ class MemoryActivityMixin:
             self._update_journal_reconcile_btn()
             self._update_journal_compensate_btn()
             self._update_journal_hint()
-        if not done:
-            history.addItem("No finished tasks yet.")
+            # Phase 1 (B-A06 + A-06): the needs-attention header
+            # counts the attention rows shown + the pending
+            # approvals waiting, from this same ledger/journal
+            # read; the footer names the reconciled count (over
+            # ALL journal entries) so a cleared row reads as
+            # progress, not loss. On a broken journal read the
+            # label keeps refresh_journal_list's own wording
+            # ("Journal — unreadable" / "Journal") and the
+            # footer hides.
+            _header = getattr(self, "_activity_journal_label", None)
+            _footer = getattr(self, "_activity_journal_footer", None)
+            if (isinstance(_journal_result, dict)
+                    and _journal_result.get("ok")):
+                _attention_n = len(_journal_result.get("rows") or [])
+                if _header is not None:
+                    _n_attention = _attention_n + _n_pending
+                    # Activity empty-state fix (2026-11-26): no
+                    # "(0)" — "needs attention (0)" was one of
+                    # the five "nothing"s on the idle page. The
+                    # count shows only while something waits.
+                    _header.setText(
+                        "Journal — needs attention"
+                        if _n_attention == 0 else
+                        "Journal — needs attention "
+                        f"({_n_attention})")
+                if _footer is not None:
+                    _jcounts = _journal_result.get("counts") or {}
+                    _footer.setText(
+                        f"{int(_jcounts.get('done', 0))} reconciled "
+                        "— see History")
+                    _footer.setVisible(True)
+            elif _footer is not None:
+                _footer.setText("")
+                _footer.setVisible(False)
+        # Phase 1 (§3, A-11/A-05): History's own filters (state
+        # segments + time window) and per-row Undo through the
+        # journal's compensations where declared. The filter
+        # chips carry their counts from this same read; the
+        # journal rows for Undo matching come from the journal
+        # read above (attention rows carry the declared
+        # compensations).
+        _hist_state = getattr(self, "_history_state", "All")
+        _hist_days = getattr(self, "_history_days", 0)
+        _hist_cutoff = None
+        if _hist_days:
+            _hist_cutoff = (datetime.datetime.now(datetime.timezone.utc)
+                            - datetime.timedelta(days=_hist_days))
+        _hist_buckets = {"All": 0, "Done": 0, "Failed": 0,
+                         "Partial": 0, "Cancelled": 0}
+        for _r in done:
+            _hist_buckets["All"] += 1
+            _bucket = self._history_bucket(
+                _r, render_task(_r))
+            if _bucket in _hist_buckets:
+                _hist_buckets[_bucket] += 1
+        # Hunt fix (c) item 8: a zero bucket shows the bare name
+        # (fix (a)'s pattern — the journal header drops "(0)" at
+        # zero), so an empty History reads "All  Done  Failed  …"
+        # instead of five "(0)" counts.
+        for _state in ("All", "Done", "Failed", "Partial", "Cancelled"):
+            _btn = self.findChild(QPushButton, f"historyFilter-{_state}")
+            if _btn is not None:
+                _n = _hist_buckets[_state]
+                _btn.setText(_state if _n == 0 else f"{_state} ({_n})")
+        _journal_rows = []
+        if (isinstance(_journal_result, dict)
+                and _journal_result.get("ok")):
+            _journal_rows = _journal_result.get("rows") or []
+        _shown_history = 0
         for r in done:
-            add_task_row(history, render_task(r), parent=history)
+            rendered = render_task(r)
+            if (_hist_state != "All"
+                    and self._history_bucket(r, rendered) != _hist_state):
+                continue
+            if _hist_cutoff is not None:
+                try:
+                    _stamp = datetime.datetime.fromisoformat(
+                        str(r.get("updated_at", "")))
+                    if _stamp.tzinfo is None:
+                        _stamp = _stamp.replace(
+                            tzinfo=datetime.timezone.utc)
+                    if _stamp < _hist_cutoff:
+                        continue
+                except Exception:  # noqa: BLE001 — include
+                    pass  # unparseable stamps, never hidden.
+            self._add_history_row(history, r, rendered, _journal_rows)
+            _shown_history += 1
+        if not _shown_history and done:
+            # Phase 0: shared EmptyState, same words, no text row.
+            # B-A03: History carries ring + line only, no
+            # suggestion. Hunt fix (c) item 8: when there are no
+            # terminal tasks at all the headline ("Nothing
+            # finished yet") already carries the empty message,
+            # so the list's EmptyState is not added — one empty
+            # line, not two. When tasks exist but the filter /
+            # time window excludes them all, the EmptyState stays
+            # (it explains that nothing matches the filter).
+            _item = QListWidgetItem()
+            history.addItem(_item)
+            _empty = EmptyState(
+                sentence="No finished tasks yet.")
+            _item.setSizeHint(list_item_size_hint(_empty))
+            history.setItemWidget(_item, _empty)
         # Mission Log (restore 2026-11-01): the same records
         # through the same task-state component, filtered by the
         # tab's state segments + time window, newest first. The
@@ -347,10 +831,59 @@ class MemoryActivityMixin:
                 add_task_row(mission_log, rendered, parent=mission_log)
                 item = mission_log.item(mission_log.count() - 1)
                 if item is not None:
-                    item.setData(Qt.ItemDataRole.UserRole, rendered)
+                    # The detail pane builds its ActionTrace from
+                    # the record's steps, so the stored dict
+                    # carries them alongside the rendering (the
+                    # task_id stays on top for selection +
+                    # re-selection by task_id).
+                    stored = dict(rendered)
+                    stored["steps"] = r.get("steps") or []
+                    stored["outcomes"] = r.get("outcomes") or []
+                    stored["verification"] = (
+                        r.get("verification") or [])
+                    item.setData(Qt.ItemDataRole.UserRole, stored)
                 shown += 1
-            if not shown:
-                mission_log.addItem("No missions match this filter.")
+            if not shown and records:
+                # Phase 0: shared EmptyState, same words, no text
+                # row. B-A03: Mission Log carries ring + line
+                # only, no suggestion. Hunt fix (c) item 8: when
+                # there are no missions at all the headline
+                # ("Nothing needs attention") already carries the
+                # empty message, so the list's EmptyState is not
+                # added — one empty line, not two. When missions
+                # exist but the filter / time window excludes them
+                # all, the EmptyState stays (it explains that
+                # nothing matches the filter). The evidence-trace
+                # box below stays either way (it is the tab's
+                # purpose, not a second empty state).
+                _item = QListWidgetItem()
+                mission_log.addItem(_item)
+                _empty = EmptyState(
+                    sentence="No missions match this filter.")
+                _item.setSizeHint(list_item_size_hint(_empty))
+                mission_log.setItemWidget(_item, _empty)
+            # A-08: preserve the selected mission across the
+            # rebuild — re-select by task_id; if it is gone, the
+            # pane says so instead of showing a stale trace.
+            if _prev_log_task:
+                _found = None
+                for _i in range(mission_log.count()):
+                    _d = mission_log.item(_i).data(
+                        Qt.ItemDataRole.UserRole)
+                    if (isinstance(_d, dict)
+                            and _d.get("task_id") == _prev_log_task):
+                        _found = _i
+                        break
+                if _found is not None:
+                    mission_log.setCurrentRow(_found)
+                else:
+                    _detail = getattr(self, "_mission_log_detail", None)
+                    _trace = getattr(self, "_mission_log_trace", None)
+                    if _trace is not None:
+                        _trace.clear()
+                    if _detail is not None:
+                        _detail.setPlainText(
+                            "This mission finished — see History")
         # Screen 3 Activity: the Scheduled headline reads the
         # reminder store, not the ledger — refresh it on every
         # Activity show so the line is never stale. The ledger
@@ -364,6 +897,43 @@ class MemoryActivityMixin:
         # long ledger cannot push the pane past the window, and
         # the pane re-hugs the current tab's content now that the
         # row counts have changed.
+        # Activity empty-state fix (2026-11-26): the idle page
+        # carries ONE empty statement (the rail's empty label).
+        # The In progress headline ("Nothing in progress")
+        # duplicates it, so the headline hides while nothing is
+        # live; the two lists hide while they have no rows (an
+        # empty list is ~68 px of dead space — it was the gap
+        # between the rail and the journal, and the reason the
+        # footer sat 9 px past the viewport). The idle stretches
+        # (recorded at build time) take factor 1 only while the
+        # tab is idle — they centre the rail and anchor the
+        # journal + footer at the bottom of the filled pane; with
+        # live work they are 0 and the layout is exactly as
+        # before. Idle here means the rendered tab shows
+        # nothing: no live rows and no attention rows (the
+        # footer count alone does not make the page busy).
+        _idle = (in_progress.count() == 0
+                 and self._activity_journal_list.count() == 0)
+        _headline_ip = (getattr(self, "_activity_headlines", None)
+                        or {}).get("in_progress")
+        if _headline_ip is not None:
+            _wrap = _headline_ip["line"].parentWidget()
+            if _wrap is not None:
+                _wrap.setVisible(bool(live))
+        in_progress.setVisible(in_progress.count() > 0)
+        self._activity_journal_list.setVisible(
+            self._activity_journal_list.count() > 0)
+        _ip_layout = getattr(self, "_activity_in_progress_layout",
+                             None)
+        if _ip_layout is not None:
+            _factor = 1 if _idle else 0
+            for _index in (
+                    getattr(self, "_activity_idle_stretch_top",
+                            None),
+                    getattr(self, "_activity_idle_stretch_mid",
+                            None)):
+                if _index is not None:
+                    _ip_layout.setStretch(_index, _factor)
         _cap_activity_list(in_progress, 6)
         _cap_activity_list(history, 6)
         _cap_activity_list(mission_log, 5)
@@ -380,6 +950,231 @@ class MemoryActivityMixin:
         except Exception:  # noqa: BLE001 — the fit is cosmetic;
             pass  # the pane just keeps its previous height.
 
+    def _publish_mission_rail(self, live):
+        """The MissionRail producer bridge (Phase 1, §3/A-03).
+
+        Reads the ledger's newest live record from the same
+        read _refresh_activity_tabs performs — one read, shared
+        — and publishes it as MissionState on the state bus AND
+        sets it on the rail directly. The bus emit is async
+        (queued), so the direct set is what makes the rail
+        correct immediately; the bus publish is the display
+        channel other consumers read. When nothing is live the
+        bridge publishes the idle state and the rail shows its
+        honest empty state — never an invented mission. When
+        two missions are live the rail shows the newest and its
+        goal line names the count (the mapper + rail own that
+        wording). Stop / Pause only do anything while a mission
+        is live, so they hide while idle — never buttons that
+        can never be pressed.
+        """
+        rail = getattr(self, "_mission_rail", None)
+        if rail is None:
+            return
+        mapped = None
+        task_id = None
+        if live:
+            newest = live[0]
+            task_id = str(newest.get("task_id") or "")
+            try:
+                mapped = mission_state_for_record(
+                    newest, live_count=len(live))
+            except Exception:  # noqa: BLE001 — idle, not broken
+                mapped = None
+        self._mission_rail_task_id = task_id
+        try:
+            from voice_assistant.gui.state_bus import (
+                MissionState, get_state_bus)
+            if mapped:
+                state = MissionState(
+                    goal=mapped.get("goal", ""),
+                    phase=mapped.get("phase", ""),
+                    step=int(mapped.get("step", 0) or 0),
+                    steps_total=int(mapped.get("steps_total", 0) or 0),
+                    permission=mapped.get("permission", "none"))
+            else:
+                state = MissionState()
+            get_state_bus().emit(state)
+        except Exception:  # noqa: BLE001 — the direct set below
+            pass  # is the deterministic path; the bus is extra.
+        try:
+            rail.set_mission_state(mapped)
+        except Exception:  # noqa: BLE001 — a broken rail never
+            pass  # breaks the refresh.
+        # Plan §10: the rail host carries the accent edge while a
+        # mission is live, LINE_STRONG when idle (the goal line
+        # does the same — MissionRail owns that half).
+        try:
+            host = getattr(self, "_mission_rail_host", None)
+            if host is not None and hasattr(host, "set_edge"):
+                host.set_edge("accent" if mapped else "line")
+        except Exception:  # noqa: BLE001 — cosmetic
+            pass
+        try:
+            for btn in rail.findChildren(QPushButton):
+                if btn.text() in ("Stop", "Pause"):
+                    btn.setVisible(bool(mapped))
+        except Exception:  # noqa: BLE001 — cosmetic
+            pass
+
+    def _on_mission_rail_stop(self):
+        """Stop on the rail: the coordinator's cancel path (A-02).
+
+        The cancelled record lands in History (cancelled is a
+        terminal state) and a toast confirms "Mission cancelled"
+        — the mission never vanishes with no receipt. When the
+        coordinator holds nothing (e.g. after a restart) the
+        ledger is the record: abandon it there, which writes
+        the same cancelled state.
+        """
+        task_id = getattr(self, "_mission_rail_task_id", None)
+        if not task_id:
+            return
+        stopped = False
+        coord = getattr(self, "_task_coordinator", None)
+        if coord is not None:
+            try:
+                stopped = bool(coord.cancel_task(task_id))
+            except Exception:  # noqa: BLE001 — try the ledger
+                stopped = False  # below instead.
+        if not stopped:
+            try:
+                from voice_assistant.core.gui_facade import TaskLedger
+                stopped = bool(TaskLedger().abandon_record(
+                    task_id, reason="cancelled by the user"))
+            except Exception:  # noqa: BLE001 — nothing written
+                stopped = False
+        if stopped:
+            try:
+                self.show_toast("Mission cancelled")
+            except Exception:  # noqa: BLE001 — the toast is a
+                try:  # courtesy; the refresh is the receipt.
+                    self._notify("Mission cancelled")
+                except Exception:  # noqa: BLE001 — never raises
+                    pass
+        try:
+            self._refresh_activity_tabs()
+        except Exception:  # noqa: BLE001 — never raises
+            pass
+
+    def _on_mission_rail_pause(self):
+        """Pause on the rail: only via the coordinator's pause
+        seam (A-02). A ledger-only record is already
+        interrupted, so there is nothing to pause — the call
+        simply does nothing for it."""
+        task_id = getattr(self, "_mission_rail_task_id", None)
+        if not task_id:
+            return
+        coord = getattr(self, "_task_coordinator", None)
+        if coord is not None:
+            try:
+                coord.pause_task(task_id)
+            except Exception:  # noqa: BLE001 — a failed pause
+                pass  # leaves the mission running; refresh shows it.
+        try:
+            self._refresh_activity_tabs()
+        except Exception:  # noqa: BLE001 — never raises
+            pass
+
+    @staticmethod
+    def _history_bucket(record, rendered):
+        """History's own filter bucket for one terminal record.
+
+        Rendered-state buckets, except cancelled records, which
+        the renderer folds into Partial (some work done) or
+        Failed (nothing done) — History keeps them as their own
+        bucket instead: a cancelled record with successful steps
+        is Partial, one without is Cancelled. The buckets are
+        mutually exclusive and sum to All (the leg pins this).
+        """
+        raw = str((record or {}).get("state", ""))
+        if raw == "cancelled":
+            return ("Partial"
+                    if (rendered or {}).get("state") == "Partial"
+                    else "Cancelled")
+        return (rendered or {}).get("state") or "Unknown"
+
+    def _add_history_row(self, list_widget, record, rendered,
+                         journal_rows):
+        """One History row: the single task-state row plus Undo.
+
+        Undo renders only where a journal entry tied to this
+        task declares compensations — tied by handle_id (the
+        task's steps and the journal entries both carry it), run
+        in reverse order through the existing compensate leg
+        (authorization dialog first). Otherwise the row shows
+        "No undo available — manual steps" (the journal's own
+        wording): a tappable link opening that entry's journal
+        details when an entry exists, plain text when no journal
+        entry is tied to the task at all.
+        """
+        item = QListWidgetItem(list_widget)
+        widget = build_task_row_widget(rendered, parent=list_widget)
+        handles = {
+            str(step.get("handle_id"))
+            for step in (record.get("steps") or [])
+            if isinstance(step, dict) and step.get("handle_id")}
+        matched = None
+        for jrow in journal_rows or []:
+            if (isinstance(jrow, dict) and jrow.get("handle_id")
+                    and str(jrow.get("handle_id")) in handles):
+                matched = jrow
+                break
+        if (matched is not None
+                and (matched.get("compensations") or [])):
+            undo_btn = QPushButton("Undo")
+            undo_btn.setObjectName("activityTextAction")
+            undo_btn.clicked.connect(
+                lambda _=False, row=dict(matched):
+                self._compensate_history_entry(row))
+            widget.layout().addWidget(undo_btn)
+        else:
+            link = QPushButton("No undo available — manual steps")
+            link.setObjectName("activityTextAction")
+            if matched is not None:
+                link.clicked.connect(
+                    lambda _=False, row=dict(matched):
+                    self._show_history_journal_details(row))
+            else:
+                # No journal entry to open: the words stay as
+                # plain text, never a dead link.
+                link.setEnabled(False)
+            widget.layout().addWidget(link)
+        item.setSizeHint(list_item_size_hint(widget))
+        list_widget.addItem(item)
+        list_widget.setItemWidget(item, widget)
+
+    def _compensate_history_entry(self, row):
+        """Undo for one History row: the journal's declared
+        compensations through the EXISTING compensate leg
+        (authorization dialog first, leg on a worker thread).
+        """
+        try:
+            from voice_assistant.gui.journal_surface import (
+                present_compensate)
+        except Exception:  # noqa: BLE001 — no Undo without the leg
+            return
+        present_compensate(self, row,
+                           refresh=self._refresh_activity_tabs)
+
+    def _show_history_journal_details(self, row):
+        """Journal details for one History row's entry (the same
+        details dialog the journal's double-click opens)."""
+        try:
+            from voice_assistant.gui.journal_surface import (
+                journal_row_details)
+            try:
+                from gui.design_system.dialogs import HudDialog
+            except ImportError:
+                from voice_assistant.gui.design_system.dialogs import (  # type: ignore
+                    HudDialog)
+            HudDialog.details(
+                self, f"Journal entry — {row.get('tool', '')}",
+                f"Journal entry — {row.get('tool', '')}",
+                journal_row_details(row))
+        except Exception:  # noqa: BLE001 — details are a
+            return  # courtesy; never break the page.
+
     def _review_pending_approvals(self):
         """Offer the authorization dialog for each interrupted task
         carrying a coordinator pending approval (§7 consumers
@@ -392,6 +1187,29 @@ class MemoryActivityMixin:
         the GUI thread, resolve on a worker thread, refresh
         when done); this method only gathers the offers.
         """
+        # Phase 1 (§3/A-01): on Activity the inline card IS the
+        # queue entry point — this button scrolls to / expands
+        # the first pending card (it does not open a dialog).
+        # The dialog path below stays for surfaces OUTSIDE
+        # Activity (Home's attention rail, a notification).
+        try:
+            card = self.findChild(QWidget, "activityApprovalCard")
+            if card is not None:
+                try:
+                    self._select_activity_tab("In progress")
+                except Exception:  # noqa: BLE001 — cosmetic
+                    pass
+                lst = getattr(self, "_activity_in_progress_list", None)
+                if lst is not None:
+                    for _i in range(lst.count()):
+                        _item = lst.item(_i)
+                        if lst.itemWidget(_item) is card:
+                            lst.scrollToItem(_item)
+                            lst.setCurrentItem(_item)
+                            break
+                return
+        except Exception:  # noqa: BLE001 — fall through to the
+            pass  # dialog path when there is no card to scroll to.
         try:
             from voice_assistant.core.gui_facade import TaskLedger  # Phase 3 B1a-2: moved to core/brain/
             from voice_assistant.gui.pending_approval import (
@@ -801,8 +1619,20 @@ class MemoryActivityMixin:
         steps = prog.get("steps") or []
         interrupted = any(
             isinstance(s, dict) and s.get("resumable") for s in steps)
+        # Phase 1 (B-A04): the row is a header line plus, under
+        # it, a miniature 2 px SegmentBar — the same SegmentBar
+        # (segmented mode, fill-only), fill = done / total steps
+        # from the plan record; a plan row with no steps carries
+        # no bar. The outer widget carries the planRow-{id} name
+        # (the bar lives under the header, inside it).
+        outer = QWidget()
+        outer.setObjectName(f"planRow-{plan_id}")
+        v = QVBoxLayout(outer)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(2)
         wrap = instrument_row()
         wrap.setObjectName("activityRow")
+        v.addWidget(wrap)
         h = QHBoxLayout(wrap)
         h.setContentsMargins(0, 8, 0, 8)
         h.setSpacing(12)
@@ -833,7 +1663,23 @@ class MemoryActivityMixin:
         details_btn.clicked.connect(
             lambda _=False, p=prog: self._show_plan_details(p))
         h.addWidget(details_btn)
-        return wrap
+        if total > 0:
+            bar = SegmentBar(mini=True)
+            bar.set_label_mode("steps")
+            bar.set_progress(done, total)
+            bar.setFixedHeight(2)
+            # Look-fix 2 (2026-11-24): theme the mini bar from the
+            # stored resolved theme now (plan rows build before the
+            # first appearance pass); the pass re-drives it on
+            # every theme change.
+            try:
+                _resolved = getattr(self, "_resolved_theme", None)
+                if isinstance(_resolved, dict):
+                    bar.set_theme(_resolved)
+            except Exception:  # noqa: BLE001 — appearance never breaks boot
+                pass
+            v.addWidget(bar)
+        return outer
 
     def _show_plan_details(self, prog: dict) -> None:
         """Plan details dialog: the steps with their status, plus

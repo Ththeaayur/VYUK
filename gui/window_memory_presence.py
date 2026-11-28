@@ -357,6 +357,16 @@ class MemoryPresenceMixin:
         the shell's ``_build_ui`` after the page column."""
         strip = StatusStrip(parent=self.shell)
         self.vitals_strip = strip
+        # Look-fix 2 (2026-11-24): the strip is built once, before
+        # the first appearance pass when the window restores a Light
+        # theme — theme it from the stored resolved theme now so
+        # the word never paints house near-white on Light.
+        try:
+            _resolved = getattr(self, "_resolved_theme", None)
+            if isinstance(_resolved, dict):
+                strip.set_theme(_resolved)
+        except Exception:  # noqa: BLE001 — appearance never breaks boot
+            pass
         return strip
 
     def _maybe_show_status_strip(self):

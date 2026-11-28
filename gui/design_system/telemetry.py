@@ -4,6 +4,12 @@ Every row carries metric, value, unit, last updated, trend and
 source, plus a text alternative (the row itself is text). The
 honesty rule is enforced here: a metric without a source renders
 its value as NOT MEASURED, never as a plausible number.
+
+Phase 0 HELD (UI programme Phase 1 Home readouts / Phase 4 Pulse):
+no readout surface exists yet that this replaces without a
+restructure — Home's briefing is one line, Pulse's meters are live
+BarMeters. The panel's labels carry no colours, so it is
+theme-safe as-is when its phase wires it.
 """
 
 from PySide6.QtCore import QTime

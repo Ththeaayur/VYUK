@@ -115,11 +115,11 @@ unsafe; changing success statuses — breaks the sentence-based
 brain contract; verifying by re-running the action — a second
 side effect).
 
-## 1. Family table (counts add to 769)
+## 1. Family table (counts add to 772)
 
-`read` = the snapshot's read flag (384 tools): the result IS the
+`read` = the snapshot's read flag (386 tools): the result IS the
 evidence (reads, pure computation, stored records) — the L1 hole
-does not apply. `effectful` = 385 tools that act on the world.
+does not apply. `effectful` = 386 tools that act on the world.
 
 | Family | Total | Effectful | Verdict (sampled evidence) |
 |---|---|---|---|

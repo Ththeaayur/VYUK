@@ -20,6 +20,7 @@ _LAZY = {
     "HudBackdrop": "backdrop",
     "SegmentBar": "progress",
     "HudSwitch": "switches",
+    "toggle_row": "switches",
     "HudTabs": "tabs",
     "StatusPill": "pills",
     "MissionRail": "mission",

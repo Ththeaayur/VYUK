@@ -93,6 +93,48 @@ def overview_from_activity_lines(lines):
     return series, events
 
 
+def refresh_overview_panel(panel, activity_path=None) -> None:
+    """UI Phase 4 (D-P4-09): re-read the activity log (last 100
+    lines) and repaint the panel in place — the series, the event
+    rows, and the "last 100 log lines · as of HH:MM:SS" stamp.
+    Called on the Pulse sampler tick, so the refresh runs at the
+    live cadence; the panel is never rebuilt. Never raises: a log
+    that cannot be read leaves the panel showing its last good
+    state, and the stamp says so."""
+    import datetime as _dt
+
+    try:
+        path = (Path(activity_path) if activity_path is not None
+                else Path(__file__).resolve().parent.parent / "data"
+                / "activity.log")
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace"
+                                   ).splitlines()[-100:]
+        except Exception:  # noqa: BLE001 — no log yet is normal
+            lines = []
+        series, events = overview_from_activity_lines(lines)
+        panel.set_series(series)
+        try:
+            panel.activity_list.clear()
+        except Exception:  # noqa: BLE001 — the rows just stay
+            pass
+        for event in events[-20:]:
+            panel.add_activity(event)
+        panel._w9_activity_events = events  # noqa: SLF001 — wiring record
+        stamp = panel._w9_stamp_label  # noqa: SLF001 — set at build
+        if stamp is not None:
+            stamp.setText(
+                "last 100 log lines · as of "
+                f"{_dt.datetime.now().strftime('%H:%M:%S')}")
+    except Exception:  # noqa: BLE001 — the panel keeps its last state
+        try:
+            stamp = panel._w9_stamp_label  # noqa: SLF001
+            if stamp is not None:
+                stamp.setText("last 100 log lines · couldn't re-read")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def build_overview_panel(parent=None, activity_path=None):
     """OverviewPanel fed from the live activity log (or a given path).
 
@@ -117,6 +159,15 @@ def build_overview_panel(parent=None, activity_path=None):
     for event in events[-20:]:
         panel.add_activity(event)
     panel._w9_activity_events = events  # noqa: SLF001 — wiring record
+    # UI Phase 4 (D-P4-09): the window label — "last 100 log lines"
+    # plus the "as of" time the refresh keeps current.
+    import datetime as _dt
+
+    stamp = panel._w9_stamp_label  # noqa: SLF001 — set at build
+    if stamp is not None:
+        stamp.setText(
+            "last 100 log lines · as of "
+            f"{_dt.datetime.now().strftime('%H:%M:%S')}")
     return panel
 
 

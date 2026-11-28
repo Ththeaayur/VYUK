@@ -5,6 +5,11 @@ reduced motion), never a schematic: what the thumbnail shows is
 what the hero orb looks like. Aura-only since 2026-11-01 by owner
 decision; any other style name is a programming error and raises,
 never a silent fallback.
+
+Phase 0 HELD: page headers are text-only under the decided
+small-caps kicker style — a 140 px orb thumbnail in a compact
+header contradicts it, and the Home no-scroll ruling leaves no
+room for one. No Phase 0 surface exists.
 """
 
 from PySide6.QtGui import QColor, QPalette
@@ -20,6 +25,7 @@ except ImportError:
     from core.gui_facade import ORB_STYLES
 
 from ..style import BG
+from .palette import qcolor
 from ..visualizer import OrbVisualizer
 
 class OrbThumbnail(QWidget):
@@ -55,7 +61,7 @@ class OrbThumbnail(QWidget):
         # on dark settings pages in production.
         visualizer.setAutoFillBackground(True)
         palette = visualizer.palette()
-        palette.setColor(QPalette.Window, QColor(BG))
+        palette.setColor(QPalette.Window, qcolor(BG))
         visualizer.setPalette(palette)
         visualizer.resize(self._size, self._size)
         self._image.setPixmap(visualizer.grab())

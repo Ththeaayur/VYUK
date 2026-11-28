@@ -2,7 +2,9 @@
 
 Split from gui/visualizer.py (GUI split #7, move only). Paint methods
 only read state and paint — they never write widget state. The orb
-renders against Aura, the only orb style. State lives in
+renders teal (ruling 2026-11-24, supersedes the Aura lock): a teal
+particle + wireframe-mesh sphere, bright core, tilted orbit rings +
+faint reticle rings, the gold live ring. State lives in
 visualizer_state.py; the composed class lives in visualizer.py.
 """
 
@@ -17,7 +19,8 @@ from PySide6.QtGui import (
     QRadialGradient,
 )
 
-from .orb_sphere import paint_particle_sphere
+from .orb_sphere import paint_mesh_sphere, paint_particle_sphere
+from .style import AMBER
 from .visualizer_glass import (
     glass_contour_arc,
     glass_contour_path,
@@ -38,6 +41,18 @@ from .visualizer_glass import (
 # orb's lower edge washed over the text below it.
 _ORB_PAINT_MARGIN = 20
 _ORB_EDGE_INSET = 16
+
+
+def ring_alpha_for_energy(energy: float) -> int:
+    """The gold ring's alpha for the smoothed voice energy (0..1).
+
+    Resting (silence) the ring is visible but quiet; it brightens
+    steadily with the voice — never a timer pulse, only the
+    energy. Strictly increasing, so a louder passage always
+    reads brighter than silence.
+    """
+    e = max(0.0, min(1.0, float(energy or 0.0)))
+    return int(96 + 128 * e)
 
 
 # Spectrum ring (v5.17): 16 bars at 22.5° spacing, band 0 at the top,
@@ -71,6 +86,27 @@ class OrbPaintMixin:
         return max(1.0, float(min(self.width(), self.height()))
                    - 2.0 * _ORB_PAINT_MARGIN)
 
+    def set_orb_diameter(self, diameter_px: float) -> None:
+        """UI Phase 1 §5 (ruling 2026-11-24, Aayur): the orb's
+        body diameter in px, set by the window from 19.5% of
+        the window width (see gui/breakpoints.py
+        hud_orb_diameter_for). H-02/H-18: the orb never exceeds
+        this size, even when columns collapse — it is a max,
+        not a target to fill. 0.0 clears it (legacy path)."""
+        self._orb_diameter = max(0.0, float(diameter_px or 0.0))
+        self.update()
+
+    def _orb_radius(self) -> float:
+        """Body radius for this paint pass. With a §5 diameter
+        set, it is half that diameter, capped so the outermost
+        faint ring (1.22 x the body radius, painted at the end
+        of _paint_aura) stays inside the widget. Without one,
+        the legacy paint_min * 0.34 body."""
+        if getattr(self, "_orb_diameter", 0.0) > 0:
+            cap = (min(self.width(), self.height()) / 2.0) / 1.22
+            return max(1.0, min(self._orb_diameter / 2.0, cap))
+        return self._painted_min() * 0.34
+
     def _paint_scale(self, energy: float) -> float:
         """The paintEvent breathing/energy scale for the
         current state (Aura's branch)."""
@@ -96,15 +132,20 @@ class OrbPaintMixin:
         half = min(self.width(), self.height()) / 2.0
         if min(self.width(), self.height()) < 130:
             return self._painted_min() * 0.40
-        paint_min = self._painted_min()
-        radius = paint_min * 0.34 * self._paint_scale(energy)
+        base = self._orb_radius()
+        radius = base * self._paint_scale(energy)
         radius = min(radius * 1.60,
                      max(radius, half - _ORB_EDGE_INSET))
         if self._is("LISTENING"):
-            radius = max(radius, paint_min * 0.492)
+            # The old floor was paint_min * 0.492 = 1.447 x the
+            # old base (paint_min * 0.34); the ratio is kept,
+            # now against the §5 base radius.
+            radius = max(radius, base * 1.447)
         if self._ripples:
-            radius = max(radius, paint_min * 0.49)
-        return radius
+            radius = max(radius, base * 1.441)
+        # The Phase 0 promise: the painted edge never claims
+        # past 16 px inside the widget edge.
+        return min(radius, half - _ORB_EDGE_INSET)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -154,7 +195,7 @@ class OrbPaintMixin:
         # less than the dials. Motion arrives crossfaded from
         # _animate_frame via _aur_mp / _aur_blobs / _aur_energy.
         lod = 2 if w < 170 else 1 if w < 250 else 0
-        aura_r = paint_min * 0.34 * scale
+        aura_r = self._orb_radius() * scale
         self._paint_aura(painter, cx, cy, aura_r,
                          highlight, mid, edge, energy, lod)
         if self._muted:
@@ -215,15 +256,31 @@ class OrbPaintMixin:
                                    glow_r * 2, glow_r * 2))
 
         # -- layered core ------------------------------------------------
-        core_r = half * 0.56 * scale
-        deep = QColor(int(edge.red() * 0.42), int(edge.green() * 0.42),
-                      int(edge.blue() * 0.42))
+        # The core must fill most of the sphere (parent by-eye
+        # fix, 2026-11-24): at 0.56 the teal gradient covered
+        # only the inner 56% and the outer 44% stayed dark
+        # background + sparse particles, so the orb read dark
+        # navy. At 0.72 the bright teal body fills the sphere
+        # and the gold ring sits just outside it.
+        core_r = half * 0.72 * scale
+        # The body must READ teal by eye (parent by-eye fix,
+        # 2026-11-24): pixel sampling showed the body was a
+        # deep teal (32,82,93) that reads as dark navy, not
+        # teal — the bright rim #52C5CC covered too little of
+        # the sphere. The gradient is shifted one step
+        # brighter: the bright rim #52C5CC now covers the
+        # sphere out to 0.70, a mid teal #2F8FA0 (47,143,160)
+        # at 0.88, and the measured body #227084 (34,112,132)
+        # is the outer edge — so the whole sphere is a
+        # clearly-teal body with a bright core, not a dark ball.
+        deep = QColor(34, 112, 132)
+        _mid_teal = QColor(47, 143, 160)
         core = QRadialGradient(
             QPointF(cx, cy), core_r * 1.3,
             QPointF(cx - core_r * 0.28, cy - core_r * 0.32))
         core.setColorAt(0.0, highlight)
-        core.setColorAt(0.45, mid)
-        core.setColorAt(0.8, edge)
+        core.setColorAt(0.70, mid)
+        core.setColorAt(0.88, _mid_teal)
         core.setColorAt(1.0, deep)
         painter.setBrush(QBrush(core))
         painter.drawEllipse(QRectF(cx - core_r, cy - core_r,
@@ -470,18 +527,24 @@ class OrbPaintMixin:
         contour = glass_contour_path(cx, cy, R, _snap, _phase)
 
         # -- sphere body: deep edge tones, light pulled high ----------
+        # The body must READ teal by eye (parent by-eye fix,
+        # 2026-11-24): the old body was the edge colour darkened
+        # (x0.50 centre, x0.14 at 0.85, near-black (6,8,12) at
+        # the rim) — a dark navy ball with only a bright core,
+        # so the orb read dark navy, not teal. The body is now
+        # the measured teal ramp: bright rim #52C5CC at the
+        # centre (under the living core), mid teal #2F8FA0 at
+        # 0.55, measured body #227084 at 0.85, and the darker
+        # measured body #204A56 at the rim — a clearly-teal
+        # sphere, not a dark one.
         body = QRadialGradient(QPointF(cx, cy), R * 1.05,
                                QPointF(cx, cy - R * 0.26))
-        body.setColorAt(0.0, QColor(int(edge.red() * 0.50),
-                                    int(edge.green() * 0.50),
-                                    int(edge.blue() * 0.54), 238))
-        body.setColorAt(0.55, QColor(int(edge.red() * 0.30),
-                                     int(edge.green() * 0.30),
-                                     int(edge.blue() * 0.33), 244))
-        body.setColorAt(0.85, QColor(int(edge.red() * 0.14),
-                                     int(edge.green() * 0.14),
-                                     int(edge.blue() * 0.16), 248))
-        body.setColorAt(1.0, QColor(6, 8, 12, 250))
+        body.setColorAt(0.0, QColor(mid.red(), mid.green(),
+                                    mid.blue(), 238))
+        body.setColorAt(0.55, QColor(47, 143, 160, 244))
+        body.setColorAt(0.85, QColor(edge.red(), edge.green(),
+                                     edge.blue(), 248))
+        body.setColorAt(1.0, QColor(32, 74, 86, 250))
         painter.setBrush(QBrush(body))
         painter.drawPath(contour)
 
@@ -501,7 +564,12 @@ class OrbPaintMixin:
             br = R * brad
             twinkle = 0.75 + 0.25 * math.sin(
                 self.breathe_phase * 2.0 + twk)
-            a_b = int((58.0 + 54.0 * bright) * twinkle * dimf)
+            # Same orb-brightness correction (2026-11-24): the
+            # currents ran hot enough to wash the body light
+            # cyan when a blob sat near the core. Slightly
+            # dimmer; still visible, still quickening with the
+            # state (the twinkle and the bright slope stay).
+            a_b = int((48.0 + 44.0 * bright) * twinkle * dimf)
             blob = QRadialGradient(bx, by, br)
             blob.setColorAt(0.0, QColor(col.red(), col.green(),
                                         col.blue(), a_b))
@@ -534,11 +602,23 @@ class OrbPaintMixin:
         # F6: the CONNECTING swell swells this core — one slow
         # brightening wave per entry, peaking at +11 % radius and
         # +20 % alpha, then gone until the next entry.
-        core_r = R * (0.32 + 0.02 * math.sin(self.breathe_phase)
+        # Orb-brightness correction (owner, 2026-11-24): the
+        # 11:56 render read washed-out light cyan — the living
+        # core was too large and too white-hot, so it filled
+        # the sphere instead of reading as a compact bright
+        # core inside a dark teal body. The core is smaller
+        # (0.25R) and dimmer at rest; it still brightens with
+        # voice energy (the slope) and still pulses with the
+        # EQ bars and the CONNECTING swell, so the live states
+        # keep their read. The 11:04 target is a dark teal
+        # sphere with a bright core, teal rim and gold ring —
+        # not a bright cyan ball. The background glow is NOT
+        # touched here (owner: dark orb + glowing background).
+        core_r = R * (0.25 + 0.02 * math.sin(self.breathe_phase)
                       + 0.13 * live * pulse_amt + 0.10 * bar_pulse
                       + 0.11 * self._aur_swell
                       + 0.08 * self._ack_pulse)
-        core_a = int(min(255, (168.0 + 84.0 * bright)
+        core_a = int(min(255, (112.0 + 68.0 * bright)
                          * (1.0 + 0.20 * self._aur_swell) * dimf))
         core = QRadialGradient(cx, cy, core_r)
         core.setColorAt(0.0, QColor(255, 255, 255, core_a))
@@ -553,6 +633,18 @@ class OrbPaintMixin:
         painter.setBrush(QBrush(core))
         painter.drawEllipse(QRectF(cx - core_r, cy - core_r,
                                    core_r * 2, core_r * 2))
+
+        # -- UI Phase 1 teal redesign: geodesic mesh ----------------
+        # The logo's wireframe mesh, over the particle sphere and
+        # the core (so it reads across the bright centre), clipped
+        # to the glass contour. It turns with the same yaw/pitch/
+        # swell as the particles — one sphere, not two.
+        if _sphere is not None:
+            painter.save()
+            painter.setClipPath(clip)
+            paint_mesh_sphere(painter, cx, cy, R, _sphere,
+                              highlight, mid, dimf, lod)
+            painter.restore()
 
         # -- fresnel rim: dim full contour, bright crown, low bounce -
         # F6: while SPEAKING the rim breathes with the voice — its
@@ -585,3 +677,75 @@ class OrbPaintMixin:
         # the same snapshot + phase as the contour above.
         paint_glass_layers(painter, cx, cy, R, highlight, mid, edge,
                            _snap, _phase, dimf)
+
+        # -- UI Phase 1 teal redesign: orbit rings + reticle --------
+        # The logo's tilted orbit rings (static structure, three
+        # flattened ellipses at different tilts) and the
+        # reference's reticle ticks (short radial ticks at the
+        # four diagonals + the cardinal points, just outside the
+        # outer faint ring). Thin and faint, in the palette mid —
+        # the gold ring below stays the single bright, live ring.
+        if lod < 2:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for ring_r, tilt, alpha, width in (
+                    (R * 1.18, -18.0, 110, 1.2),
+                    (R * 1.28, 24.0, 90, 1.0),
+                    (R * 1.38, -38.0, 70, 1.0)):
+                painter.save()
+                painter.translate(cx, cy)
+                painter.rotate(tilt)
+                painter.setPen(QPen(QColor(
+                    mid.red(), mid.green(), mid.blue(),
+                    int(alpha * dimf)), width))
+                painter.drawEllipse(QRectF(
+                    -ring_r, -ring_r * 0.32,
+                    ring_r * 2, ring_r * 0.64))
+                painter.restore()
+            # Reticle ticks: short radial strokes from the outer
+            # faint ring (1.22R) outward, at the diagonals and the
+            # cardinals — the reference's crosshair.
+            tick_col = QColor(mid.red(), mid.green(), mid.blue(),
+                              int(90 * dimf))
+            painter.setPen(QPen(tick_col, 1.0))
+            for deg in (45.0, 135.0, 225.0, 315.0,
+                        0.0, 90.0, 180.0, 270.0):
+                rad = math.radians(deg)
+                inner = R * 1.22
+                outer = R * 1.30 if deg % 90.0 == 45.0 else R * 1.28
+                painter.drawLine(
+                    QPointF(cx + math.cos(rad) * inner,
+                            cy + math.sin(rad) * inner),
+                    QPointF(cx + math.cos(rad) * outer,
+                            cy + math.sin(rad) * outer))
+
+        # -- UI Phase 1 (R2/R5): the gold ring -----------------------
+        # The ring the probe found missing (the "gold ring" was a
+        # 1 px blue fresnel rim, invisible): a real gold ring just
+        # outside the body at R x 1.06, plus two faint concentric
+        # rings. Its brightness rides the smoothed voice energy
+        # (ring_alpha_for_energy) — never a timer pulse. In
+        # private mode the ring is the palette's grey, not gold:
+        # the palette is the grey triple there, so `mid` is grey.
+        if getattr(self, "_private", False):
+            ring_col = mid
+        else:
+            ring_col = QColor(AMBER)
+        ring_a = ring_alpha_for_energy(energy)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(ring_col.red(), ring_col.green(),
+                                   ring_col.blue(), ring_a), 2.0))
+        ring_r = R * 1.06
+        painter.drawEllipse(QRectF(cx - ring_r, cy - ring_r,
+                                   ring_r * 2, ring_r * 2))
+        # The two faint concentric rings are the reticle rings
+        # (reference) — static structure in the palette mid, NOT
+        # gold. The gold ring above stays the single gold, live
+        # ring; in private mode `mid` is the grey triple, so they
+        # go grey with it.
+        for factor, div in ((1.14, 3), (1.22, 5)):
+            faint_r = R * factor
+            painter.setPen(QPen(QColor(mid.red(), mid.green(),
+                                       mid.blue(),
+                                       max(1, ring_a // div)), 1.0))
+            painter.drawEllipse(QRectF(cx - faint_r, cy - faint_r,
+                                       faint_r * 2, faint_r * 2))

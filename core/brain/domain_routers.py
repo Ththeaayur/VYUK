@@ -35,15 +35,19 @@ dropped, no duplicates — except the use_toolbox meta-tool
 (META_TOOL_NAMES), which is offered directly in routed
 sessions and must be absent in router-off sessions, so it
 lives in no router. Registered tools the catalogue does
-not place (today: the two plugin tools) fall into the
+not place fall into the
 "More skills" router, so a catalogue gap can never silently
-drop a tool. Router declarations are SYNTHETIC: they are
+drop a tool (today every registered tool is placed — the
+UI Phase 2 placement closed the last three — so the
+fallback is empty by construction, not by luck). Router
+declarations are SYNTHETIC: they are
+never registered, so the registry count never changes.
 never registered, so the registry count never changes.
 
 CONSEQUENCES, stated plainly (all follow from the locked
 design, none of them invented here):
   * use_toolbox is itself a registered non-core tool in the
-    "Mind" catalogue group, but it is EXCLUDED from routers
+    "Intelligence" catalogue group, but it is EXCLUDED from routers
     by design (META_TOOL_NAMES, parent correction
     2026-10-27): a router flies in every profile including
     router-off, so a router member can never be absent in

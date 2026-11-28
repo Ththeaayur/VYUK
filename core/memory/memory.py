@@ -436,6 +436,23 @@ class MemoryStore:
             pass  # migrate still reads/writes facts; source just
             # stays unavailable there (read_memory treats it as
             # "unknown")
+        # UI Phase 1 (D-M4): the user pin — a NEW additive store
+        # flag, not a rule. A pinned fact is pinned because the
+        # user said so; it rides the same migration as `source`
+        # above (PRAGMA + ALTER TABLE, default 0 = unpinned).
+        # A pin does NOT exempt the fact from the cap (count_facts
+        # is unchanged) and does NOT change the fact's content.
+        try:
+            cols = self._execute("PRAGMA table_info(facts)",
+                                 fetch=True) or []
+            if not any((c or {}).get("name") == "user_pinned"
+                       for c in cols):
+                self._execute(
+                    "ALTER TABLE facts ADD COLUMN user_pinned INTEGER "
+                    "NOT NULL DEFAULT 0")
+        except Exception:  # noqa: BLE001 — a store that cannot
+            pass  # migrate still reads/writes facts; user_pinned
+            # just stays unavailable there (read as 0)
         # Conversation logs
         self._execute("""
             CREATE TABLE IF NOT EXISTS conversation_logs (
@@ -466,18 +483,19 @@ class MemoryStore:
     def _read_facts(self, query: str, params: tuple = (),
                     fetch_one: bool = False):
         """A facts SELECT that tolerates a pre-migration table:
-        when the source column never landed (the _init_db
-        migration failed — a locked or read-only DB), the same
-        query re-runs without it and every row reports source
-        "unknown", so reads keep working instead of raising."""
+        when the source / user_pinned column never landed (the
+        _init_db migration failed — a locked or read-only DB), the
+        same query re-runs without it and every row reports source
+        "unknown" / user_pinned 0, so reads keep working instead
+        of raising."""
         try:
             return self._execute(query, params,
                                  fetch=not fetch_one,
                                  fetch_one=fetch_one)
         except sqlite3.OperationalError as exc:
-            if "source" not in str(exc):
+            if "source" not in str(exc) and "user_pinned" not in str(exc):
                 raise
-            legacy = query.replace(", source", "")
+            legacy = query.replace(", source", "").replace(", user_pinned", "")
             rows = self._execute(legacy, params,
                                  fetch=not fetch_one,
                                  fetch_one=fetch_one)
@@ -485,10 +503,12 @@ class MemoryStore:
                 return None
             if fetch_one:
                 rows = dict(rows)
-                rows["source"] = "unknown"
+                rows.setdefault("source", "unknown")
+                rows.setdefault("user_pinned", 0)
                 return rows
             for row in rows:
-                row["source"] = "unknown"
+                row.setdefault("source", "unknown")
+                row.setdefault("user_pinned", 0)
             return rows
 
     def save_fact(self, category: str, key: str, value: str,
@@ -538,12 +558,15 @@ class MemoryStore:
         """One fact by its (category, key) identity — the same
         normalisation save_fact applies — or None."""
         return self._read_facts("""
-            SELECT id, category, key, value, source, updated_at FROM facts
+            SELECT id, category, key, value, source, user_pinned, updated_at FROM facts
             WHERE category = ? AND key = ?
         """, (category.strip().lower(), key.strip()), fetch_one=True)
 
     def get_all_facts(self) -> list[dict[str, Any]]:
-        return self._read_facts("SELECT id, category, key, value, source, updated_at FROM facts ORDER BY category, key")
+        # D-M4: pinned first (user-pinned, then the automatic
+        # categories/keys — the same pinned-first order the
+        # summary block uses), then category, key.
+        return self._read_facts("SELECT id, category, key, value, source, user_pinned, updated_at FROM facts ORDER BY user_pinned DESC, category, key")
 
     def count_facts(self, categories=None) -> int:
         """Rows in `categories` (or every row when None). The cap
@@ -617,7 +640,7 @@ class MemoryStore:
     def search_facts(self, query: str) -> list[dict[str, Any]]:
         pattern = f"%{query}%"
         return self._read_facts("""
-            SELECT id, category, key, value, source, updated_at 
+            SELECT id, category, key, value, source, user_pinned, updated_at 
             FROM facts 
             WHERE key LIKE ? OR value LIKE ? OR category LIKE ?
         """, (pattern, pattern, pattern))
@@ -738,7 +761,22 @@ class MemoryStore:
     def _fact_is_pinned(self, fact) -> bool:
         cat = str(fact.get("category") or "").strip().lower()
         key = str(fact.get("key") or "").strip().lower()
-        return cat in self.PINNED_CATEGORIES or key in self.PINNED_KEYS
+        # D-M4: a user pin is a pin too (the additive store flag).
+        return (cat in self.PINNED_CATEGORIES or key in self.PINNED_KEYS
+                or bool(fact.get("user_pinned")))
+
+    def set_user_pinned(self, fact_id: int, pinned: bool) -> bool:
+        """Pin / unpin one fact by id (UI Phase 1, D-M4).
+
+        The pin is a store flag — it changes nothing about the
+        fact's content and does NOT exempt it from the cap."""
+        try:
+            rows = self._execute(
+                "UPDATE facts SET user_pinned = ? WHERE id = ?",
+                (1 if pinned else 0, int(fact_id)))
+            return rows > 0
+        except Exception:  # noqa: BLE001 — a store that cannot
+            return False  # migrate left the column unavailable
 
     def _summary_block_lines(self) -> list:
         """Recent session summaries as their OWN block (B4/B5):

@@ -131,6 +131,33 @@ class FlowMixin:
         except Exception:  # noqa: BLE001
             pass
         config.user_name = name
+
+    def _persist_home_city_choice(self):
+        """UI Phase 1 (H-11): Finish makes the home-city pick
+        durable — the one canonical store (ConfigSpec home_city +
+        QSettings home/city + .env VYUK_HOME_CITY), plus the
+        in-process config field so this very run agrees. An empty
+        city records nothing: the Home weather shows the honest
+        'set your city' prompt. Skipping never reaches this method."""
+        city = str(getattr(self, "_pending_home_city", "") or "").strip()
+        if not city:
+            return
+        try:
+            from voice_assistant.core.gui_facade import save_env_setting
+
+            save_env_setting("VYUK_HOME_CITY", city)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from voice_assistant.core.gui_facade import qsettings_set
+
+            qsettings_set("home/city", city)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            config.home_city = city
+        except Exception:  # noqa: BLE001
+            pass
     def _stage_of_page(self, widget) -> str | None:
         """The required stage a page belongs to, or None for
         advanced-detour pages (which carry no stage)."""
@@ -439,6 +466,7 @@ class FlowMixin:
                 # picks persist at Finish the same way.
                 self._persist_theme_choice()
                 self._persist_name_choice()
+                self._persist_home_city_choice()
                 self._persist_sound_choice()
                 for name in FIRST_RUN_STAGES:
                     self._progress.mark_done(name)

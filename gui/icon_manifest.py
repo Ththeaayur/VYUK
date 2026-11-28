@@ -116,6 +116,9 @@ FLUENT_LICENCE_SOURCE = (
 # in gui/assets/icons/phosphor/ (commit 2b75f3ad…, MIT),
 # manifest + bundle record beside them, Fluent count 0. Names
 # the bundle does not cover still resolve missing, honestly.
+# UI Phase 1 (2026-11-24) added 12 entries (manifest 19 → 31);
+# UI Phase 2 (2026-11-24) added 4 entries (31 → 35) — same
+# commit, same MIT, same fetch + verify.
 # (Supersedes the Lucide bundle, LANDED 2026-11-02, removed
 # by B-R1-6 — see the module docstring.)
 BUNDLING_OWED = {
@@ -124,5 +127,6 @@ BUNDLING_OWED = {
     "fluent_source": "Fluent UI System Icons release assets (MIT), "
                      "subset only: " + ", ".join(sorted(FLUENT_WINDOWS_ACTIONS)),
     "status": "LANDED 2026-11-09 — gui/assets/icons/phosphor/, "
-               "Phosphor commit 2b75f3ad12b420c9504ef05df8d2564a28f8500e",
+               "Phosphor commit 2b75f3ad12b420c9504ef05df8d2564a28f8500e, "
+               "35 entries after UI Phase 1 (+12) and Phase 2 (+4)",
 }

@@ -28,9 +28,9 @@ from __future__ import annotations
 
 
 GROUP_ORDER = [
-    "Hands & eyes",
-    "Mind",
-    "Web",
+    "Desktop control",
+    "Intelligence",
+    "Browser & web",
     "Your world",
     "Everyday skills",
     "Play & create",
@@ -48,7 +48,7 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
     # core/desktop/cursor.py register_all — 1
     # core/desktop/uia.py register_all — 4 (v4.3) + clear_clipboard (v5.4)
     # + eyes II (v5.11)                                              = 38
-    "Hands & eyes": (
+    "Desktop control": (
         "type_text", "press_hotkey", "mouse_control", "run_command",
         "window_control", "file_control", "close_application",
         "media_control", "set_brightness", "power_control",
@@ -94,13 +94,18 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
         # tool added (context_menu_action) with the §7
         # consumer tools.
         "context_menu_action",
+        # UI Phase 2 (2026-11-24, D-P2-03): click_anywhere was
+        # the deliberate playbook opt-out, ungrouped by design —
+        # it closes the 3-tool snapshot gap here, in its true
+        # group (Desktop control), so grouped == total.
+        "click_anywhere",
     ),
     # core/brain/planner.py (via _register_mind_tools) — 9
     # + set_reminder from the extended pack in core/funnel/tools_handlers_pack_core1.py
     # + the day-journal pair from core/episodes.py (v5.2)
     # + quick smarts from core/skills_smart.py (v5.4) + II (v5.5)
     # + text toolkit + smarts III (v5.12)                            = 29
-    "Mind": (
+    "Intelligence": (
         "set_reminder",
         "create_plan", "list_plans", "get_plan", "update_plan_step",
         "delete_plan", "save_routine", "list_routines", "run_routine",
@@ -199,7 +204,7 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
         "teach_replay_sequence",
     ),
     # core/browser.py register_all                                   = 6
-    "Web": (
+    "Browser & web": (
         "browser_control", "browser_read", "browser_click",
         "browser_type", "browser_select", "browser_press",
         # v5.64.1 conversion — Wave 4 browser-grade TLS read lane
@@ -770,7 +775,16 @@ GROUP_MEMBERS: dict[str, tuple[str, ...]] = {
     ),
     # Fallback only — membership is computed, never listed, so a new
     # or plugin-declared tool lands here instead of vanishing.
-    "More skills": (),
+    # UI Phase 2 (2026-11-24, D-P2-03): the two plugin-provided
+    # tools, listed explicitly — they are plugin tools, and
+    # "More skills" is their honest home. Before this they
+    # landed here only through the group_for_name fallback,
+    # so the snapshot (which counts GROUP_MEMBERS) said 769
+    # while the live catalogue showed 772.
+    "More skills": (
+        "get_crypto_price",
+        "get_stock_quote",
+    ),
 }
 
 
